@@ -1,0 +1,7 @@
+**/private.rs
+**/target
+*.zip
+**/builds/
+**/oldBuilds/
+**/deploy.sh
+**/create_lambda.sh

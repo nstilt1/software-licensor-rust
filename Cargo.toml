@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "license_auth",
+    "create_license",
+    "create_plugin",
+    "get_license",
+    "register_store",
+	"utils"
+]

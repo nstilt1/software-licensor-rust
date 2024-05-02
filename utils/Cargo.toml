@@ -6,3 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+http_private_key_manager = { path = "../../../libs/crypto-on-the-edge/key_manager" }
+lambda_http = "0.11.1"
+rusoto_core = "0.48.0"
+rusoto_dynamodb = "0.48.0"
+substring = "1.4.5"
+openssl = { version = "0.10", features = ["vendored"] }
+base64 = "0.22.1"

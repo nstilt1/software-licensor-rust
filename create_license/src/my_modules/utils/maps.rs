@@ -290,7 +290,3 @@ impl Maps for HashMap<String, AttributeValue> {
         }
     }
 }
-
-pub trait Maps2ElectricBoogaloo {
-
-}

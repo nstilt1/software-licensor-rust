@@ -1,10 +1,6 @@
 use base64::{engine::general_purpose, Engine as _};
 
-
 use crate::my_modules::networking::output::error::HttpError;
-
-
-
 
 pub trait Base64String {
     fn from_base64(&self) -> Result<Vec<u8>, HttpError>;

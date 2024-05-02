@@ -11,7 +11,7 @@ use lambda_http::{run, service_fn, Body, Error, Request, RequestExt, Response};
 extern crate openssl;
 use serde_derive::Serialize;
 use substring::Substring;
-use std::{collections::HashMap};
+use std::collections::HashMap;
 use serde::Deserialize;
 //use serde::{Deserialize, Serialize};
 
@@ -229,7 +229,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
             let licenses_result = License::init_license(&license_code, licenses_obj);
 
             if licenses_result.is_err() {
-                return licenses_result.unwrap_err().respond();
+                return licenses_result.unwrap_err().respond()
             }
             let license_output = licenses_result.unwrap();
 

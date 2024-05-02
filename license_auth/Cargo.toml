@@ -34,7 +34,7 @@ panic = "abort"
 # and it will keep the alphabetic ordering for you.
 
 [dependencies]
-openssl = { version = "0.10", features = ["vendored"] }
+#openssl = { version = "0.10", features = ["vendored"] }
 lambda_http = { version = "0.7.1", default-features = false, features = ["apigw_rest"] }
 lambda_runtime = "0.8.0"
 tokio = { version = "1", features = ["macros"] }

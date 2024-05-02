@@ -5,3 +5,5 @@
 **/oldBuilds/
 **/deploy.sh
 **/create_lambda.sh
+**/keys/
+**/old/rsa.rs

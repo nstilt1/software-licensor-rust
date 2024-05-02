@@ -29,8 +29,8 @@ panic = "abort"
 # and it will keep the alphabetic ordering for you.
 
 [dependencies]
-lambda_http = { version = "0.8", default-features = false, features = ["apigw_rest"] }
-lambda_runtime = "0.8"
+lambda_http = { version = "0.11", default-features = false, features = ["apigw_rest"] }
+lambda_runtime = "0.11"
 tokio = { version = "1", features = ["macros"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
@@ -48,6 +48,7 @@ openssl = { version = "0.10", features = ["vendored"] }
 rand = "0.8.5"
 hex = "0.4.3"
 sha2 = "0.10.6"
-base64 = "0.21.0"
+base64 = "0.22"
 aes-gcm = { version = "0.10.1", features = ["aes"] }
 sha3 = "0.10.8"
+utils = { path = "../utils" }

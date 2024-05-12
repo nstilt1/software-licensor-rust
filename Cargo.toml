@@ -5,5 +5,7 @@ members = [
     "create_plugin",
     "get_license",
     "register_store",
-	"utils"
+    "register_store_refactor",
+	"utils",
+    "proto"
 ]

@@ -11,7 +11,7 @@ pub enum ApiError {
     IdExpired,
     DynamoDbResourceNotFound(String),
     DynamoDbError(String),
-    InvalidRequest,
+    InvalidRequest(String),
     InvalidDbSchema(String),
     ServerError(String),
 }
@@ -25,7 +25,7 @@ impl ApiError {
             Self::RequestWentThrough => 202,
             Self::DynamoDbError(_) => 500,
             Self::DynamoDbResourceNotFound(_) => 404,
-            Self::InvalidRequest => 400,
+            Self::InvalidRequest(_) => 400,
             Self::InvalidDbSchema(_) => 500,
             Self::ServerError(_) => 500
         }
@@ -49,7 +49,7 @@ impl std::fmt::Display for ApiError {
                 Self::ProtocolError(x) => write_fmt!(f, "There was a protocol error, {}", x),
                 Self::DynamoDbError(x) => write_fmt!(f, "There was an internal server error, {}", x),
                 Self::DynamoDbResourceNotFound(x) => write_fmt!(f, "Resource not found: {}", x),
-                Self::InvalidRequest => f.write_str("Invalid request"),
+                Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
                 Self::InvalidDbSchema(x) => write_fmt!(f, "Invalid DB schema: {}", x),
                 Self::ServerError(x) => write_fmt!(f, "Internal server error: {}", x),
             }
@@ -61,11 +61,14 @@ impl std::fmt::Display for ApiError {
                 Self::RequestWentThrough => format_args!("There was an error, but your request went through"),
                 Self::DynamoDbError(x) => format_args!("There was an internal server error"),
                 Self::ServerError(x) => write_fmt!(f, "There was an internal server error: {}", x),
+                Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
                 _ => format_args!("Forbidden")
             }
         )}
     }
 }
+
+impl std::error::Error for ApiError {}
 
 impl ApiError {
     /// Turns an error into a 202 error

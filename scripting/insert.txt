@@ -1,5 +1,5 @@
 [[bin]]
-name = "bootstrap"
+name = "{{name}}"
 path = "src/main.rs"
 
 [profile.release]

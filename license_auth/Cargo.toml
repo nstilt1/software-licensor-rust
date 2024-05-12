@@ -6,12 +6,8 @@ edition = "2021"
 [env]
 OPENSSL_NO_VENDOR = true
 
-#[lib]
-#name = "my_funcs"
-#path = "src/my_crypt.rs"
-
 [[bin]]
-name = "bootstrap"
+name = "license_auth"
 path = "src/main.rs"
 
 [profile.release]

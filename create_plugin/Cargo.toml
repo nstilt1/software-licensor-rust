@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "bootstrap"
+name = "create_plugin"
 path = "src/main.rs"
 
 [profile.release]

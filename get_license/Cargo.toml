@@ -7,7 +7,7 @@ edition = "2021"
 OPENSSL_NO_VENDOR = true
 
 [[bin]]
-name = "bootstrap"
+name = "get_license"
 path = "src/main.rs"
 
 [profile.release]

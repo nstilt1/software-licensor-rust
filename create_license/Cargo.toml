@@ -7,7 +7,7 @@ edition = "2021"
 OPENSSL_NO_VENDOR = true
 
 [[bin]]
-name = "bootstrap"
+name = "create_license"
 path = "src/main.rs"
 
 [profile.release]
@@ -29,8 +29,8 @@ panic = "abort"
 # and it will keep the alphabetic ordering for you.
 
 [dependencies]
-lambda_http = { version = "0.8.1", default-features = false, features = ["apigw_rest"] }
-lambda_runtime = "0.8"
+lambda_http = { version = "0.11", default-features = false, features = ["apigw_rest"] }
+lambda_runtime = "0.11"
 tokio = { version = "1", features = ["macros"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
@@ -48,6 +48,6 @@ openssl-sys = "0.9.83"
 openssl = { version = "0.10.48", features = ["vendored"] }
 rand = "0.8.5"
 sha3 = "0.10.6"
-base64 = "0.21.0"
 aes-gcm = "0.10.1"
+base64 = "0.22"
 zeroize = "1.6.0"

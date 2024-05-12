@@ -1,10 +1,28 @@
 pub mod base64;
+pub mod crypto;
 pub mod dynamodb;
 pub mod error;
+pub mod tables;
 
 use error::ApiError;
 use lambda_http::{Response, Body, Error as LambdaError};
 use substring::Substring;
+pub use http_private_key_manager::utils::StringSanitization;
+
+/// The primary dependencies that will be required for lambda functions are re-exported so as to minimize the chance of different API methods having different versions of dependencies, which would result in more crates to download and compile.
+pub mod prelude {
+    pub use rusoto_dynamodb;
+    pub use rusoto_core;
+    pub use http_private_key_manager;
+    pub use lambda_http;
+    pub use crate::crypto::*;
+    pub use crate::error::*;
+    pub use crate::process_request_with_symmetric_algorithm;
+    pub use crate::base64::Base64Vec;
+    pub use tokio;
+    pub use proto;
+    pub use crate::dynamodb::maps::{Maps, N, S};
+}
 
 pub trait OptionHandler<T> {
     /// Unwraps an Option that should be included in a request.
@@ -26,7 +44,7 @@ impl<T> OptionHandler<T> for Option<T> {
         if let Some(x) = self {
             return Ok(x)
         } else {
-            return Err(ApiError::InvalidRequest)
+            return Err(ApiError::InvalidRequest("Item not found in request".into()))
         }
     }
     #[inline]
@@ -37,19 +55,6 @@ impl<T> OptionHandler<T> for Option<T> {
             return Err(ApiError::InvalidDbSchema(key.into()))
         }
     }
-}
-
-pub fn cleanse (text: &str, extra_chars: &str, to_upper: bool) -> String {
-    let mut allowed_chars = "ASDFGHJKLQWERTYUIOPZXCVBNM1234567890".to_owned();
-    allowed_chars.push_str(extra_chars);
-    let mut output = "".to_owned();
-    for ch in text.chars() {
-        let upper = ch.to_ascii_uppercase();
-        if allowed_chars.contains(upper){
-            output.push(if to_upper {upper} else {ch});
-        }
-    }
-    output.to_owned()
 }
 
 /// Remove any sabotage from the email address.

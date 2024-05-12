@@ -27,6 +27,9 @@ pub trait Maps {
     /// Insert a bool into a map
     fn insert_bool(&mut self, key: &str, data: Option<bool>);
 
+    /// Insert binary data into a map
+    fn insert_binary(&mut self, key: &str, data: &[u8]);
+
     /// Insert a map into a map. Leave empty to add a new map
     fn insert_map(&mut self, key: &str, data:Option<HashMap<String, AttributeValue>>);
     
@@ -68,7 +71,7 @@ impl<T> GetOrMutateHashmap<T> for HashMap<String, T> {
         if let Some(t) = self.get(key) {
             Ok(t)
         } else {
-            Err(ApiError::InvalidDbSchema("Error: Key {} not found".into()))
+            Err(ApiError::InvalidDbSchema(format!("Error: Key {} not found", key)))
         }
     }
 }
@@ -85,6 +88,16 @@ impl Maps for HashMap<String, AttributeValue> {
         else{to_insert = Vec::new();}
 
         self.insert(key.to_owned(), AttributeValue { l: Some(to_insert), ..Default::default()});
+    }
+
+    fn insert_binary(&mut self, key: &str, data: &[u8]) {
+        self.insert(
+            key.to_string(),
+            AttributeValue {
+                b: Some(data.to_vec().into()),
+                ..Default::default()
+            }
+        );
     }
 
     fn append_string(&mut self, key: &str, to_add: &str) -> Result<(), ApiError> {

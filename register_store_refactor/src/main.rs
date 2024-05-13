@@ -82,6 +82,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     store_item.insert_item(STORES_TABLE.num_products, "0".into());
     store_item.insert_item(STORES_TABLE.num_licenses, "0".into());
     store_item.insert_item(STORES_TABLE.num_auths, "0".into());
+    store_item.insert_item(STORES_TABLE.num_license_regens, "0".into());
 
     let put_input = PutItemInput {
         table_name: STORES_TABLE.table_name.to_owned(),

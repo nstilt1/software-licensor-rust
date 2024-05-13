@@ -21,7 +21,7 @@ pub mod prelude {
     pub use crate::base64::Base64Vec;
     pub use tokio;
     pub use proto;
-    pub use crate::dynamodb::maps::{Maps, N, S};
+    pub use crate::dynamodb::maps_mk2::*;
 }
 
 pub trait OptionHandler<T> {

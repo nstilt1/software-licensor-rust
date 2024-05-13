@@ -4,13 +4,12 @@ mod modules;
 //use modules::module_name::*;
 //use modules::module_name::*;
 
-use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::*;
 use utils::tables::stores::STORES_TABLE;
 use rusoto_core::Region;
-use rusoto_dynamodb::{DynamoDbClient, DynamoDb, GetItemInput, AttributeValue, PutItemInput};
+use rusoto_dynamodb::{DynamoDbClient, DynamoDb, GetItemInput, PutItemInput};
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::protos::{register_store_request::RegisterStoreRequest, register_store_response::RegisterStoreResponse};
 use proto::prost::Message;
@@ -41,13 +40,13 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     // generate store ID and make sure it isn't already in the database
     let mut store_id = key_manager.get_store_id()?;
 
-    let mut store_item: HashMap<String, AttributeValue> = HashMap::new();
+    let mut store_item = AttributeValueHashMap::new();
     let client = DynamoDbClient::new(Region::UsEast1);
 
     loop {
         let hashed_id = salty_hash::<sha2::Sha384>(store_id.binary_id.as_ref());
         
-        store_item.insert_binary(STORES_TABLE.id.key, &hashed_id);
+        store_item.insert_attr_val::<B>(STORES_TABLE.id.key, hashed_id.to_vec().into());
         
         let get_output = &client.get_item(
             GetItemInput {
@@ -78,15 +77,15 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         product_ids: Vec::new(),
     };
     
-    let encrypted = key_manager.encrypt_store_db(&proto, &store_id)?;
-    store_item.insert_binary(STORES_TABLE.protobuf_data.key, &encrypted);
+    let encrypted_protobuf = key_manager.encrypt_store_db(&proto, &store_id)?;
+    store_item.insert_attr_val::<B>(STORES_TABLE.protobuf_data.key, encrypted_protobuf.into());
 
-    store_item.insert_binary(STORES_TABLE.public_key.key, &request.public_signing_key);
-    store_item.insert_data(&STORES_TABLE.registration_date.key, &request.timestamp.to_string(), N);
+    store_item.insert_attr_val::<B>(STORES_TABLE.public_key.key, request.public_signing_key.clone().into());
+    store_item.insert_attr_val::<N>(&STORES_TABLE.registration_date.key, request.timestamp.to_string());
 
-    store_item.insert_data(STORES_TABLE.num_products.key, "0", N);
-    store_item.insert_data(STORES_TABLE.num_licenses.key, "0", N);
-    store_item.insert_data(STORES_TABLE.num_auths.key, "0", N);
+    store_item.insert_attr_val::<N>(STORES_TABLE.num_products.key, "0".into());
+    store_item.insert_attr_val::<N>(STORES_TABLE.num_licenses.key, "0".into());
+    store_item.insert_attr_val::<N>(STORES_TABLE.num_auths.key, "0".into());
 
     let put_input = PutItemInput {
         table_name: STORES_TABLE.table_name.to_owned(),

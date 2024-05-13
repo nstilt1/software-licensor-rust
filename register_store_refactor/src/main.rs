@@ -1,8 +1,4 @@
-//! A
-
-mod modules;
-//use modules::module_name::*;
-//use modules::module_name::*;
+//! A store registration API method for a licensing service.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use proto::protos::store_db_item::StoreDbItem;
@@ -46,7 +42,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     loop {
         let hashed_id = salty_hash::<sha2::Sha384>(store_id.binary_id.as_ref());
         
-        store_item.insert_attr_val::<B>(STORES_TABLE.id.key, hashed_id.to_vec().into());
+        store_item.insert_item(STORES_TABLE.id, hashed_id.to_vec().into());
         
         let get_output = &client.get_item(
             GetItemInput {
@@ -78,14 +74,14 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
     
     let encrypted_protobuf = key_manager.encrypt_store_db(&proto, &store_id)?;
-    store_item.insert_attr_val::<B>(STORES_TABLE.protobuf_data.key, encrypted_protobuf.into());
+    store_item.insert_item(STORES_TABLE.protobuf_data, encrypted_protobuf.into());
 
-    store_item.insert_attr_val::<B>(STORES_TABLE.public_key.key, request.public_signing_key.clone().into());
-    store_item.insert_attr_val::<N>(&STORES_TABLE.registration_date.key, request.timestamp.to_string());
+    store_item.insert_item(STORES_TABLE.public_key, request.public_signing_key.clone().into());
+    store_item.insert_item(STORES_TABLE.registration_date, request.timestamp.to_string());
 
-    store_item.insert_attr_val::<N>(STORES_TABLE.num_products.key, "0".into());
-    store_item.insert_attr_val::<N>(STORES_TABLE.num_licenses.key, "0".into());
-    store_item.insert_attr_val::<N>(STORES_TABLE.num_auths.key, "0".into());
+    store_item.insert_item(STORES_TABLE.num_products, "0".into());
+    store_item.insert_item(STORES_TABLE.num_licenses, "0".into());
+    store_item.insert_item(STORES_TABLE.num_auths, "0".into());
 
     let put_input = PutItemInput {
         table_name: STORES_TABLE.table_name.to_owned(),

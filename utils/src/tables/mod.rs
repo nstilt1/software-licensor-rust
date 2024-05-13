@@ -3,22 +3,13 @@
 //! * table layout
 //! * item names
 
+use crate::prelude::AttrValAbstraction;
+
 pub mod stores;
 
-pub struct Table<const N: usize> {
-    pub name: &'static str,
-    pub items: [Item; N]
-}
-
-pub struct Item {
+pub struct Item<T: AttrValAbstraction> {
     pub key: &'static str,
-    pub ty: &'static str
-}
-
-impl AsRef<str> for Item {
-    fn as_ref(&self) -> &str {
-        self.key
-    }
+    pub ty: T
 }
 
 #[cfg(test)]

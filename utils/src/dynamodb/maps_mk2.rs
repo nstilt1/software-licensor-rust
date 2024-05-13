@@ -7,6 +7,7 @@ pub use bytes::Bytes;
 use rusoto_dynamodb::AttributeValue;
 
 use crate::error::ApiError;
+use crate::tables::Item;
 
 /// Abstracts the creation and retrieval of `AttributeValue`s from a HashMap.
 /// 
@@ -115,23 +116,23 @@ impl_attr_val_abstraction!(NS, Vec<String>, ns, "The `Number Set` generic type f
 impl_attr_val_abstraction!(S, String, s, "The `String` generic type for an `AttributeValue`");
 impl_attr_val_abstraction!(SS, Vec<String>, ss, "The `String Set` generic type for an `AttributeValue`");
 
-/*
-pub struct B;
-impl AttrValAbstraction for B {
-    type ArgType = BytesWrapper;
+pub trait ItemIntegration {
+    /// Inserts an item into the AttributeValueHashMap.
+    fn insert_item<T: AttrValAbstraction>(&mut self, item: Item<T>, value: T::ArgType);
+    /// Gets the value for an item from an AttributeValueHashMap
+    fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError>;
+}
+
+impl ItemIntegration for AttributeValueHashMap {
     #[inline]
-    fn attribute_value(data: Self::ArgType) -> AttributeValue {
-        AttributeValue {
-            b: Some(data.0),
-            ..Default::default()
-        }
+    fn insert_item<T: AttrValAbstraction>(&mut self, item: Item<T>, value: T::ArgType) {
+        self.insert_attr_val::<T>(item.key, value)
     }
     #[inline]
-    fn get_val(attr_val: &AttributeValue) -> Option<&Self::ArgType> {
-        attr_val.b.as_ref()
+    fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError> {
+        self.get_attr_val::<T>(item.key)
     }
 }
-*/
 
 #[cfg(test)]
 mod tests {

@@ -87,7 +87,6 @@ pub type LicenseCode = BinaryId<
 >;
 
 type Versioning = AnnualVersionConfig<
-    4_399_999_999, // These figures should be good for exactly this many years, including leap time
     14,            // 14 version bits
     8,             // 8 bits of precision loss result in +128-384 seconds above timestamps
     18             // 18 timestamp bits with 8 bits of precision loss is exactly enough to represent 2 years (including leap time)

@@ -54,7 +54,11 @@ use crate::tables::Item;
 
 pub type AttributeValueHashMap = HashMap<String, AttributeValue>;
 pub trait AbstractAttributeValueMaps {
+    /// Inserts an attribute value into an AttributeValueHashMap
     fn insert_attr_val<A: AttrValAbstraction>(&mut self, key: &str, data: A::ArgType);
+    /// Inserts an attribute value into an AttributeValueHashMap, but calls .into() on the input data.
+    fn insert_attr_val_into<A: AttrValAbstraction, B: Into<A::ArgType>>(&mut self, key: &str, data: B);
+    /// Gets an attribute value.
     fn get_attr_val<A: AttrValAbstraction>(&self, key: &str) -> Result<&A::ArgType, ApiError>;
 }
 
@@ -62,6 +66,10 @@ impl AbstractAttributeValueMaps for AttributeValueHashMap {
     #[inline]
     fn insert_attr_val<A: AttrValAbstraction>(&mut self, key: &str, data: A::ArgType) {
         self.insert(key.to_string(), A::attribute_value(data));
+    }
+    #[inline]
+    fn insert_attr_val_into<A: AttrValAbstraction, B: Into<A::ArgType>>(&mut self, key: &str, data: B) {
+        self.insert(key.to_string(), A::attribute_value(data.into()));
     }
     #[inline]
     fn get_attr_val<A: AttrValAbstraction>(&self, key: &str) -> Result<&A::ArgType, ApiError> {
@@ -117,9 +125,11 @@ impl_attr_val_abstraction!(S, String, s, "The `String` generic type for an `Attr
 impl_attr_val_abstraction!(SS, Vec<String>, ss, "The `String Set` generic type for an `AttributeValue`");
 
 pub trait ItemIntegration {
-    /// Inserts an item into the AttributeValueHashMap.
+    /// Inserts an item into the `AttributeValueHashMap`.
     fn insert_item<T: AttrValAbstraction>(&mut self, item: Item<T>, value: T::ArgType);
-    /// Gets the value for an item from an AttributeValueHashMap
+    /// Inserts an item into the `AttributeValueHashMap`, calling `.into()` on the value.
+    fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>>(&mut self, item: Item<T>, value: I);
+    /// Gets the value for an item from an `AttributeValueHashMap`
     fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError>;
 }
 
@@ -129,6 +139,10 @@ impl ItemIntegration for AttributeValueHashMap {
         self.insert_attr_val::<T>(item.key, value)
     }
     #[inline]
+    fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>>(&mut self, item: Item<T>, value: I) {
+        self.insert_attr_val_into::<T, I>(item.key, value)
+    }
+    #[inline]
     fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError> {
         self.get_attr_val::<T>(item.key)
     }
@@ -136,6 +150,8 @@ impl ItemIntegration for AttributeValueHashMap {
 
 #[cfg(test)]
 mod tests {
+    use crate::tables::stores::STORES_TABLE;
+
     use super::*;
 
     #[test]
@@ -156,5 +172,7 @@ mod tests {
 
         map.insert_attr_val::<N>("test_2", "5".into());
         assert_eq!(map.get_attr_val::<N>("test_2").unwrap(), "5");
+
+        map.insert_item_into(STORES_TABLE.num_auths, "4");
     }
 }

@@ -14,6 +14,8 @@ pub struct StoresTable {
     pub num_licenses: Item<N>,
     /// The amount of times `license_auth` has been called
     pub num_auths: Item<N>,
+    /// The amount of times that a user's license code has been regenerated
+    pub num_license_regens: Item<N>,
 }
 
 pub const STORES_TABLE: StoresTable = StoresTable {
@@ -25,6 +27,7 @@ pub const STORES_TABLE: StoresTable = StoresTable {
     num_products: Item { key: "NUM_PLUGINS", ty: N },
     num_licenses: Item { key: "NUM_LICENSES", ty: N },
     num_auths: Item { key: "NUM_AUTHS", ty: N },
+    num_license_regens: Item { key: "NUM_LICENSE_REGENS", ty: N},
 };
 
 pub const STORES_TABLE_NAME: &str = "STORES-eS-GT7oDw5AZQuRqzf-g5t2SN8nGwKv-q4q0amq7o4CW9Ko4bXk1YLEKvX";

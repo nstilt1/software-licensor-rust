@@ -42,7 +42,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     loop {
         let hashed_id = salty_hash::<sha2::Sha384>(store_id.binary_id.as_ref());
         
-        store_item.insert_item(STORES_TABLE.id, hashed_id.to_vec().into());
+        store_item.insert_item_into(STORES_TABLE.id, hashed_id.to_vec());
         
         let get_output = &client.get_item(
             GetItemInput {
@@ -74,15 +74,15 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
     
     let encrypted_protobuf = key_manager.encrypt_store_db(&proto, &store_id)?;
-    store_item.insert_item(STORES_TABLE.protobuf_data, encrypted_protobuf.into());
+    store_item.insert_item_into(STORES_TABLE.protobuf_data, encrypted_protobuf);
 
-    store_item.insert_item(STORES_TABLE.public_key, request.public_signing_key.clone().into());
+    store_item.insert_item_into(STORES_TABLE.public_key, request.public_signing_key.clone());
     store_item.insert_item(STORES_TABLE.registration_date, request.timestamp.to_string());
 
-    store_item.insert_item(STORES_TABLE.num_products, "0".into());
-    store_item.insert_item(STORES_TABLE.num_licenses, "0".into());
-    store_item.insert_item(STORES_TABLE.num_auths, "0".into());
-    store_item.insert_item(STORES_TABLE.num_license_regens, "0".into());
+    store_item.insert_item_into(STORES_TABLE.num_products, "0");
+    store_item.insert_item_into(STORES_TABLE.num_licenses, "0");
+    store_item.insert_item_into(STORES_TABLE.num_auths, "0");
+    store_item.insert_item_into(STORES_TABLE.num_license_regens, "0");
 
     let put_input = PutItemInput {
         table_name: STORES_TABLE.table_name.to_owned(),

@@ -5,7 +5,8 @@ fn main() {
             &[
                 "src/request_protos/register_store.proto",
                 "src/response_protos/register_store.proto",
-                "src/database_protos/store.proto"
+                "src/database_protos/store.proto",
+                "src/database_protos/product.proto",
                 ], 
             &["src/"])
         .unwrap();

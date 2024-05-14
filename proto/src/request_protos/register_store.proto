@@ -6,6 +6,7 @@ package register_store_request;
 message RegisterStoreRequest {
     string contact_first_name = 1;
     string contact_last_name = 2;
+    string contact_email = 3;
     string store_name = 5;
     string store_url = 6;
     string discord_username = 10;

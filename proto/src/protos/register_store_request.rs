@@ -7,6 +7,8 @@ pub struct RegisterStoreRequest {
     pub contact_first_name: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub contact_last_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub contact_email: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub store_name: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]

@@ -9,6 +9,8 @@ pub struct StoreDbItem {
     pub contact_last_name: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub store_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub email: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub store_url: ::prost::alloc::string::String,
     #[prost(string, tag = "10")]

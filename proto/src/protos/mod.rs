@@ -23,6 +23,7 @@ impl Drop for RegisterStoreRequest {
         self.discord_username.zeroize();
         self.store_name.zeroize();
         self.store_url.zeroize();
+        self.contact_email.zeroize();
     }
 }
 
@@ -49,6 +50,7 @@ impl Drop for StoreDbItem {
         self.product_ids.zeroize();
         self.store_name.zeroize();
         self.store_url.zeroize();
+        self.email.zeroize();
     }
 }
 

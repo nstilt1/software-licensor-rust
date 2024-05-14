@@ -4,7 +4,10 @@ use crate::dynamodb::maps_mk2::*;
 
 pub struct StoresTable {
     pub table_name: &'static str,
+    /// primary index
     pub id: Item<B>,
+    /// this hashed email will be a secondary index
+    pub email: Item<B>,
     pub protobuf_data: Item<B>,
     pub public_key: Item<B>,
     pub registration_date: Item<N>,
@@ -20,14 +23,15 @@ pub struct StoresTable {
 
 pub const STORES_TABLE: StoresTable = StoresTable {
     table_name: STORES_TABLE_NAME,
-    id: Item { key: "ID", ty: B},
-    protobuf_data: Item { key: "DATA", ty: B},
-    public_key: Item { key: "PUBKEY", ty: B},
-    registration_date: Item { key: "REGISTRATION_DATE", ty: N},
-    num_products: Item { key: "NUM_PLUGINS", ty: N },
-    num_licenses: Item { key: "NUM_LICENSES", ty: N },
-    num_auths: Item { key: "NUM_AUTHS", ty: N },
-    num_license_regens: Item { key: "NUM_LICENSE_REGENS", ty: N},
+    id: Item::new("hashed_id"),
+    email: Item::new("hashed_email"),
+    protobuf_data: Item::new("DATA"),
+    public_key: Item::new("PUBKEY"),
+    registration_date: Item::new("REGISTRATION_DATE"),
+    num_products: Item::new("NUM_PLUGINS"),
+    num_licenses: Item::new("NUM_LICENSES"),
+    num_auths: Item::new("NUM_AUTHS"),
+    num_license_regens: Item::new("NUM_LICENSE_REGENS"),
 };
 
 pub const STORES_TABLE_NAME: &str = "STORES-eS-GT7oDw5AZQuRqzf-g5t2SN8nGwKv-q4q0amq7o4CW9Ko4bXk1YLEKvX";

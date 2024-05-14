@@ -16,7 +16,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         request.contact_last_name.len() < 2 ||
         request.store_name.len() < 1 ||
         request.store_url.len() < 2 || 
-        request.discord_username.len() < 2 ||
         request.state.len() < 2 ||
         request.country.len() < 2 
     {
@@ -67,6 +66,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         contact_last_name: request.contact_last_name.to_owned(),
         store_name: request.store_name.to_owned(),
         store_url: request.store_url.to_owned(),
+        email: request.contact_email.to_owned(),
         discord_username: request.discord_username.to_owned(),
         state: request.state.to_owned(),
         country: request.country.to_owned(),

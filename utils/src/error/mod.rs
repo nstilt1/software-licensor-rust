@@ -14,6 +14,7 @@ pub enum ApiError {
     InvalidRequest(String),
     InvalidDbSchema(String),
     ServerError(String),
+    NotFound,
 }
 
 impl ApiError {
@@ -27,7 +28,8 @@ impl ApiError {
             Self::DynamoDbResourceNotFound(_) => 404,
             Self::InvalidRequest(_) => 400,
             Self::InvalidDbSchema(_) => 500,
-            Self::ServerError(_) => 500
+            Self::ServerError(_) => 500,
+            Self::NotFound => 404,
         }
     }
 }
@@ -52,6 +54,7 @@ impl std::fmt::Display for ApiError {
                 Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
                 Self::InvalidDbSchema(x) => write_fmt!(f, "Invalid DB schema: {}", x),
                 Self::ServerError(x) => write_fmt!(f, "Internal server error: {}", x),
+                Self::NotFound => f.write_str("Not found; perhaps the resource was not in the database."),
             }
         }
         #[cfg(not(debug_assertions))]
@@ -62,6 +65,7 @@ impl std::fmt::Display for ApiError {
                 Self::DynamoDbError(x) => format_args!("There was an internal server error"),
                 Self::ServerError(x) => write_fmt!(f, "There was an internal server error: {}", x),
                 Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
+                Self::NotFound => "Not Found",
                 _ => format_args!("Forbidden")
             }
         )}

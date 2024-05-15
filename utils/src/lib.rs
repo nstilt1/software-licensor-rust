@@ -17,7 +17,6 @@ pub mod prelude {
     pub use lambda_http;
     pub use crate::crypto::*;
     pub use crate::error::*;
-    pub use crate::process_request_with_symmetric_algorithm;
     pub use crate::base64::Base64Vec;
     pub use tokio;
     pub use proto;

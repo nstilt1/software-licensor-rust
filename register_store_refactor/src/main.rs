@@ -39,7 +39,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let client = DynamoDbClient::new(Region::UsEast1);
 
     loop {
-        let hashed_id = salty_hash::<sha2::Sha384>(store_id.binary_id.as_ref());
+        let hashed_id = salty_hash(store_id.binary_id.as_ref(), STORE_DB_SALT);
         
         store_item.insert_item_into(STORES_TABLE.id, hashed_id.to_vec());
         
@@ -73,7 +73,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         product_ids: Vec::new(),
     };
     
-    let encrypted_protobuf = key_manager.encrypt_store_db(&proto, &store_id)?;
+    let encrypted_protobuf = key_manager.encrypt_db_proto(STORES_TABLE.table_name, &store_id, &proto)?;
     store_item.insert_item_into(STORES_TABLE.protobuf_data, encrypted_protobuf);
 
     store_item.insert_item_into(STORES_TABLE.public_key, request.public_signing_key.clone());
@@ -125,10 +125,10 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         process_request,
         &mut request,
         req_bytes,
-        signature,
+        RegisterStoreRequest,
         RegisterStoreResponse,
         sha2::Sha384,
-        RegisterStoreRequest,
+        signature,
         chosen_symm_algo.as_str(),
         true,                     // is_handshake    
         // the following values allow the client to choose the symmetric encryption algorithm via the `symmetric_algorithm` field in the request's protobuf message

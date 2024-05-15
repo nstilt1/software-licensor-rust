@@ -3,16 +3,19 @@ use http_private_key_manager::{
     private_key_generator::{
         ecdsa::SigningKey, 
         hkdf::hmac::Hmac,
-        hkdf::hmac::digest::{OutputSizeUser, Output}, 
+        hkdf::hmac::digest::Output, 
         typenum::Unsigned, 
         EncodedId
     }, 
     utils::StringSanitization, 
-    HttpPrivateKeyManager
+    HttpPrivateKeyManager,
 };
-pub use http_private_key_manager::private_key_generator::{
-    ecdsa::signature::DigestVerifier,
-    hkdf::hmac::digest::{Digest, FixedOutput}
+pub use http_private_key_manager::{
+    private_key_generator::{
+        ecdsa::signature::DigestVerifier,
+        hkdf::hmac::digest::{Digest, FixedOutput}
+    },
+    process_request_with_symmetric_algorithm,
 };
 pub use p384::{
     PublicKey,
@@ -21,7 +24,7 @@ pub use p384::{
 use p384::NistP384;
 pub use http_private_key_manager;
 use http_private_key_manager::prelude::*;
-use proto::{prost::Message, protos::store_db_item::StoreDbItem};
+use proto::prost::Message;
 use rand_chacha::ChaCha8Rng;
 pub use sha2;
 use sha3::{Sha3_384, Sha3_512};
@@ -31,15 +34,20 @@ pub use chacha20poly1305::ChaCha20Poly1305;
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
-use crate::{error::ApiError, tables::stores::STORES_TABLE};
+use crate::error::ApiError;
 
-const DB_SALT: &[u8] = b"use a different salt than this for your own database";
+/// A salt for the Stores table.
+pub const STORE_DB_SALT: &[u8] = b"use a different salt than this for your own database";
+/// A salt for the Products table
+pub const PRODUCT_DB_SALT: &[u8] = b"use different salt than this";
 
+/// Hasher for the database. Sha3 is faster with `asm` on `aarch64`.
+type DbHasher = sha3::Sha3_384;
 /// Hashes data with a constant salt.
-pub fn salty_hash<D: Digest + OutputSizeUser>(data: &[u8]) -> Output<D> {
-    let mut digest = D::new();
+pub fn salty_hash(data: &[u8], salt: &[u8]) -> Output<DbHasher> {
+    let mut digest = DbHasher::new();
     digest.update(data);
-    digest.update(DB_SALT);
+    digest.update(salt);
     digest.finalize()
 }
 
@@ -73,7 +81,7 @@ pub type ProductId = BigId<use_timestamps::Never>;
 /// 
 /// * a `2 in 16 million (16,777,216)` chance on average of a random ID passing the MAC check
 /// * `1 trillion` unique IDs
-///   * `2^(80 IdLen bits - 14 VERSION_BITS - 24 MAC bits - 2 Constant bits = 1,099,511,627,776`
+///   * `2^(80 IdLen bits - 14 VERSION_BITS - 24 MAC bits - 2 Constant bits) = 1,099,511,627,776`
 pub type LicenseCode = BinaryId<
     U10, // id length for license codes is 10, or 20 hexadigits
     U3,  // MAC length offers a `2/16,777,216` average chance of beating the MAC verification
@@ -115,44 +123,6 @@ pub type KeyManager = HttpPrivateKeyManager<
     EcdsaKeyId, 
     ChaCha8Rng
 >;
-
-/// Processes a request with a symmetric algorithm chosen by the client from a list of algorithms.
-/// 
-/// This could be done with a hash algorithm as well as an elliptic curve, but that would take a bit more code. The easiest thing to do might be to make different versions of the same function using generic parameters.
-/// 
-/// # Arguments
-/// 
-/// * `key_manager` - the HttpPrivateKeyManager
-/// * `func_to_call` - the function that will be called to process the inner content. It needs to take the following parameters and output a `DecryptedOutput`:
-///   * `&mut HttpPrivateKeyManager`
-///   * `DecryptedOutput` ($request)
-///   * `$hasher`
-/// * `request` - the request Protobuf Message
-/// * `request_bytes` - the bytes of the Protobuf Request, used for hashing
-/// * `response` - the response type
-/// * `hasher` - the hash function to use for verifying the signature
-/// * `decrypted_inner_request_type` - the inner request that `$func_to_call` is expecting as input
-/// * `chosen_symmetric_alg` - the user's chosen symmetric encryption algorithm. `ChaCha20Poly1305` is faster on `aarch64`
-/// * `is_handshake` - whether or not this request is supposed to be an initial handshake
-/// * `(name, alg)` - a series of tuples of (str, ty) where the str is the string representation of the symmetric algorithm name, and the type is the AEAD type corresponding to the name
-#[macro_export]
-macro_rules! process_request_with_symmetric_algorithm {
-    ($key_manager:expr, $func_to_call:ident, $request:expr, $request_bytes:expr, $signature:expr, $response:ty, $hasher:ty, $decrypted_inner_request_type:ty, $chosen_symmetric_alg:expr, $is_handshake:literal, $(($name:expr, $alg:ty)),*) => { {
-            match $chosen_symmetric_alg {
-                $(
-                    $name => {
-                        let (mut decrypted, hasher) = $key_manager.decrypt_and_hash_request::<$alg, $hasher, $decrypted_inner_request_type>($request, $request_bytes, $is_handshake)?;
-                        
-                        let mut output = $func_to_call(&mut $key_manager, &mut decrypted, hasher, $signature).await?;
-                        
-                        $key_manager.encrypt_and_sign_response::<$alg, $response>(&mut output)?
-                    },
-                )*
-                _ => return Err(Box::new($crate::error::ApiError::InvalidRequest("Invalid symmetric encryption algorithm".into())))
-            }
-        }
-    };
-}
 
 /// Initializes a Key manager. 
 /// 
@@ -265,16 +235,17 @@ pub trait DigitalLicensingThemedKeymanager {
     fn sign_key_file(&mut self, key_file: &[u8], product_id: &Id<ProductId>) -> Result<Vec<u8>, ApiError>;
 
     /// Encrypts and zeroizes a `StoreDbItem`
-    fn encrypt_store_db(&mut self, data: &StoreDbItem, store_id: &Id<StoreId>) -> Result<Vec<u8>, ApiError>;
+    fn encrypt_db_proto<M: Message, E: EncodedId>(&mut self, table_name: &str, related_id: &Id<E>, data: &M) -> Result<Vec<u8>, ApiError>;
 
     /// Decrypts a `StoreDbItem`
-    fn decrypt_store_db(&mut self, data: &[u8], store_id: &Id<StoreId>) -> Result<StoreDbItem, ApiError>;
+    fn decrypt_db_proto<M: Message + Default, E: EncodedId>(&mut self, table_name: &str, store_id: &Id<E>, data: &[u8]) -> Result<M, ApiError>;
 }
 
 impl DigitalLicensingThemedKeymanager for KeyManager {
     #[inline]
     fn generate_license_code(&mut self, store_id: &Id<StoreId>, product_id: &Id<ProductId>) -> Result<Id<LicenseCode>, ApiError> {
         let associated_data = [store_id.binary_id.as_ref(), product_id.binary_id.as_ref()].concat();
+        #[allow(unused_mut)]
         let mut id = self.key_generator.generate_keyless_id::<LicenseCode>(&[], b"license code", None, Some(&associated_data), &mut self.rng)?;
 
         let encoded_str = encode_to_hex_with_dashes(id.as_ref(), 5);
@@ -342,10 +313,11 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
     }
 
     #[inline]
-    fn encrypt_store_db(&mut self, data: &StoreDbItem, store_id: &Id<StoreId>) -> Result<Vec<u8>, ApiError> {
+    fn encrypt_db_proto<M: Message, E: EncodedId>(&mut self, table_name: &str, related_id: &Id<E>, data: &M) -> Result<Vec<u8>, ApiError> {
+        #[allow(unused_mut)]
         let mut encoded = data.encode_to_vec();
 
-        let encrypted = self.encrypt_resource::<ChaCha20Poly1305>(encoded.as_slice(), STORES_TABLE.table_name.as_bytes(), store_id.binary_id.as_ref(), &[])?;
+        let encrypted = self.encrypt_resource::<ChaCha20Poly1305>(encoded.as_slice(), table_name.as_bytes(), related_id.binary_id.as_ref(), &[])?;
         
         #[cfg(feature = "zeroize")]
         encoded.zeroize();
@@ -354,10 +326,11 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
     }
 
     #[inline]
-    fn decrypt_store_db(&mut self, data: &[u8], store_id: &Id<StoreId>) -> Result<StoreDbItem, ApiError> {
-        let mut decrypted = self.decrypt_resource::<ChaCha20Poly1305>(data, STORES_TABLE.table_name.as_bytes(), store_id.binary_id.as_ref(), &[])?;
+    fn decrypt_db_proto<M: Message + Default, E: EncodedId>(&mut self, table_name: &str, related_id: &Id<E>, data: &[u8]) -> Result<M, ApiError> {
+        #[allow(unused_mut)]
+        let mut decrypted = self.decrypt_resource::<ChaCha20Poly1305>(data, table_name.as_bytes(), related_id.binary_id.as_ref(), &[])?;
 
-        let decoded = if let Ok(d) = StoreDbItem::decode(decrypted.as_slice()) {
+        let decoded = if let Ok(d) = M::decode(decrypted.as_slice()) {
             d
         } else {
             return Err(ApiError::InvalidDbSchema("Store DB's protobuf data didn't match the .proto file".into()))

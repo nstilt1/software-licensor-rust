@@ -2,57 +2,73 @@ pub mod register_store_request;
 pub mod register_store_response;
 pub mod store_db_item;
 
+pub mod create_product_request;
+pub mod create_product_response;
+//pub mod product_db_item;
+
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
+#[cfg(feature = "zeroize")]
 use self::{
+    create_product_request::CreateProductRequest, 
+    create_product_response::CreateProductResponse, 
+    create_product_request::ProductDbItem, 
     register_store_request::RegisterStoreRequest, 
-    register_store_response::RegisterStoreResponse,
-    store_db_item::StoreDbItem,
+    register_store_response::RegisterStoreResponse, 
+    store_db_item::StoreDbItem
 };
 
 
 // just some zeroize configuration for an attempt at anonymizing.
-// they would have been overwritten if I place these in the other directories
-#[cfg(feature = "zeroize")]
-impl Drop for RegisterStoreRequest {
-    fn drop(&mut self) {
-        self.contact_first_name.zeroize();
-        self.contact_last_name.zeroize();
-        self.country.zeroize();
-        self.discord_username.zeroize();
-        self.store_name.zeroize();
-        self.store_url.zeroize();
-        self.contact_email.zeroize();
-    }
+
+/// Impls `ZeroizeOnDrop` for a struct with fields that impl Zeroize
+/// 
+/// # Usage
+/// 
+/// Just specify the struct and list the fields that need to be zeroized
+macro_rules! impl_zeroize_on_drop_for_struct {
+    ($proto:ident, $($field_to_zeroize:ident),*) => { 
+        #[cfg(feature = "zeroize")]
+        impl Drop for $proto {
+            fn drop(&mut self) {
+                $(
+                    self.$field_to_zeroize.zeroize();
+                )*
+            }
+        }
+        #[cfg(feature = "zeroize")]
+        impl ZeroizeOnDrop for $proto {}
+    };
 }
 
-#[cfg(feature = "zeroize")]
-impl ZeroizeOnDrop for RegisterStoreRequest {}
+impl_zeroize_on_drop_for_struct!(
+    RegisterStoreRequest, 
+    contact_first_name,
+    contact_last_name,
+    contact_email,
+    country,
+    discord_username,
+    store_name,
+    store_url
+);
 
-#[cfg(feature = "zeroize")]
-impl Drop for RegisterStoreResponse {
-    fn drop(&mut self) {
-        self.store_id.zeroize();
-    }
-}
+impl_zeroize_on_drop_for_struct!(RegisterStoreResponse, store_id);
 
-#[cfg(feature = "zeroize")]
-impl ZeroizeOnDrop for RegisterStoreResponse {}
+impl_zeroize_on_drop_for_struct!(
+    StoreDbItem,
+    contact_first_name,
+    contact_last_name,
+    country,
+    discord_username,
+    product_ids,
+    store_name,
+    store_url,
+    email
+);
 
-#[cfg(feature = "zeroize")]
-impl Drop for StoreDbItem {
-    fn drop(&mut self) {
-        self.contact_first_name.zeroize();
-        self.contact_last_name.zeroize();
-        self.country.zeroize();
-        self.discord_username.zeroize();
-        self.product_ids.zeroize();
-        self.store_name.zeroize();
-        self.store_url.zeroize();
-        self.email.zeroize();
-    }
-}
+impl_zeroize_on_drop_for_struct!(CreateProductRequest, product_name, version);
 
-#[cfg(feature = "zeroize")]
-impl ZeroizeOnDrop for StoreDbItem {}
+impl_zeroize_on_drop_for_struct!(CreateProductResponse, product_id);
+
+impl_zeroize_on_drop_for_struct!(ProductDbItem, product_id, product_name, store_id, version);

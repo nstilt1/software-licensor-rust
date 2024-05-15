@@ -45,14 +45,14 @@ message ProductDbItem {
 
     uint32 trial_license_expiration_days = 130;
     uint32 trial_license_frequency_hours = 140;
+}
 
-    // this contains some customizable messages in a given language
-    message LanguageSupport {
-        string incorrect_offline_code = 1;
-        string license_no_longer_active = 2;
-        string no_license_found = 3;
-        string over_max_machines = 4;
-        string trial_ended = 5;
-        string success = 6;
-    }
+// this contains some customizable messages in a given language
+message LanguageSupport {
+    string incorrect_offline_code = 1;
+    string license_no_longer_active = 2;
+    string no_license_found = 3;
+    string over_max_machines = 4;
+    string trial_ended = 5;
+    string success = 6;
 }

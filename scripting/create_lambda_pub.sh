@@ -25,15 +25,6 @@ sed -i '5 r temp_insert.txt' Cargo.toml
 # remove the temporary file
 rm temp_insert.txt
 
-# create modules directory
-cd src
-mkdir modules
-cd modules
-cat << EOF > mod.rs
-//pub mod module_name;
-//pub mod module_name_2;
-//pub mod module_name_3;
-
 EOF
     cd ..
     sed -i "1i mod modules;" main.rs

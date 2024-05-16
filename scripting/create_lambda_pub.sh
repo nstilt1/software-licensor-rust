@@ -25,14 +25,6 @@ sed -i '5 r temp_insert.txt' Cargo.toml
 # remove the temporary file
 rm temp_insert.txt
 
-EOF
-    cd ..
-    sed -i "1i mod modules;" main.rs
-    sed -i "2i //use modules::module_name::*;" main.rs
-    sed -i "3i //use modules::module_name::*;" main.rs
-    cd ..
-    
-
 # create build.sh
 cat << EOF > build.sh
 export RUSTFLAGS="-Ctarget-cpu=neoverse-n1 -Ctarget-feature=+lse"

@@ -46,9 +46,11 @@ pub const LICENSE_DB_SALT: &[u8] = b"use a different salt for the licenses table
 /// Hasher for the database. Sha3 is faster with `asm` on `aarch64`.
 type DbHasher = sha3::Sha3_384;
 /// Hashes data with a constant salt.
-pub fn salty_hash(data: &[u8], salt: &[u8]) -> Output<DbHasher> {
+pub fn salty_hash(data: &[&[u8]], salt: &[u8]) -> Output<DbHasher> {
     let mut digest = DbHasher::new();
-    digest.update(data);
+    for d in data.iter() {
+        digest.update(d);
+    }
     digest.update(salt);
     digest.finalize()
 }

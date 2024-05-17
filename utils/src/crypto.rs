@@ -40,6 +40,8 @@ use crate::error::ApiError;
 pub const STORE_DB_SALT: &[u8] = b"use a different salt than this for your own database";
 /// A salt for the Products table
 pub const PRODUCT_DB_SALT: &[u8] = b"use different salt than this";
+/// A salt for the Licenses table
+pub const LICENSE_DB_SALT: &[u8] = b"use a different salt for the licenses table";
 
 /// Hasher for the database. Sha3 is faster with `asm` on `aarch64`.
 type DbHasher = sha3::Sha3_384;
@@ -140,8 +142,7 @@ pub trait DigitalLicensingThemedKeymanager {
     /// # Arguments
     /// 
     /// * `store_id` - The store's ID
-    /// * `product_id` - The plugin ID
-    fn generate_license_code(&mut self, store_id: &Id<StoreId>, product_id: &Id<ProductId>) -> Result<Id<LicenseCode>, ApiError>;
+    fn generate_license_code(&mut self, store_id: &Id<StoreId>) -> Result<Id<LicenseCode>, ApiError>;
 
     /// Generates a product ID with a desired prefix.
     /// 
@@ -196,7 +197,7 @@ pub trait DigitalLicensingThemedKeymanager {
     /// # Notes
     /// 
     /// Some of the "user-supplied" data is actually going to be sent automatically by the client-side code, but it could be sent maliciously from a script, and as such, it is treated as "user-supplied" data.
-    fn validate_license_code(&mut self, license_code: &str, store_id: &Id<StoreId>, product_id: &Id<ProductId>) -> Result<Id<LicenseCode>, ApiError>;
+    fn validate_license_code(&mut self, license_code: &str, store_id: &Id<StoreId>) -> Result<Id<LicenseCode>, ApiError>;
 
     /// Checks if a product ID is likely to be authentic. Just because this check passes does not mean that the product ID is in the database.
     /// 
@@ -243,13 +244,13 @@ pub trait DigitalLicensingThemedKeymanager {
 
 impl DigitalLicensingThemedKeymanager for KeyManager {
     #[inline]
-    fn generate_license_code(&mut self, store_id: &Id<StoreId>, product_id: &Id<ProductId>) -> Result<Id<LicenseCode>, ApiError> {
-        let associated_data = [store_id.binary_id.as_ref(), product_id.binary_id.as_ref()].concat();
+    fn generate_license_code(&mut self, store_id: &Id<StoreId>) -> Result<Id<LicenseCode>, ApiError> {
+        let associated_data = store_id.binary_id.as_ref();
         #[allow(unused_mut)]
         let mut id = self.key_generator.generate_keyless_id::<LicenseCode>(&[], b"license code", None, Some(&associated_data), &mut self.rng)?;
 
         let encoded_str = encode_to_hex_with_dashes(id.as_ref(), 5);
-        let r = Ok(Id::new_from_vec(&id, encoded_str, associated_data));
+        let r = Ok(Id::new(&id, encoded_str, Some(associated_data)));
 
         #[cfg(feature = "zeroize")]
         id.as_mut().zeroize();
@@ -284,14 +285,14 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
     }
 
     #[inline]
-    fn validate_license_code(&mut self, license_code: &str, store_id: &Id<StoreId>, product_id: &Id<ProductId>) -> Result<Id<LicenseCode>, ApiError> {
+    fn validate_license_code(&mut self, license_code: &str, store_id: &Id<StoreId>) -> Result<Id<LicenseCode>, ApiError> {
         let decoded = decode_hex::<LicenseCode>(license_code)?;
 
-        let associated_data = [store_id.binary_id.as_ref(), product_id.binary_id.as_ref()].concat();
+        let associated_data = store_id.binary_id.as_ref();
 
         let id = self.key_generator.validate_keyless_id::<LicenseCode>(&decoded, b"license code", Some(&associated_data))?;
 
-        Ok(Id::new_from_vec(&id, license_code.to_string(), associated_data))
+        Ok(Id::new(&id, license_code.to_string(), Some(associated_data)))
     }
 
     #[inline]
@@ -389,7 +390,7 @@ mod tests {
         let mut key_manager = init_key_manager(None, None);
         let store_id = key_manager.generate_store_id("TEST Store").unwrap();
         let (plugin_id, _) = key_manager.generate_product_id("TEST plugin", &store_id).unwrap();
-        let license_code = key_manager.generate_license_code(&store_id, &plugin_id).unwrap();
+        let license_code = key_manager.generate_license_code(&store_id).unwrap();
 
         // to print the IDs in a test:
         // cargo test -- --nocapture
@@ -417,7 +418,7 @@ mod tests {
         let mut key_manager = init_key_manager(None, None);
         let store_id = key_manager.generate_store_id("Please work, ty").unwrap();
         let (plugin_id, _) = key_manager.generate_product_id("pretty please", &store_id).unwrap();
-        let license_code = key_manager.generate_license_code(&store_id, &plugin_id).unwrap();
+        let license_code = key_manager.generate_license_code(&store_id).unwrap();
 
         // validation, in the order that it will need to be validated in the real code
         // the encoded_ids will be given to developers, and the server will receive them in http requests
@@ -429,7 +430,7 @@ mod tests {
         assert_eq!(verified_plugin_id.is_ok(), true);
 
         let (plugin_id, _) = verified_plugin_id.unwrap();
-        let verified_license = key_manager.validate_license_code(&license_code.encoded_id, &store_id, &plugin_id);
+        let verified_license = key_manager.validate_license_code(&license_code.encoded_id, &store_id);
         assert_eq!(verified_license.is_ok(), true);
     }
 
@@ -457,7 +458,7 @@ mod tests {
         let mut key_manager = init_key_manager(None, None);
         let store_id = key_manager.generate_store_id("TEST Store").unwrap();
         let (plugin_id, _) = key_manager.generate_product_id("TEST plugin", &store_id).unwrap();
-        let license_code = key_manager.generate_license_code(&store_id, &plugin_id).unwrap();
+        let license_code = key_manager.generate_license_code(&store_id).unwrap();
 
         // to print the IDs in a test:
         // cargo test -- --nocapture

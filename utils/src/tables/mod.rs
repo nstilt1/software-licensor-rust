@@ -5,10 +5,11 @@
 
 use std::marker::PhantomData;
 
-use crate::prelude::AttrValAbstraction;
+use crate::prelude::{AttrValAbstraction, M};
 
 pub mod stores;
 pub mod products;
+pub mod licenses;
 
 pub struct Item<T: AttrValAbstraction> {
     pub key: &'static str,
@@ -19,6 +20,11 @@ impl<T: AttrValAbstraction> Item<T> {
     pub const fn new(key: &'static str) -> Self {
         Self { key, ty: PhantomData}
     }
+}
+
+pub struct MapItem<F> {
+    pub key: Item<M>,
+    pub fields: F
 }
 
 #[cfg(test)]

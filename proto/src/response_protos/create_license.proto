@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package create_license_response;
+
+// store registration response
+message CreateLicenseResponse {
+    // this license code will be used for all products from this store for 
+    // this user
+    string license_code = 1;
+    // the offline code (if there is one) for the user to activate an offline
+    // license for their licenses
+    string offline_code = 2;
+    // the updated machine limits for each product
+    map<string, uint32> machine_limits = 3;
+    // if there are any issues, there will be an error message corresponding to 
+    // the product ID
+    map<string, string> issues = 4;
+    uint64 timestamp = 10;
+}

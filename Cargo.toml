@@ -2,6 +2,7 @@
 members = [
     #"license_auth",
     #"create_license",
+    "create_license_refactor",
     #"create_plugin",
     "create_plugin_refactor",
     #"get_license",

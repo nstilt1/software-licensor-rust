@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use rusoto_dynamodb::AttributeValue;
 
-use crate::{OptionHandler, error::ApiError};
+use crate::{error::ApiError, tables::Item, OptionHandler};
+
+use super::maps_mk2::AttrValAbstraction;
 
 pub static S: char = 's';
 pub static N: char = 'n';
@@ -12,6 +14,7 @@ pub trait Maps {
     /// Returns Some if data was overwritten
     fn insert_data(&mut self, key: &str, data: &str, t: char) -> Option<AttributeValue>;
 
+    /*
     /// Inserts license info into a License item hashmap
     fn insert_license(
         &mut self, 
@@ -19,10 +22,11 @@ pub trait Maps {
         first_name: &str, 
         last_name: &str, 
         license_type: &str, 
-        machines_allowed: u16,
+        machines_allowed: u32,
         order_number: &str,
         should_increase: bool
     ) -> Result<HashMap<String, AttributeValue>, ApiError>;
+    */
 
     /// Insert a bool into a map
     fn insert_bool(&mut self, key: &str, data: Option<bool>);
@@ -47,7 +51,7 @@ pub trait Maps {
 
     /// Increase a number in a hashmap
     /// or insert the number if it doesn't exist
-    fn increase_number(&mut self, key: &str, to_add: u16) -> Result<(), ApiError>;
+    fn increase_number<T: AttrValAbstraction>(&mut self, key: &Item<T>, to_add: u32) -> Result<u32, ApiError>;
 
     fn increase_float(&mut self, key: &str, to_add: &str) -> Result<(), ApiError>;
 
@@ -125,32 +129,35 @@ impl Maps for HashMap<String, AttributeValue> {
         return Ok(());
     }
 
-    fn increase_number(&mut self, key: &str, to_add: u16) -> Result<(), ApiError> {
-        let existing_value = self.insert_data(&key, &to_add.to_string(), N);
-        if existing_value.as_ref().is_some(){
+    fn increase_number<T: AttrValAbstraction>(&mut self, item: &Item<T>, to_add: u32) -> Result<u32, ApiError> {
+        let existing_value = self.insert_data(&item.key, &to_add.to_string(), N);
+        let sum = if existing_value.as_ref().is_some(){
             let existing_value = existing_value
-            .should_exist_in_db_schema(key)?
+            .should_exist_in_db_schema(item.key)?
             .n
-            .should_exist_in_db_schema(key)?
-            .parse::<u16>()?;
-            
-            self.insert_data(&key, &(to_add+existing_value).to_string(), N);
-        }
-        return Ok(());
+            .should_exist_in_db_schema(item.key)?
+            .parse::<u32>()?;
+            let s = to_add + existing_value;
+            self.insert_data(&item.key, &(s).to_string(), N);
+            s
+        } else {
+            to_add
+        };
+        return Ok(sum);
 
     }
 
     fn new_map(keys: Vec<(&str, &str)>) -> Self {
         return HashMap::new().insert_strings(keys);
     }
-
+    /*
     fn insert_license(
             &mut self, 
             custom_success: Option<String>, 
             first_name: &str, 
             last_name: &str, 
             license_type: &str, 
-            machines_allowed: u16,
+            machines_allowed: u32,
             order_number: &str,
             should_increase: bool
     ) -> Result<HashMap<String, AttributeValue>, ApiError> {
@@ -197,6 +204,7 @@ impl Maps for HashMap<String, AttributeValue> {
         return Ok(result);
         
     }
+    */
     fn get_data(&self, key: &str, t: char) -> Result<String, ApiError>{
         let attribute_value = self.key_should_exist(key)?;
         let data = match t {

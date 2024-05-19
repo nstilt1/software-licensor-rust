@@ -60,6 +60,8 @@ pub trait AbstractAttributeValueMaps {
     fn insert_attr_val_into<A: AttrValAbstraction, B: Into<A::ArgType>>(&mut self, key: &str, data: B);
     /// Gets an attribute value.
     fn get_attr_val<A: AttrValAbstraction>(&self, key: &str) -> Result<&A::ArgType, ApiError>;
+    /// Gets a mutable attribute value
+    fn get_attr_val_mut<A: AttrValAbstraction>(&mut self, key: &str) -> Result<&mut A::ArgType, ApiError>;
 }
 
 impl AbstractAttributeValueMaps for AttributeValueHashMap {
@@ -83,6 +85,18 @@ impl AbstractAttributeValueMaps for AttributeValueHashMap {
         };
         Ok(val)
     }
+    #[inline]
+    fn get_attr_val_mut<A: AttrValAbstraction>(&mut self, key: &str) -> Result<&mut A::ArgType, ApiError> {
+        let attr_val = match self.get_mut(key) {
+            Some(x) => x,
+            None => return Err(ApiError::InvalidDbSchema("Key `{}` was not in the hashmap".into()))
+        };
+        let val = match A::get_val_mut(attr_val) {
+            Some(v) => v,
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` AttributeValue had a mismatched type in the database", key)))
+        };
+        Ok(val)
+    }
 }
 
 pub trait AttrValAbstraction {
@@ -92,6 +106,8 @@ pub trait AttrValAbstraction {
     fn attribute_value(data: Self::ArgType) -> AttributeValue;
     /// Gets the `ArgType` from an `AttributeValue`
     fn get_val(attr_val: &AttributeValue) -> Option<&Self::ArgType>;
+    /// Gets a mutable `ArgType` from an `AttributeValue`
+    fn get_val_mut(attr_val: &mut AttributeValue) -> Option<&mut Self::ArgType>;
 }
 
 macro_rules! impl_attr_val_abstraction {
@@ -111,6 +127,10 @@ macro_rules! impl_attr_val_abstraction {
             fn get_val(attr_val: &AttributeValue) -> Option<&Self::ArgType> {
                 attr_val.$member_name.as_ref()
             }
+            #[inline]
+            fn get_val_mut(attr_val: &mut AttributeValue) -> Option<&mut Self::ArgType> {
+                attr_val.$member_name.as_mut()
+            }
         }
     };
 }
@@ -129,8 +149,14 @@ pub trait ItemIntegration {
     fn insert_item<T: AttrValAbstraction>(&mut self, item: Item<T>, value: T::ArgType);
     /// Inserts an item into the `AttributeValueHashMap`, calling `.into()` on the value.
     fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>>(&mut self, item: Item<T>, value: I);
-    /// Gets the value for an item from an `AttributeValueHashMap`
+    /// Gets the value for an item from an `AttributeValueHashMap`.
     fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError>;
+    /// Gets a mutable reference to an item value from an `AttributeValueHashMap`.
+    fn get_item_mut<T: AttrValAbstraction>(&mut self, item: Item<T>) -> Result<&mut T::ArgType, ApiError>;
+    /// Gets a reference to a hashmap. Useful for dynamically named hashmaps.
+    fn get_map_by_str(&self, key: &str) -> Result<&<M as AttrValAbstraction>::ArgType, ApiError>;
+    /// Gets a mutable reference to a hashmap. Useful for dynamically named hashmaps.
+    fn get_mut_map_by_str(&mut self, key: &str) -> Result<&mut <M as AttrValAbstraction>::ArgType, ApiError>;
 }
 
 impl ItemIntegration for AttributeValueHashMap {
@@ -145,6 +171,18 @@ impl ItemIntegration for AttributeValueHashMap {
     #[inline]
     fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError> {
         self.get_attr_val::<T>(item.key)
+    }
+    #[inline]
+    fn get_item_mut<T: AttrValAbstraction>(&mut self, item: Item<T>) -> Result<&mut T::ArgType, ApiError> {
+        self.get_attr_val_mut::<T>(item.key)
+    }
+    #[inline]
+    fn get_map_by_str(&self, key: &str) -> Result<&<M as AttrValAbstraction>::ArgType, ApiError> {
+        self.get_attr_val::<M>(key)
+    }
+    #[inline]
+    fn get_mut_map_by_str(&mut self, key: &str) -> Result<&mut <M as AttrValAbstraction>::ArgType, ApiError> {
+        self.get_attr_val_mut::<M>(key)
     }
 }
 

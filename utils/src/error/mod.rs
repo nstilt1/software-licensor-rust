@@ -15,6 +15,7 @@ pub enum ApiError {
     InvalidDbSchema(String),
     ServerError(String),
     NotFound,
+    ThroughputError
 }
 
 impl ApiError {
@@ -30,6 +31,7 @@ impl ApiError {
             Self::InvalidDbSchema(_) => 500,
             Self::ServerError(_) => 500,
             Self::NotFound => 404,
+            Self::ThroughputError => 500,
         }
     }
 }
@@ -55,6 +57,7 @@ impl std::fmt::Display for ApiError {
                 Self::InvalidDbSchema(x) => write_fmt!(f, "Invalid DB schema: {}", x),
                 Self::ServerError(x) => write_fmt!(f, "Internal server error: {}", x),
                 Self::NotFound => f.write_str("Not found; perhaps the resource was not in the database."),
+                Self::ThroughputError => f.write_str("There was a throughput error. Try again in a few minutes")
             }
         }
         #[cfg(not(debug_assertions))]
@@ -66,6 +69,7 @@ impl std::fmt::Display for ApiError {
                 Self::ServerError(x) => write_fmt!(f, "There was an internal server error: {}", x),
                 Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
                 Self::NotFound => "Not Found",
+                Self::ThroughputError => "The servers are a bit busy at the momement. Try again in a few minutes",
                 _ => format_args!("Forbidden")
             }
         )}

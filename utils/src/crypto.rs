@@ -43,6 +43,12 @@ pub const PRODUCT_DB_SALT: &[u8] = b"use different salt than this";
 /// A salt for the Licenses table
 pub const LICENSE_DB_SALT: &[u8] = b"use a different salt for the licenses table";
 
+pub mod license_types {
+    pub const TRIAL: &str = "trial";
+    pub const PERPETUAL: &str = "perpetual";
+    pub const SUBSCRIPTION: &str = "subscription";
+}
+
 /// Hasher for the database. Sha3 is faster with `asm` on `aarch64`.
 type DbHasher = sha3::Sha3_384;
 /// Hashes data with a constant salt.
@@ -244,6 +250,13 @@ pub trait DigitalLicensingThemedKeymanager {
     fn decrypt_db_proto<M: Message + Default, E: EncodedId>(&mut self, table_name: &str, store_id: &Id<E>, data: &[u8]) -> Result<M, ApiError>;
 }
 
+/// Creates a license from raw binary in the database.
+pub fn bytes_to_license(license_binary: &[u8]) -> Result<Id<LicenseCode>, ApiError> {
+    let mut license: Id<LicenseCode> = license_binary.try_into()?;
+    license.encoded_id = encode_to_hex_with_dashes(license.binary_id.as_ref(), 5);
+    Ok(license)
+}
+
 impl DigitalLicensingThemedKeymanager for KeyManager {
     #[inline]
     fn generate_license_code(&mut self, store_id: &Id<StoreId>) -> Result<Id<LicenseCode>, ApiError> {
@@ -431,7 +444,7 @@ mod tests {
         let verified_plugin_id = key_manager.validate_product_id(&plugin_id.encoded_id, &store_id);
         assert_eq!(verified_plugin_id.is_ok(), true);
 
-        let (plugin_id, _) = verified_plugin_id.unwrap();
+        let (_plugin_id, _) = verified_plugin_id.unwrap();
         let verified_license = key_manager.validate_license_code(&license_code.encoded_id, &store_id);
         assert_eq!(verified_license.is_ok(), true);
     }

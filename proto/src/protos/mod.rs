@@ -4,6 +4,9 @@ pub mod store_db_item;
 
 pub mod create_product_request;
 pub mod create_product_response;
+
+pub mod create_license_request;
+pub mod create_license_response;
 //pub mod product_db_item;
 
 #[cfg(feature = "zeroize")]
@@ -11,9 +14,10 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[cfg(feature = "zeroize")]
 use self::{
-    create_product_request::CreateProductRequest, 
+    create_product_request::{CreateProductRequest, ProductDbItem}, 
     create_product_response::CreateProductResponse, 
-    create_product_request::ProductDbItem, 
+    create_license_request::{CreateLicenseRequest, LicenseDbItem},
+    create_license_response::CreateLicenseResponse,
     register_store_request::RegisterStoreRequest, 
     register_store_response::RegisterStoreResponse, 
     store_db_item::StoreDbItem
@@ -68,7 +72,9 @@ impl_zeroize_on_drop_for_struct!(
 );
 
 impl_zeroize_on_drop_for_struct!(CreateProductRequest, product_name, version);
-
 impl_zeroize_on_drop_for_struct!(CreateProductResponse, product_id);
-
 impl_zeroize_on_drop_for_struct!(ProductDbItem, product_id, product_name, store_id, version);
+
+impl_zeroize_on_drop_for_struct!(CreateLicenseRequest, customer_first_name, customer_last_name, customer_email, user_id);
+impl_zeroize_on_drop_for_struct!(CreateLicenseResponse, license_code, offline_code);
+impl_zeroize_on_drop_for_struct!(LicenseDbItem, license_id, customer_first_name, customer_last_name, customer_email, offline_secret);

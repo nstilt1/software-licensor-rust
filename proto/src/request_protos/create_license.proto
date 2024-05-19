@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package create_license_request;
+
+// A store registration request
+message CreateLicenseRequest {
+    string customer_first_name = 10;
+    string customer_last_name = 20;
+    // this email address can be displayed in the product's GUI
+    string customer_email = 30;
+    string order_id = 40;
+    string user_id = 50;
+    // this success message will override the plugin's success message in the 
+    // database
+    string custom_success_message = 60;
+
+    // map of Product IDs to ProductInfo
+    map<string, ProductInfo> product_info = 70;
+    uint64 timestamp = 100;
+}
+
+message ProductInfo {
+    string license_type = 20;
+    // the amount of licenses purchased, allowing `max_machines_per_license
+    // * quantity` machines
+    uint32 quantity = 30;
+    string subtotal = 40;
+}
+
+message LicenseDbItem {
+    bytes license_id = 10;
+    string customer_first_name = 20;
+    string customer_last_name = 30;
+    string customer_email = 40;
+    // a string appended to a license code that can allow the user to 
+    // activate an offline license. This "secret" is used because 
+    // offline machines cannot be reliably deactivated
+    string offline_secret = 50;
+}

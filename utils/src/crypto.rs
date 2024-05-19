@@ -251,10 +251,8 @@ pub trait DigitalLicensingThemedKeymanager {
 }
 
 /// Creates a license from raw binary in the database.
-pub fn bytes_to_license(license_binary: &[u8]) -> Result<Id<LicenseCode>, ApiError> {
-    let mut license: Id<LicenseCode> = license_binary.try_into()?;
-    license.encoded_id = encode_to_hex_with_dashes(license.binary_id.as_ref(), 5);
-    Ok(license)
+pub fn bytes_to_license(license_binary: &[u8]) -> String {
+    encode_to_hex_with_dashes(license_binary, 5)
 }
 
 impl DigitalLicensingThemedKeymanager for KeyManager {

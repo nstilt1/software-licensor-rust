@@ -19,7 +19,7 @@ use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Re
 use proto::prost::Message;
 use http_private_key_manager::Request as RestRequest;
 
-fn init_license(key_manager: &mut KeyManager, request: &CreateLicenseRequest, license_item: &mut AttributeValueHashMap, store_id: &Id<StoreId>) -> Result<(Id<LicenseCode>, String), ApiError> {
+fn init_license(key_manager: &mut KeyManager, request: &CreateLicenseRequest, license_item: &mut AttributeValueHashMap, store_id: &Id<StoreId>) -> Result<(String, String), ApiError> {
     let license_code = key_manager.generate_license_code(&store_id)?;
     let primary_index = salty_hash(&[store_id.binary_id.as_ref(), license_code.binary_id.as_ref()], LICENSE_DB_SALT);
     license_item.insert_item_into(LICENSES_TABLE.id, primary_index.to_vec());
@@ -38,7 +38,7 @@ fn init_license(key_manager: &mut KeyManager, request: &CreateLicenseRequest, li
     };
     let encrypted = key_manager.encrypt_db_proto(LICENSES_TABLE.table_name, &license_code, &protobuf_data)?;
     license_item.insert_item_into(LICENSES_TABLE.protobuf_data, encrypted);
-    Ok((license_code, offline_secret))
+    Ok((license_code.encoded_id, offline_secret))
 }
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut CreateLicenseRequest, hasher: D, signature: Vec<u8>) -> Result<CreateLicenseResponse, ApiError> {
@@ -156,7 +156,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
 
     // check for pre-existing license
-    let (license_code, offline_secret) = if let Some(l) = tables.get(LICENSES_TABLE.table_name) {
+    let (license_code, offline_code) = if let Some(l) = tables.get(LICENSES_TABLE.table_name) {
         if l.len() == 0 {
             init_license(key_manager, request, &mut license_item, &store_id)?
         } else {
@@ -167,9 +167,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 &store_id, 
                 license_item.get_item(LICENSES_TABLE.protobuf_data)?
             )?;
-            let license_id = bytes_to_license(&protobuf.license_id)?;
+            let license_code = bytes_to_license(&protobuf.license_id);
 
-            (license_id, protobuf.offline_secret.clone())
+            (license_code, protobuf.offline_secret.clone())
         }
     } else {
         // init new license with request data
@@ -304,8 +304,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     // respond to request
     let response = CreateLicenseResponse {
-        license_code: license_code.encoded_id,
-        offline_code: offline_secret,
+        license_code,
+        offline_code,
         machine_limits,
         issues,
         timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),

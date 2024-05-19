@@ -1,4 +1,4 @@
-//! A plugin creation API method for a licensing service.
+//! A license creation API method for a licensing service.
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};

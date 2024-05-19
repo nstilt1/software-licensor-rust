@@ -1,13 +1,15 @@
 //! A plugin creation API method for a licensing service.
 
+use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use utils::dynamodb::maps::Maps;
 use utils::prelude::proto::protos::create_product_request::{CreateProductRequest, ProductDbItem};
 use utils::prelude::proto::protos::create_product_response::CreateProductResponse;
 use utils::prelude::*;
 use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use rusoto_core::Region;
-use rusoto_dynamodb::{DynamoDbClient, DynamoDb, GetItemInput, PutItemInput};
+use rusoto_dynamodb::{DynamoDbClient, DynamoDb, GetItemInput, BatchWriteItemInput, PutRequest, WriteRequest};
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::prost::Message;
 use http_private_key_manager::Request as RestRequest;
@@ -71,7 +73,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
 
     let public_key = store_item.get_item(STORES_TABLE.public_key)?;
-    // verify public key
+    // verify signature with public key
     let pubkey = PublicKey::from_sec1_bytes(&public_key)?;
     let verifier = VerifyingKey::from(pubkey);
     let signature = DerSignature::try_from(signature.as_slice())?;
@@ -139,13 +141,21 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     )?;
     product_item.insert_item_into(PRODUCTS_TABLE.protobuf_data, encrypted_protobuf);
 
-    client.put_item(
-        PutItemInput {
-            table_name: PRODUCTS_TABLE.table_name.to_string(),
-            item: product_item,
-            ..Default::default()
-        }
-    ).await?;
+    store_item.increase_number(&STORES_TABLE.num_products, 1)?;
+
+    let mut request_items: HashMap<String, Vec<WriteRequest>> = HashMap::new();
+    request_items.insert(STORES_TABLE.table_name.into(), vec![WriteRequest {
+        put_request: Some(PutRequest { item: store_item } ),
+        ..Default::default()
+    }]);
+    request_items.insert(PRODUCTS_TABLE.table_name.into(), vec![WriteRequest {
+        put_request: Some(PutRequest { item: product_item } ),
+        ..Default::default()
+    }]);
+    client.batch_write_item(BatchWriteItemInput {
+        request_items,
+        ..Default::default()
+    }).await?;
 
     let lang_support_keys = request.language_support.keys();
     let mut languages: Vec<String> = Vec::with_capacity(lang_support_keys.len());

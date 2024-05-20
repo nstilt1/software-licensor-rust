@@ -14,6 +14,8 @@ pub struct ProductsTable {
     pub num_subscription_machines: Item<N>,
     pub num_perpetual_machines: Item<N>,
     pub num_license_auths: Item<N>,
+    pub is_offline_allowed: Item<Bool>,
+    pub max_machines_per_license: Item<N>,
     /// version
     /// store_id
     /// plugin name
@@ -52,6 +54,8 @@ pub const PRODUCTS_TABLE: ProductsTable = ProductsTable {
     num_offline_machines: Item::new("num_off_machines"),
     num_subscription_machines: Item::new("num_s_machines"),
     num_perpetual_machines: Item::new("num_p_machines"),
-    num_license_auths: Item::new("total_license_auths")
+    num_license_auths: Item::new("total_license_auths"),
+    is_offline_allowed: Item::new("allow_offline"),
+    max_machines_per_license: Item::new("max_machines_per_license"),
 };
 

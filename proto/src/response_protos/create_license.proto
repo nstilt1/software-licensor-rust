@@ -11,7 +11,7 @@ message CreateLicenseResponse {
     // license for their licenses
     string offline_code = 2;
     // the updated machine limits for each product
-    map<string, uint32> machine_limits = 3;
+    map<string, uint64> machine_limits = 3;
     // if there are any issues, there will be an error message corresponding to 
     // the product ID
     map<string, string> issues = 4;

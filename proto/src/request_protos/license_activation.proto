@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package license_activation_request;
+
+// A store registration request
+message LicenseActivationRequest {
+    // the license code. should look like:
+    // 1234-5678-90ab-cdef-1234
+    // or caps or with an offline code:
+    // 1234-5678-90ab-cdef-1234-offline-abcd
+    string license_code = 1;
+    string machine_id = 2;
+    // this language_id can be used to have the server send a response in 
+    // a pre-determined language
+    string language_id = 3;
+    // hardware/simd statistics
+    optional Stats hardware_stats = 4;
+    string product_id = 5;
+    uint64 timestamp = 50;
+}
+
+message Stats {
+    string os_name = 1;
+    string computer_name = 2;
+    string is_64_bit = 3;
+    string users_language = 4;
+    string display_language = 5;
+    uint32 num_logical_cores = 6;
+    uint32 num_physical_cores = 7;
+    uint32 cpu_freq_mhz = 8;
+    uint32 ram_mb = 34;
+    uint32 page_size = 35;
+    string cpu_vendor = 9;
+    string cpu_model = 10;
+    bool has_mmx = 11;
+    bool has_3d_now = 12;
+    bool has_fma3 = 13;
+    bool has_fma4 = 14;
+    bool has_sse = 15;
+    bool has_sse2 = 16;
+    bool has_sse3 = 17;
+    bool has_ssse3 = 18;
+    bool has_sse41 = 19;
+    bool has_sse42 = 20;
+    bool has_avx = 21;
+    bool has_avx2 = 22;
+    bool has_avx512f = 23;
+    bool has_avx512bw = 24;
+    bool has_avx512cd = 25;
+    bool has_avx512dq = 26;
+    bool has_avx512er = 27;
+    bool has_avx512ifma = 28;
+    bool has_avx512pf = 29;
+    bool has_avx512vbmi = 30;
+    bool has_avx512vl = 31;
+    bool has_avx512vpopcntdq = 32;
+    bool has_neon = 33;
+}

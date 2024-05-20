@@ -176,7 +176,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         init_license(key_manager, request, &mut license_item, &store_id)?
     };
 
-    let mut machine_limits: HashMap<String, u32> = HashMap::new();
+    let mut machine_limits: HashMap<String, u64> = HashMap::new();
     // update products in license map
     let products_map = license_item.get_item_mut(LICENSES_TABLE.products_map_item.key)?;
     // some updates might fail, such as if the user is trying to obtain a trial 
@@ -187,7 +187,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         let product_item = product_items.get(product_id_string).expect("key should exist");
         let protobuf_bytes = product_item.get_item(PRODUCTS_TABLE.protobuf_data)?;
         let product_protobuf_data = key_manager.decrypt_db_proto::<ProductDbItem, ProductId>(PRODUCTS_TABLE.table_name, &store_id, &protobuf_bytes)?;
-        let machines_per_license = product_protobuf_data.max_machines_per_license;
+        let machines_per_license = product_item.get_item(PRODUCTS_TABLE.max_machines_per_license)?.parse::<u64>()?;
         let product_info =request.product_info.get(product_id_string).expect("valid key");
         let subscription_expiration_period = product_protobuf_data.subscription_license_expiration_days;
         let subscription_expiration_period_seconds = (subscription_expiration_period as u64) * 60 * 60 * 24;
@@ -214,7 +214,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             let existing_license_type = existing_license_info.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?;
             if &purchased_license_type == existing_license_type && purchased_license_type != license_types::SUBSCRIPTION {
                 // increase machines by quantity * max_machines_per_license
-                let num_machines = existing_license_info.increase_number(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license * product_info.quantity)?;
+                let num_machines = existing_license_info.increase_number(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license * product_info.quantity as u64)?;
                 machine_limits.insert(product_id_string.clone(), num_machines);
             } else if &purchased_license_type == existing_license_type && purchased_license_type == license_types::SUBSCRIPTION {
                 // extend expiry time
@@ -244,7 +244,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 // and `Trial`, this must be either Trial -> Perpetual or 
                 // Subscription -> Perpetual.
                 let max_machines = existing_license_info.get_item_mut(LICENSES_TABLE.products_map_item.fields.machines_allowed)?;
-                let new_limit = product_info.quantity * machines_per_license;
+                let new_limit = product_info.quantity as u64 * machines_per_license;
                 *max_machines = new_limit.to_string();
                 machine_limits.insert(product_id_string.clone(), new_limit);
                 existing_license_info.insert_item_into(LICENSES_TABLE.products_map_item.fields.license_type, purchased_license_type);
@@ -260,9 +260,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             
             if purchased_license_type == license_types::TRIAL {
                 new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
-                machine_limits.insert(product_id_string.clone(), product_protobuf_data.max_machines_per_license);
+                machine_limits.insert(product_id_string.clone(), machines_per_license);
             } else {
-                let total_machines = machines_per_license * product_info.quantity;
+                let total_machines = machines_per_license * product_info.quantity as u64;
                 new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, total_machines.to_string());
                 machine_limits.insert(product_id_string.clone(), total_machines);
                 

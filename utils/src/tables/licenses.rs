@@ -37,7 +37,7 @@ pub struct ProductsMap {
 }
 
 pub const LICENSES_TABLE: LicensesTable = LicensesTable {
-    table_name: "PRODUCTS-BMEvbp9AszCuk5pZg_yt6f_rinRsdIycprMMcNzMYkljl94EPpstEfjr",
+    table_name: "LICENSES-AgKSHjwfYk0lu-s-a2nvizD-DgUP5ORzOO_ZQRajJ12z2nxBs1kvMTse",
     id: Item::new("hashed_id"),
     protobuf_data: Item::new("data"),
     hashed_store_id_and_user_id: Item::new("user_id_hash"),

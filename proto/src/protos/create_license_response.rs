@@ -12,8 +12,8 @@ pub struct CreateLicenseResponse {
     #[prost(string, tag = "2")]
     pub offline_code: ::prost::alloc::string::String,
     /// the updated machine limits for each product
-    #[prost(map = "string, uint32", tag = "3")]
-    pub machine_limits: ::std::collections::HashMap<::prost::alloc::string::String, u32>,
+    #[prost(map = "string, uint64", tag = "3")]
+    pub machine_limits: ::std::collections::HashMap<::prost::alloc::string::String, u64>,
     /// if there are any issues, there will be an error message corresponding to
     /// the product ID
     #[prost(map = "string, string", tag = "4")]

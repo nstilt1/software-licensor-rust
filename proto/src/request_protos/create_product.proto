@@ -13,7 +13,6 @@ message CreateProductRequest {
     // maximum potential
     map<string, LanguageSupport> language_support = 30;
     bool is_offline_allowed = 40;
-    bool is_online_allowed = 50;
     uint32 max_machines_per_license = 60;
 
     // some notes about "frequency" and "expiration": 
@@ -69,9 +68,6 @@ message ProductDbItem {
     // but it also depends on the developer to translate their software to reach
     // maximum potential
     map<string, LanguageSupport> language_support = 30;
-    bool is_offline_allowed = 40;
-    bool is_online_allowed = 50;
-    uint32 max_machines_per_license = 60;
 
     // some notes about "frequency" and "expiration": 
     //

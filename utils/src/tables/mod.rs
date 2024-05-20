@@ -10,6 +10,7 @@ use crate::prelude::{AttrValAbstraction, M};
 pub mod stores;
 pub mod products;
 pub mod licenses;
+pub mod machines;
 
 pub struct Item<T: AttrValAbstraction> {
     pub key: &'static str,
@@ -50,5 +51,11 @@ mod generating_ids {
         
         let products_table_name = generate_table_id("PRODUCTS");
         println!("Products table name: {}", products_table_name);
+
+        let licenses_table_name = generate_table_id("LICENSES");
+        println!("Licenses table name: {}", licenses_table_name);
+
+        let machines_table_name = generate_table_id("MACHINES");
+        println!("Machines table name: {}", machines_table_name);
     }
 }

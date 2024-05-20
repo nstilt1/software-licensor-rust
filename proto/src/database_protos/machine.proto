@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package machine_db_item;
+
+// a Machine Database Item
+message MachineDbItem {
+    string computer_name = 1;
+}

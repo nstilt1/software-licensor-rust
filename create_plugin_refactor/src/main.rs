@@ -110,9 +110,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         product_id: product_id.binary_id.as_ref().into(),
         product_name: request.product_name.to_owned(),
         language_support: request.language_support.to_owned(),
-        is_offline_allowed: request.is_offline_allowed,
-        is_online_allowed: request.is_online_allowed,
-        max_machines_per_license: request.max_machines_per_license,
         offline_license_frequency_hours: request.offline_license_frequency_hours,
         perpetual_license_expiration_days: request.perpetual_license_expiration_days,
         perpetual_license_frequency_hours: request.perpetual_license_frequency_hours,
@@ -127,6 +124,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         PRODUCTS_TABLE.hashed_store_id, 
         salty_hash(&[store_id.binary_id.as_ref()], PRODUCT_DB_SALT).to_vec()
     );
+
+    product_item.insert_item(PRODUCTS_TABLE.is_offline_allowed, request.is_offline_allowed);
+    product_item.insert_item(PRODUCTS_TABLE.max_machines_per_license, request.max_machines_per_license.to_string());
 
     product_item.insert_item_into(PRODUCTS_TABLE.num_licenses_total, "0");
     product_item.insert_item_into(PRODUCTS_TABLE.num_offline_machines, "0");

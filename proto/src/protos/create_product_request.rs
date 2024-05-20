@@ -20,8 +20,6 @@ pub struct CreateProductRequest {
     >,
     #[prost(bool, tag = "40")]
     pub is_offline_allowed: bool,
-    #[prost(bool, tag = "50")]
-    pub is_online_allowed: bool,
     #[prost(uint32, tag = "60")]
     pub max_machines_per_license: u32,
     /// some notes about "frequency" and "expiration":
@@ -98,12 +96,6 @@ pub struct ProductDbItem {
         ::prost::alloc::string::String,
         LanguageSupport,
     >,
-    #[prost(bool, tag = "40")]
-    pub is_offline_allowed: bool,
-    #[prost(bool, tag = "50")]
-    pub is_online_allowed: bool,
-    #[prost(uint32, tag = "60")]
-    pub max_machines_per_license: u32,
     /// some notes about "frequency" and "expiration":
     ///
     /// the frequency dictates the minimum amount of time that must pass before a

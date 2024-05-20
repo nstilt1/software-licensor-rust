@@ -39,21 +39,36 @@ use crate::tables::Item;
 /// # Example
 /// ```rust
 /// use utils::dynamodb::maps_mk2::*;
+/// use utils::tables::Item;
 /// let mut map = AttributeValueHashMap::new();
-///       
-/// map.insert_attr_val::<S>("some string's key", "Test 1".into());
-/// assert_eq!(map.get_attr_val::<S>("some string's key").unwrap(), "Test 1");
+/// 
+/// pub struct ExampleDbTable {
+///     pub table_name: &'static str,
+///     pub number_item_example: Item<N>,
+///     pub string_item_example: Item<S>,
+///     pub binary_item_example: Item<B>,
+/// };
+/// 
+/// const EXAMPLE_TABLE: ExampleDbTable = ExampleDbTable {
+///     table_name: "EXAMPLE-table-name",
+///     number_item_example: Item::new("number_item_key"),
+///     string_item_example: Item::new("string_item_key"),
+///     binary_item_example: Item::new("Binary_item_key"),
+/// };
+/// 
+/// map.insert_item(EXAMPLE_TABLE.number_item_example, 5.to_string());
+/// assert_eq!(map.get_item(EXAMPLE_TABLE.number_item_example).unwrap(), &5.to_string());
 ///
-/// map.insert_attr_val::<N>("some number's key", "5".into());
-/// assert_eq!(map.get_attr_val::<N>("some number's key").unwrap(), "5");
+/// map.insert_item_into(EXAMPLE_TABLE.string_item_example, "test");
+/// assert_eq!(map.get_item(EXAMPLE_TABLE.string_item_example).unwrap(), "test");
 ///
-/// map.insert_attr_val::<B>("some binary data's key", b"testing slice".as_slice().into());
+/// map.insert_item_into(EXAMPLE_TABLE.binary_item_example, b"testing slice".to_vec());
 /// let expected: Bytes = b"testing slice".as_slice().into();
-/// assert_eq!(map.get_attr_val::<B>("some binary data's key").unwrap(), &expected);
+/// assert_eq!(map.get_item(EXAMPLE_TABLE.binary_item_example).unwrap(), &expected);
 /// ```
 
 pub type AttributeValueHashMap = HashMap<String, AttributeValue>;
-pub trait AbstractAttributeValueMaps {
+trait AbstractAttributeValueMaps {
     /// Inserts an attribute value into an AttributeValueHashMap
     fn insert_attr_val<A: AttrValAbstraction>(&mut self, key: &str, data: A::ArgType);
     /// Inserts an attribute value into an AttributeValueHashMap, but calls .into() on the input data.
@@ -100,18 +115,35 @@ impl AbstractAttributeValueMaps for AttributeValueHashMap {
 }
 
 pub trait AttrValAbstraction {
-    /// The argument type for initializing an `AttributeValue`
+    /// The argument type for initializing an `AttributeValue`.
     type ArgType;
-    /// Initializes an `AttributeValue` from an `ArgType`
+    /// Gets the string value of an `ArgType`.
+    fn get_str_val(v: &Self::ArgType) -> String;
+    /// Initializes an `AttributeValue` from an `ArgType`.
     fn attribute_value(data: Self::ArgType) -> AttributeValue;
-    /// Gets the `ArgType` from an `AttributeValue`
+    /// Gets the `ArgType` from an `AttributeValue`.
     fn get_val(attr_val: &AttributeValue) -> Option<&Self::ArgType>;
-    /// Gets a mutable `ArgType` from an `AttributeValue`
+    /// Gets a mutable `ArgType` from an `AttributeValue`.
     fn get_val_mut(attr_val: &mut AttributeValue) -> Option<&mut Self::ArgType>;
 }
 
+macro_rules! write_get_str_val {
+    (true) => {
+        #[inline]
+        fn get_str_val(v: &Self::ArgType) -> String {
+            v.to_string()
+        }
+    };
+    (false) => {
+        #[inline]
+        fn get_str_val(_v: &Self::ArgType) -> String {
+            "Error: Cannot display data".into()
+        }
+    }
+}
+
 macro_rules! impl_attr_val_abstraction {
-    ($struct:ident, $arg_type:ty, $member_name:ident, $doc:expr) => {
+    ($struct:ident, $arg_type:ty, $member_name:ident, $use_to_string:tt, $doc:expr) => {
         #[doc = $doc]
         pub struct $struct;
         impl AttrValAbstraction for $struct {
@@ -131,18 +163,20 @@ macro_rules! impl_attr_val_abstraction {
             fn get_val_mut(attr_val: &mut AttributeValue) -> Option<&mut Self::ArgType> {
                 attr_val.$member_name.as_mut()
             }
+            write_get_str_val!($use_to_string);
         }
     };
 }
-impl_attr_val_abstraction!(B, Bytes, b, "The `Binary` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(Bool, bool, bool, "The `Boolean` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(BS, Vec<Bytes>, bs, "The `Binary Set` generic type for an `AttributeValue`");
+
+impl_attr_val_abstraction!(B, Bytes, b, false, "The `Binary` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(Bool, bool, bool, true, "The `Boolean` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(BS, Vec<Bytes>, bs, false, "The `Binary Set` generic type for an `AttributeValue`");
 // `List` is not implemented because it seems like a great way to cause errors
-impl_attr_val_abstraction!(M, AttributeValueHashMap, m, "The `Map` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(N, String, n, "The `Number` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(NS, Vec<String>, ns, "The `Number Set` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(S, String, s, "The `String` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(SS, Vec<String>, ss, "The `String Set` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(M, AttributeValueHashMap, m, false, "The `Map` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(N, String, n, true, "The `Number` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(NS, Vec<String>, ns, false, "The `Number Set` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(S, String, s, true, "The `String` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(SS, Vec<String>, ss, false, "The `String Set` generic type for an `AttributeValue`");
 
 pub trait ItemIntegration {
     /// Inserts an item into the `AttributeValueHashMap`.
@@ -186,6 +220,49 @@ impl ItemIntegration for AttributeValueHashMap {
     }
 }
 
+/// Allows the insertion and retrieval of null values into an AttributeValueHashMap
+pub trait NullableFields {
+    /// Inserts a null value in place of an Item's value.
+    fn insert_null<T: AttrValAbstraction>(&mut self, key: Item<T>);
+    /// Gets a potentially null value.
+    /// 
+    /// These valid types return a string representing the value:
+    /// * S (String)
+    /// * N (Number)
+    /// * Bool (Boolean)
+    /// 
+    /// These invalid types return "Error: Cannot display data":
+    /// * B (Binary)
+    /// * BS (Binary Set)
+    /// * M (Map)
+    /// * NS (Number Set)
+    /// * SS (String Set)
+    fn get_potential_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<String, ApiError>;
+}
+
+impl NullableFields for AttributeValueHashMap {
+    #[inline]
+    fn insert_null<T: AttrValAbstraction>(&mut self, key: Item<T>) {
+        self.insert(key.key.into(), AttributeValue { null: Some(true), ..Default::default() } );
+    }
+    #[inline]
+    fn get_potential_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<String, ApiError> {
+        let attr_val = match self.get(key.key) {
+            Some(x) => x,
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.key)))
+        };
+        match attr_val.null {
+            Some(_x) => Ok("Not provided.".into()),
+            None => {
+                match T::get_val(attr_val) {
+                    Some(v) => Ok(T::get_str_val(v)),
+                    None => Err(ApiError::InvalidDbSchema(format!("Key `{}` had a type issue", key.key)))
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::tables::stores::STORES_TABLE;
@@ -214,3 +291,4 @@ mod tests {
         map.insert_item_into(STORES_TABLE.num_auths, "4");
     }
 }
+

@@ -51,7 +51,7 @@ pub trait Maps {
 
     /// Increase a number in a hashmap
     /// or insert the number if it doesn't exist
-    fn increase_number<T: AttrValAbstraction>(&mut self, key: &Item<T>, to_add: u32) -> Result<u32, ApiError>;
+    fn increase_number<T: AttrValAbstraction>(&mut self, key: &Item<T>, to_add: u64) -> Result<u64, ApiError>;
 
     fn increase_float(&mut self, key: &str, to_add: &str) -> Result<(), ApiError>;
 
@@ -129,14 +129,14 @@ impl Maps for HashMap<String, AttributeValue> {
         return Ok(());
     }
 
-    fn increase_number<T: AttrValAbstraction>(&mut self, item: &Item<T>, to_add: u32) -> Result<u32, ApiError> {
+    fn increase_number<T: AttrValAbstraction>(&mut self, item: &Item<T>, to_add: u64) -> Result<u64, ApiError> {
         let existing_value = self.insert_data(&item.key, &to_add.to_string(), N);
         let sum = if existing_value.as_ref().is_some(){
             let existing_value = existing_value
             .should_exist_in_db_schema(item.key)?
             .n
             .should_exist_in_db_schema(item.key)?
-            .parse::<u32>()?;
+            .parse::<u64>()?;
             let s = to_add + existing_value;
             self.insert_data(&item.key, &(s).to_string(), N);
             s

@@ -42,6 +42,9 @@ pub const STORE_DB_SALT: &[u8] = b"use a different salt than this for your own d
 pub const PRODUCT_DB_SALT: &[u8] = b"use different salt than this";
 /// A salt for the Licenses table
 pub const LICENSE_DB_SALT: &[u8] = b"use a different salt for the licenses table";
+/// Constant for License Code Length. This depends on the `LicenseCode` `IdLen`,
+/// as well as that the license code will be displayed in hexadecimal.
+pub const LICENSE_CODE_LEN: usize = <LicenseCode as EncodedId>::IdLen::USIZE * 2;
 
 pub mod license_types {
     pub const TRIAL: &str = "trial";

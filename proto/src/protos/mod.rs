@@ -7,7 +7,9 @@ pub mod create_product_response;
 
 pub mod create_license_request;
 pub mod create_license_response;
-//pub mod product_db_item;
+
+pub mod license_activation_request;
+pub mod license_activation_response;
 
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -20,11 +22,14 @@ use self::{
     create_license_response::CreateLicenseResponse,
     register_store_request::RegisterStoreRequest, 
     register_store_response::RegisterStoreResponse, 
-    store_db_item::StoreDbItem
+    store_db_item::StoreDbItem,
+    license_activation_request::{LicenseActivationRequest, Stats},
+    license_activation_response::LicenseKeyFile,
 };
 
 
-// just some zeroize configuration for an attempt at anonymizing.
+// just some zeroize configuration for an attempt at anonymizing. It probably
+// is not necessary, and I might be missing a few spots.
 
 /// Impls `ZeroizeOnDrop` for a struct with fields that impl Zeroize
 /// 
@@ -78,3 +83,7 @@ impl_zeroize_on_drop_for_struct!(ProductDbItem, product_id, product_name, store_
 impl_zeroize_on_drop_for_struct!(CreateLicenseRequest, customer_first_name, customer_last_name, customer_email, user_id);
 impl_zeroize_on_drop_for_struct!(CreateLicenseResponse, license_code, offline_code);
 impl_zeroize_on_drop_for_struct!(LicenseDbItem, license_id, customer_first_name, customer_last_name, customer_email, offline_secret);
+
+impl_zeroize_on_drop_for_struct!(LicenseActivationRequest, license_code, machine_id);
+impl_zeroize_on_drop_for_struct!(Stats, computer_name);
+impl_zeroize_on_drop_for_struct!(LicenseKeyFile, machine_id, license_code);

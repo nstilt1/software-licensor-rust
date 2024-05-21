@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-package register_store_response;
-
-// store registration response
-message RegisterStoreResponse {
-    string store_id = 1;
-    uint64 timestamp = 10;
-}

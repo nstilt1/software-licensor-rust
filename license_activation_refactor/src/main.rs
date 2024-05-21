@@ -6,9 +6,11 @@ use utils::crypto::http_private_key_manager::Id;
 use utils::dynamodb::maps::Maps;
 use utils::prelude::proto::protos::create_license_request::LicenseDbItem;
 use utils::prelude::proto::protos::create_product_request::ProductDbItem;
-use utils::prelude::proto::protos::license_activation_request::LicenseActivationRequest;
+use utils::prelude::proto::protos::license_activation_request::{LicenseActivationRequest, Stats};
 use utils::prelude::proto::protos::license_activation_response::{LicenseActivationResponse, LicenseKeyFile};
+use utils::prelude::proto::protos::machine_db_item::MachineDbItem;
 use utils::prelude::rusoto_dynamodb::{BatchGetItemInput, BatchWriteItemInput, KeysAndAttributes, PutRequest, WriteRequest};
+use utils::tables::machines::MACHINES_TABLE;
 use utils::{now_as_seconds, prelude::*, StringSanitization};
 use utils::tables::licenses::LICENSES_TABLE;
 use utils::tables::products::PRODUCTS_TABLE;
@@ -25,7 +27,7 @@ use http_private_key_manager::Request as RestRequest;
 fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: bool, offline_license_code: &str, store_id: &Id<StoreId>, license_item: &AttributeValueHashMap) -> Result<(String, String), ApiError> {
     let decrypted_proto: LicenseDbItem = key_manager.decrypt_db_proto(
         &LICENSES_TABLE.table_name, 
-        store_id, 
+        store_id.binary_id.as_ref(), 
         license_item.get_item(LICENSES_TABLE.protobuf_data)?
     )?;
     if is_offline_attempt {
@@ -46,6 +48,126 @@ fn update_lists(updated: &mut bool, license_product_item: &mut AttributeValueHas
         license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines, offline_machines);
         *updated = true;
     }
+}
+
+/// Inserts strings, numbers, and bools into a hashmap.
+macro_rules! insert_keys {
+    ($stats_map:expr, $stats:expr, $keys:expr, ($($string:ident),*), ($($number:ident),*), ($($bools:ident),*)) => {
+        $(
+            $stats_map.insert_item($keys.$string, $stats.$string.clone());
+        )*
+        $(
+            $stats_map.insert_item($keys.$number, $stats.$number.to_string());
+        )*
+        $(
+            $stats_map.insert_item($keys.$bools, $stats.$bools);
+        )*
+    };
+}
+
+/// Inserts machine stats into a hashmap.
+fn insert_stats(stats_map: &mut AttributeValueHashMap, stats: &Stats) {
+    insert_keys!(
+        stats_map,
+        stats,
+        MACHINES_TABLE.stats.fields,
+        // strings
+        (cpu_model, cpu_vendor, os_name, users_language, display_language),
+        // numbers
+        (cpu_freq_mhz, num_logical_cores, num_physical_cores, ram_mb, page_size),
+        // bools
+        (is_64_bit, has_mmx, has_3d_now, has_fma3, has_fma4, has_sse, has_sse2, 
+        has_sse3, has_ssse3, has_sse41, has_sse42, has_avx, has_avx2, 
+        has_avx512f, has_avx512bw, has_avx512cd, has_avx512dq, has_avx512er, 
+        has_avx512ifma, has_avx512pf, has_avx512vbmi, has_avx512vl, 
+        has_avx512vpopcntdq, has_neon)
+    );
+}
+
+/// Initializes and updates a machine item.
+/// 
+/// Returns true if the table needs to be updated.
+fn init_machine_item(key_manager: &mut KeyManager, request: &LicenseActivationRequest, machine_item: &mut AttributeValueHashMap, was_in_db: bool) -> Result<bool, ApiError> {
+    match was_in_db {
+        true => {
+            if let Some(s) = &request.hardware_stats {
+                // hardware stats were provided by the user
+                if machine_item.is_null(MACHINES_TABLE.protobuf_data)? {
+                    // info needs to be entered
+                    let machine_proto = MachineDbItem {
+                        computer_name: s.computer_name.clone()
+                    };
+                    let encrypted = key_manager.encrypt_db_proto(
+                        &MACHINES_TABLE.table_name, 
+                        &request.machine_id.as_bytes(), 
+                        &machine_proto
+                    )?;
+                    machine_item.insert_item_into(MACHINES_TABLE.protobuf_data, encrypted);
+                    let mut stats_map = AttributeValueHashMap::new();
+                    insert_stats(&mut stats_map, s);
+                    machine_item.insert_item_into(MACHINES_TABLE.stats.key, stats_map);
+                    Ok(true)
+                } else {
+                    // stats have already been set; check if they are equal
+                    let mut protobuf_data: MachineDbItem = key_manager.decrypt_db_proto(
+                        &MACHINES_TABLE.table_name, 
+                        request.machine_id.as_bytes(), 
+                        machine_item.get_item(MACHINES_TABLE.protobuf_data)?
+                    )?;
+                    let computer_name = &protobuf_data.computer_name;
+                    let existing_stats_map = machine_item.get_item_mut(MACHINES_TABLE.stats.key)?;
+                    let cpu = existing_stats_map.get_item(MACHINES_TABLE.stats.fields.cpu_model)?;
+                    let ram = existing_stats_map.get_item(MACHINES_TABLE.stats.fields.ram_mb)?;
+                    if cpu.ne(&s.cpu_model) || ram.ne(&s.ram_mb.to_string()) || computer_name.ne(&s.computer_name) {
+                        insert_stats(existing_stats_map, s);
+                        protobuf_data.computer_name = s.computer_name.clone();
+                        let encrypted = key_manager.encrypt_db_proto(
+                            &MACHINES_TABLE.table_name,
+                            &request.machine_id.as_bytes(),
+                            &protobuf_data
+                        )?;
+                        machine_item.insert_item(MACHINES_TABLE.protobuf_data, encrypted.into());
+                        return Ok(true)
+                    }
+                    Ok(false)
+                }
+            } else {
+                // stats have not been provided; erase stats and computer 
+                // name
+                if !machine_item.is_null(MACHINES_TABLE.stats.key)? {
+                    machine_item.insert_null(MACHINES_TABLE.stats.key);
+                    machine_item.insert_null(MACHINES_TABLE.protobuf_data);
+                    return Ok(true)
+                }
+                Ok(false)
+            }
+        },
+        false => {
+            // machine was not in the database
+            if let Some(s) = &request.hardware_stats {
+                // stats were provided by the user
+                let mut stats_map = AttributeValueHashMap::new();
+                insert_stats(&mut stats_map, &s);
+                machine_item.insert_item(MACHINES_TABLE.stats.key, stats_map);
+                let protobuf = MachineDbItem {
+                    computer_name: s.computer_name.clone()
+                };
+                let encrypted = key_manager.encrypt_db_proto(
+                    &MACHINES_TABLE.table_name,
+                    &request.machine_id.as_bytes(),
+                    &protobuf
+                )?;
+                machine_item.insert_item(MACHINES_TABLE.protobuf_data, encrypted.into());
+            } else {
+                // stats were not provided by the user
+                machine_item.insert_null(MACHINES_TABLE.stats.key);
+                machine_item.insert_null(MACHINES_TABLE.protobuf_data);
+            }
+            Ok(true)
+        }
+    }
+    
+    //todo!()
 }
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut LicenseActivationRequest, _hasher: D, _signature: ()) -> Result<LicenseActivationResponse, ApiError> {
@@ -90,7 +212,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let hashed_license_id = salty_hash(&[store_id.binary_id.as_ref(), license_id.binary_id.as_ref()], LICENSE_DB_SALT);
     license_item.insert_item_into(LICENSES_TABLE.id, hashed_license_id.to_vec());
     request_items.insert(LICENSES_TABLE.table_name.to_string(), KeysAndAttributes {
-        consistent_read: Some(true),
+        consistent_read: Some(false),
         keys: vec![license_item],
         ..Default::default()
     });
@@ -101,6 +223,14 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     request_items.insert(PRODUCTS_TABLE.table_name.to_string(), KeysAndAttributes {
         consistent_read: Some(false),
         keys: vec![product_item],
+        ..Default::default()
+    });
+
+    let mut machine_item = AttributeValueHashMap::new();
+    machine_item.insert_item_into(MACHINES_TABLE.id, request.machine_id.clone());
+    request_items.insert(MACHINES_TABLE.table_name.to_string(), KeysAndAttributes {
+        consistent_read: Some(false),
+        keys: vec![machine_item.clone()],
         ..Default::default()
     });
 
@@ -143,6 +273,19 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         return Err(ApiError::InvalidAuthentication)
     };
 
+    // update the machine item
+    let machine_needs_update = if let Some(m) = tables.get(MACHINES_TABLE.table_name) {
+        if m.len() != 1 {
+            // make new machine item
+            init_machine_item(key_manager, &request, &mut machine_item, false)
+        } else {
+            init_machine_item(key_manager, &request, &mut m[0].to_owned(), true)
+        }
+    } else {
+        // make new machine item
+        init_machine_item(key_manager, &request, &mut machine_item, false)
+    }?;
+
     // all items are present in the database
     // validate the license
     let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], LICENSE_DB_SALT).to_base64();
@@ -158,7 +301,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     let product_protobuf_data: ProductDbItem = key_manager.decrypt_db_proto(
         &PRODUCTS_TABLE.table_name, 
-        &store_id, 
+        &store_id.binary_id.as_ref(), 
         product_item.get_item(PRODUCTS_TABLE.protobuf_data)?
     )?;
     let responses = match product_protobuf_data.language_support.get(&request.language_id) {
@@ -311,6 +454,16 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             ..Default::default()
         }]
     );
+
+    if machine_needs_update {
+        write_requests.insert(
+            MACHINES_TABLE.table_name.to_string(),
+            vec![WriteRequest {
+                put_request: Some(PutRequest { item: machine_item } ),
+                ..Default::default()
+            }]
+        );
+    }
 
     client.batch_write_item(BatchWriteItemInput {
         request_items: write_requests,

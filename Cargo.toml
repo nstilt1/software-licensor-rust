@@ -1,13 +1,9 @@
 [workspace]
 members = [
-    #"license_auth",
     "license_activation_refactor",
-    #"create_license",
     "create_license_refactor",
-    #"create_plugin",
     "create_plugin_refactor",
     #"get_license",
-    #"register_store",
     "register_store_refactor",
 	"utils",
     "proto"

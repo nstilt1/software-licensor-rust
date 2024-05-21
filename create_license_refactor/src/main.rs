@@ -36,7 +36,7 @@ fn init_license(key_manager: &mut KeyManager, request: &CreateLicenseRequest, li
         customer_email: request.customer_email.clone(),
         offline_secret: offline_secret.clone(),
     };
-    let encrypted = key_manager.encrypt_db_proto(LICENSES_TABLE.table_name, &license_code, &protobuf_data)?;
+    let encrypted = key_manager.encrypt_db_proto(LICENSES_TABLE.table_name, &license_code.binary_id.as_ref(), &protobuf_data)?;
     license_item.insert_item_into(LICENSES_TABLE.protobuf_data, encrypted);
     Ok((license_code.encoded_id, offline_secret))
 }
@@ -162,9 +162,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         } else {
             // update license as necessary and return info
             license_item = l[0].clone();
-            let protobuf = key_manager.decrypt_db_proto::<LicenseDbItem, StoreId>(
+            let protobuf: LicenseDbItem = key_manager.decrypt_db_proto(
                 LICENSES_TABLE.table_name, 
-                &store_id, 
+                &store_id.binary_id.as_ref(), 
                 license_item.get_item(LICENSES_TABLE.protobuf_data)?
             )?;
             let license_code = bytes_to_license(&protobuf.license_id);
@@ -186,7 +186,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], LICENSE_DB_SALT).to_base64();
         let product_item = product_items.get(product_id_string).expect("key should exist");
         let protobuf_bytes = product_item.get_item(PRODUCTS_TABLE.protobuf_data)?;
-        let product_protobuf_data = key_manager.decrypt_db_proto::<ProductDbItem, ProductId>(PRODUCTS_TABLE.table_name, &store_id, &protobuf_bytes)?;
+        let product_protobuf_data: ProductDbItem = key_manager.decrypt_db_proto(PRODUCTS_TABLE.table_name, &store_id.binary_id.as_ref(), &protobuf_bytes)?;
         let machines_per_license = product_item.get_item(PRODUCTS_TABLE.max_machines_per_license)?.parse::<u64>()?;
         let product_info =request.product_info.get(product_id_string).expect("valid key");
         let subscription_expiration_period = product_protobuf_data.subscription_license_expiration_days;

@@ -73,7 +73,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         product_ids: Vec::new(),
     };
     
-    let encrypted_protobuf = key_manager.encrypt_db_proto(STORES_TABLE.table_name, &store_id, &proto)?;
+    let encrypted_protobuf = key_manager.encrypt_db_proto(STORES_TABLE.table_name, store_id.binary_id.as_ref(), &proto)?;
     store_item.insert_item_into(STORES_TABLE.protobuf_data, encrypted_protobuf);
 
     store_item.insert_item_into(STORES_TABLE.public_key, request.public_signing_key.clone());

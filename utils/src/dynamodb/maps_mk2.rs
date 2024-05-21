@@ -238,6 +238,8 @@ pub trait NullableFields {
     /// * NS (Number Set)
     /// * SS (String Set)
     fn get_potential_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<String, ApiError>;
+    /// Returns true if the item is null
+    fn is_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<bool, ApiError>;
 }
 
 impl NullableFields for AttributeValueHashMap {
@@ -259,6 +261,17 @@ impl NullableFields for AttributeValueHashMap {
                     None => Err(ApiError::InvalidDbSchema(format!("Key `{}` had a type issue", key.key)))
                 }
             }
+        }
+    }
+    #[inline]
+    fn is_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<bool, ApiError> {
+        let attr_val = match self.get(key.key) {
+            Some(x) => x,
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.key)))
+        };
+        match attr_val.null {
+            Some(x) => Ok(x),
+            None => Ok(false)
         }
     }
 }

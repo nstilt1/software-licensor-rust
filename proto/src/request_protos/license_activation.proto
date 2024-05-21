@@ -22,7 +22,7 @@ message LicenseActivationRequest {
 message Stats {
     string os_name = 1;
     string computer_name = 2;
-    string is_64_bit = 3;
+    bool is_64_bit = 3;
     string users_language = 4;
     string display_language = 5;
     uint32 num_logical_cores = 6;

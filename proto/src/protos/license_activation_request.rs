@@ -30,8 +30,8 @@ pub struct Stats {
     pub os_name: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub computer_name: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub is_64_bit: ::prost::alloc::string::String,
+    #[prost(bool, tag = "3")]
+    pub is_64_bit: bool,
     #[prost(string, tag = "4")]
     pub users_language: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]

@@ -137,7 +137,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     
     let encrypted_protobuf = key_manager.encrypt_db_proto(
         PRODUCTS_TABLE.table_name, 
-        &product_id, 
+        &product_id.binary_id.as_ref(), 
         &product_protobuf
     )?;
     product_item.insert_item_into(PRODUCTS_TABLE.protobuf_data, encrypted_protobuf);

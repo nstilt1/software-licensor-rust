@@ -6,7 +6,7 @@ use crate::dynamodb::maps_mk2::*;
 pub struct MachinesTable {
     pub table_name: &'static str,
     /// primary index
-    pub id: Item<B>,
+    pub id: Item<S>,
     /// computer_name
     pub protobuf_data: Item<B>,
     /// Some hardware stats. This field will be null if the user doesn't provide

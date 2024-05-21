@@ -247,10 +247,10 @@ pub trait DigitalLicensingThemedKeymanager {
     fn sign_key_file(&mut self, key_file: &[u8], product_id: &Id<ProductId>) -> Result<Vec<u8>, ApiError>;
 
     /// Encrypts and zeroizes a `StoreDbItem`
-    fn encrypt_db_proto<M: Message, E: EncodedId>(&mut self, table_name: &str, related_id: &Id<E>, data: &M) -> Result<Vec<u8>, ApiError>;
+    fn encrypt_db_proto<M: Message>(&mut self, table_name: &str, related_id: &[u8], data: &M) -> Result<Vec<u8>, ApiError>;
 
     /// Decrypts a `StoreDbItem`
-    fn decrypt_db_proto<M: Message + Default, E: EncodedId>(&mut self, table_name: &str, store_id: &Id<E>, data: &[u8]) -> Result<M, ApiError>;
+    fn decrypt_db_proto<M: Message + Default>(&mut self, table_name: &str, related_id: &[u8], data: &[u8]) -> Result<M, ApiError>;
 }
 
 /// Creates a license from raw binary in the database.
@@ -334,11 +334,11 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
     }
 
     #[inline]
-    fn encrypt_db_proto<M: Message, E: EncodedId>(&mut self, table_name: &str, related_id: &Id<E>, data: &M) -> Result<Vec<u8>, ApiError> {
+    fn encrypt_db_proto<M: Message>(&mut self, table_name: &str, related_id: &[u8], data: &M) -> Result<Vec<u8>, ApiError> {
         #[allow(unused_mut)]
         let mut encoded = data.encode_to_vec();
 
-        let encrypted = self.encrypt_resource::<ChaCha20Poly1305>(encoded.as_slice(), table_name.as_bytes(), related_id.binary_id.as_ref(), &[])?;
+        let encrypted = self.encrypt_resource::<ChaCha20Poly1305>(encoded.as_slice(), table_name.as_bytes(), related_id, &[])?;
         
         #[cfg(feature = "zeroize")]
         encoded.zeroize();
@@ -347,9 +347,9 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
     }
 
     #[inline]
-    fn decrypt_db_proto<M: Message + Default, E: EncodedId>(&mut self, table_name: &str, related_id: &Id<E>, data: &[u8]) -> Result<M, ApiError> {
+    fn decrypt_db_proto<M: Message + Default>(&mut self, table_name: &str, related_id: &[u8], data: &[u8]) -> Result<M, ApiError> {
         #[allow(unused_mut)]
-        let mut decrypted = self.decrypt_resource::<ChaCha20Poly1305>(data, table_name.as_bytes(), related_id.binary_id.as_ref(), &[])?;
+        let mut decrypted = self.decrypt_resource::<ChaCha20Poly1305>(data, table_name.as_bytes(), related_id, &[])?;
 
         let decoded = if let Ok(d) = M::decode(decrypted.as_slice()) {
             d

@@ -27,7 +27,7 @@ use http_private_key_manager::prelude::*;
 use proto::prost::Message;
 use rand_chacha::ChaCha8Rng;
 pub use sha2;
-use sha3::{Sha3_384, Sha3_512};
+use sha3::Sha3_512;
 pub use aes_gcm::{Aes128Gcm, Aes256Gcm};
 pub use aes_gcm_siv::{Aes128GcmSiv, Aes256GcmSiv};
 pub use chacha20poly1305::ChaCha20Poly1305;
@@ -306,7 +306,11 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
 
         let associated_data = store_id.binary_id.as_ref();
 
-        let id = self.key_generator.validate_keyless_id::<LicenseCode>(&decoded, b"license code", Some(&associated_data))?;
+        let id = if let Ok(id) = self.key_generator.validate_keyless_id::<LicenseCode>(&decoded, b"license code", Some(&associated_data)) {
+            id
+        } else {
+            return Err(ApiError::InvalidAuthentication)
+        };
 
         Ok(Id::new(&id, license_code.to_string(), Some(associated_data)))
     }
@@ -325,7 +329,7 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
 
     #[inline]
     fn sign_key_file(&mut self, key_file: &[u8], product_id: &Id<ProductId>) -> Result<Vec<u8>, ApiError> {
-        self.sign_data_with_key_id::<EcdsaAlg, ProductId, Sha3_384>(key_file, product_id)?;
+        self.sign_data_with_key_id::<EcdsaAlg, ProductId, EcdsaDigest>(key_file, product_id)?;
         todo!()
     }
 

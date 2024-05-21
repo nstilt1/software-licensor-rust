@@ -28,7 +28,7 @@ pub struct LicensesTable {
 pub struct ProductsMap {
     pub activation_time: Item<N>,
     pub license_type: Item<S>,
-    pub expiry_time: Item<S>,
+    pub expiry_time: Item<N>,
     pub is_license_active: Item<Bool>,
     pub machines_allowed: Item<N>,
     pub offline_machines: Item<SS>,

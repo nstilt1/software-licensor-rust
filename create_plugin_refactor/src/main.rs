@@ -128,6 +128,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     product_item.insert_item(PRODUCTS_TABLE.is_offline_allowed, request.is_offline_allowed);
     product_item.insert_item(PRODUCTS_TABLE.max_machines_per_license, request.max_machines_per_license.to_string());
 
+    product_item.insert_item_into(PRODUCTS_TABLE.num_machines_total, "0");
     product_item.insert_item_into(PRODUCTS_TABLE.num_licenses_total, "0");
     product_item.insert_item_into(PRODUCTS_TABLE.num_offline_machines, "0");
     product_item.insert_item_into(PRODUCTS_TABLE.num_subscription_machines, "0");

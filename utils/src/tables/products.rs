@@ -9,6 +9,7 @@ pub struct ProductsTable {
     pub id: Item<B>,
     /// this hashed store ID will be a secondary index
     pub hashed_store_id: Item<B>,
+    pub num_machines_total: Item<N>,
     pub num_licenses_total: Item<N>,
     pub num_offline_machines: Item<N>,
     pub num_subscription_machines: Item<N>,
@@ -50,6 +51,7 @@ pub const PRODUCTS_TABLE: ProductsTable = ProductsTable {
     id: Item::new("hashed_id"),
     protobuf_data: Item::new("data"),
     hashed_store_id: Item::new("store_id_hash"),
+    num_machines_total: Item::new("total_machines"),
     num_licenses_total: Item::new("total_licenses"),
     num_offline_machines: Item::new("num_off_machines"),
     num_subscription_machines: Item::new("num_s_machines"),

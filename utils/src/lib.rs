@@ -4,6 +4,8 @@ pub mod dynamodb;
 pub mod error;
 pub mod tables;
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use error::ApiError;
 use lambda_http::{Response, Body, Error as LambdaError};
 use substring::Substring;
@@ -87,6 +89,11 @@ impl Comparing for String {
     fn exists_in(self, vector: Vec<&str>) -> bool {
         return vector.contains(&self.as_str());
     }
+}
+
+/// Returns SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+pub fn now_as_seconds() -> u64 {
+        SystemTime::now().duration_since(UNIX_EPOCH).expect("now_as_seconds failed").as_secs()
 }
 
 /// Returns a success response

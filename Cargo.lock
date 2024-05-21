@@ -1158,6 +1158,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "license_activation_refactor"
+version = "0.1.0"
+dependencies = [
+ "utils",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"

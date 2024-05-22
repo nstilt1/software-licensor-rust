@@ -166,8 +166,6 @@ fn init_machine_item(key_manager: &mut KeyManager, request: &LicenseActivationRe
             Ok(true)
         }
     }
-    
-    //todo!()
 }
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut LicenseActivationRequest, _hasher: D, _signature: ()) -> Result<LicenseActivationResponse, ApiError> {
@@ -288,10 +286,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     // all items are present in the database
     // validate the license
-    let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], LICENSE_DB_SALT).to_base64();
     let mut products_map = license_item.get_item_mut(LICENSES_TABLE.products_map_item.key)?.to_owned();
 
-    let license_product_map = products_map.get_mut_map_by_str(&hashed_product_id)?;
+    let license_product_map = products_map.get_mut_map_by_str(&product_id.encoded_id)?;
     let max_machines = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.machines_allowed)?.parse::<usize>()?;
     let mut offline_machines_list = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines)?.to_owned();
     let mut online_machines_list = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.online_machines)?.to_owned();

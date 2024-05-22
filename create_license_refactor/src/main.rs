@@ -183,7 +183,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     // for the same product again
     let mut issues: HashMap<String, String> = HashMap::new();
     for (product_id, product_id_string) in product_ids_and_keys.iter() {
-        let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], LICENSE_DB_SALT).to_base64();
         let product_item = product_items.get(product_id_string).expect("key should exist");
         let protobuf_bytes = product_item.get_item(PRODUCTS_TABLE.protobuf_data)?;
         let product_protobuf_data: ProductDbItem = key_manager.decrypt_db_proto(PRODUCTS_TABLE.table_name, &store_id.binary_id.as_ref(), &protobuf_bytes)?;
@@ -202,7 +201,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         let purchased_license_type = product_info.license_type.to_lowercase();
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
-        let license_info = if let Ok(existing_license_info) = products_map.get_mut_map_by_str(&hashed_product_id) {
+        let license_info = if let Ok(existing_license_info) = products_map.get_mut_map_by_str(&product_id_string) {
             // product map exists in the license map; user owns/owned a license
             // for this product
             // check that newly purchased license is not a trial license
@@ -254,8 +253,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         } else {
             // product map does not exist in the license map; user does not
             // already own a license for this product
-            products_map.insert_map(&hashed_product_id, Some(AttributeValueHashMap::new()));
-            let new_license_info = products_map.get_mut_map_by_str(&hashed_product_id).expect("We just set this");
+            products_map.insert_map(&product_id_string, Some(AttributeValueHashMap::new()));
+            let new_license_info = products_map.get_mut_map_by_str(&product_id_string).expect("We just set this");
             new_license_info.insert_item_into(LICENSES_TABLE.products_map_item.fields.activation_time, "0");
             
             if purchased_license_type == license_types::TRIAL {

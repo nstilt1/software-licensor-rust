@@ -16,7 +16,7 @@ fi
 cross build --release --target aarch64-unknown-linux-musl
 #cross build --target aarch64-unknown-linux-musl
 timestamp=$(date '+%y-%m-%d-%H-%M-%S')
-filename="get_license_${timestamp}.zip"
+filename="get_license_refactor_${timestamp}.zip"
 cd builds
 echo "creating $filename..."
-zip -j "$filename" "../../target/aarch64-unknown-linux-musl/release/get_license"
+zip -j "$filename" "../../target/aarch64-unknown-linux-musl/release/get_license_refactor"

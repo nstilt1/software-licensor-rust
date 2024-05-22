@@ -12,7 +12,6 @@ fn main() {
                 "src/response_protos/create_license.proto",
                 "src/response_protos/license_activation.proto",
                 "src/database_protos/store.proto",
-                "src/database_protos/machine.proto",
                 //"src/database_protos/product.proto",
                 ], 
             &["src/"])

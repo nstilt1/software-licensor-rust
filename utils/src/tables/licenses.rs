@@ -31,10 +31,20 @@ pub struct ProductsMap {
     pub expiry_time: Item<N>,
     pub is_license_active: Item<Bool>,
     pub machines_allowed: Item<N>,
-    pub offline_machines: Item<SS>,
-    pub online_machines: Item<SS>,
+    pub offline_machines: MapItem<MachineMap>,
+    pub online_machines: MapItem<MachineMap>,
     pub is_subscription_active: Item<Bool>
 }
+
+pub struct MachineMap {
+    pub os_name: Item<S>,
+    pub computer_name: Item<S>
+}
+
+pub const MACHINE: MachineMap = MachineMap {
+    os_name: Item::new("os"),
+    computer_name: Item::new("name"),
+};
 
 pub const LICENSES_TABLE: LicensesTable = LicensesTable {
     table_name: "LICENSES-AgKSHjwfYk0lu-s-a2nvizD-DgUP5ORzOO_ZQRajJ12z2nxBs1kvMTse",
@@ -51,8 +61,14 @@ pub const LICENSES_TABLE: LicensesTable = LicensesTable {
             expiry_time: Item::new("expiry_time"), 
             is_license_active: Item::new("is_license_active"), 
             machines_allowed: Item::new("max_machines"), 
-            offline_machines: Item::new("offline_machines"), 
-            online_machines: Item::new("online_machines"), 
+            offline_machines: MapItem::<MachineMap> { 
+                key: Item::new("offline_machines"), 
+                fields: MACHINE 
+            }, 
+            online_machines: MapItem::<MachineMap> {
+                key: Item::new("online_machines"),
+                fields: MACHINE
+            }, 
             is_subscription_active: Item::new("is_subscription_active") 
         },
     },

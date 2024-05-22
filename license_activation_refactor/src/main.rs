@@ -8,11 +8,10 @@ use utils::prelude::proto::protos::create_license_request::LicenseDbItem;
 use utils::prelude::proto::protos::create_product_request::ProductDbItem;
 use utils::prelude::proto::protos::license_activation_request::{LicenseActivationRequest, Stats};
 use utils::prelude::proto::protos::license_activation_response::{LicenseActivationResponse, LicenseKeyFile};
-use utils::prelude::proto::protos::machine_db_item::MachineDbItem;
 use utils::prelude::rusoto_dynamodb::{BatchGetItemInput, BatchWriteItemInput, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::tables::machines::MACHINES_TABLE;
 use utils::{now_as_seconds, prelude::*, StringSanitization};
-use utils::tables::licenses::LICENSES_TABLE;
+use utils::tables::licenses::{LICENSES_TABLE, MACHINE};
 use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use rusoto_core::Region;
@@ -38,14 +37,14 @@ fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: boo
     Ok((decrypted_proto.customer_first_name.clone(), decrypted_proto.customer_last_name.clone()))
 }
 
-fn update_lists(updated: &mut bool, license_product_item: &mut AttributeValueHashMap, online_list: Option<Vec<String>>, offline_list: Option<Vec<String>>) {
+fn update_lists(updated: &mut bool, license_product_item: &mut AttributeValueHashMap, online_list: Option<AttributeValueHashMap>, offline_list: Option<AttributeValueHashMap>) {
     //let mut product_map = license_product_map.to_owned();
     if let Some(online_machines) = online_list {
-        license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines, online_machines);
+        license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines.key, online_machines);
         *updated = true;
     }
     if let Some(offline_machines) = offline_list {
-        license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines, offline_machines);
+        license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines.key, offline_machines);
         *updated = true;
     }
 }
@@ -84,50 +83,42 @@ fn insert_stats(stats_map: &mut AttributeValueHashMap, stats: &Stats) {
     );
 }
 
+fn insert_machine_into_machine_map(map: &mut AttributeValueHashMap, request: &LicenseActivationRequest) {
+    let mach_map = if let Some(s) = &request.hardware_stats {
+        let mut mach_map = AttributeValueHashMap::new(); 
+        mach_map.insert_item(MACHINE.os_name, s.os_name.clone());
+        mach_map.insert_item(MACHINE.computer_name, s.computer_name.clone());
+        mach_map
+    } else {
+        let mut mach_map = AttributeValueHashMap::new();
+        mach_map.insert_item_into(MACHINE.os_name, "Not provided");
+        mach_map.insert_item_into(MACHINE.computer_name, "Not provided");
+        mach_map
+    };
+    map.insert_map(&request.machine_id, Some(mach_map))
+}
+
 /// Initializes and updates a machine item.
 /// 
 /// Returns true if the table needs to be updated.
-fn init_machine_item(key_manager: &mut KeyManager, request: &LicenseActivationRequest, machine_item: &mut AttributeValueHashMap, was_in_db: bool) -> Result<bool, ApiError> {
+fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut AttributeValueHashMap, was_in_db: bool) -> Result<bool, ApiError> {
     match was_in_db {
         true => {
             if let Some(s) = &request.hardware_stats {
                 // hardware stats were provided by the user
                 if machine_item.is_null(MACHINES_TABLE.protobuf_data)? {
                     // info needs to be entered
-                    let machine_proto = MachineDbItem {
-                        computer_name: s.computer_name.clone()
-                    };
-                    let encrypted = key_manager.encrypt_db_proto(
-                        &MACHINES_TABLE.table_name, 
-                        &request.machine_id.as_bytes(), 
-                        &machine_proto
-                    )?;
-                    machine_item.insert_item_into(MACHINES_TABLE.protobuf_data, encrypted);
                     let mut stats_map = AttributeValueHashMap::new();
                     insert_stats(&mut stats_map, s);
                     machine_item.insert_item_into(MACHINES_TABLE.stats.key, stats_map);
                     Ok(true)
                 } else {
                     // stats have already been set; check if they are equal
-                    let mut protobuf_data: MachineDbItem = key_manager.decrypt_db_proto(
-                        &MACHINES_TABLE.table_name, 
-                        request.machine_id.as_bytes(), 
-                        machine_item.get_item(MACHINES_TABLE.protobuf_data)?
-                    )?;
-                    let computer_name = &protobuf_data.computer_name;
                     let existing_stats_map = machine_item.get_item_mut(MACHINES_TABLE.stats.key)?;
                     let cpu = existing_stats_map.get_item(MACHINES_TABLE.stats.fields.cpu_model)?;
                     let ram = existing_stats_map.get_item(MACHINES_TABLE.stats.fields.ram_mb)?;
-                    if cpu.ne(&s.cpu_model) || ram.ne(&s.ram_mb.to_string()) || computer_name.ne(&s.computer_name) {
+                    if cpu.ne(&s.cpu_model) || ram.ne(&s.ram_mb.to_string()) {
                         insert_stats(existing_stats_map, s);
-                        protobuf_data.computer_name = s.computer_name.clone();
-                        let encrypted = key_manager.encrypt_db_proto(
-                            &MACHINES_TABLE.table_name,
-                            &request.machine_id.as_bytes(),
-                            &protobuf_data
-                        )?;
-                        machine_item.insert_item(MACHINES_TABLE.protobuf_data, encrypted.into());
-                        return Ok(true)
                     }
                     Ok(false)
                 }
@@ -149,15 +140,6 @@ fn init_machine_item(key_manager: &mut KeyManager, request: &LicenseActivationRe
                 let mut stats_map = AttributeValueHashMap::new();
                 insert_stats(&mut stats_map, &s);
                 machine_item.insert_item(MACHINES_TABLE.stats.key, stats_map);
-                let protobuf = MachineDbItem {
-                    computer_name: s.computer_name.clone()
-                };
-                let encrypted = key_manager.encrypt_db_proto(
-                    &MACHINES_TABLE.table_name,
-                    &request.machine_id.as_bytes(),
-                    &protobuf
-                )?;
-                machine_item.insert_item(MACHINES_TABLE.protobuf_data, encrypted.into());
             } else {
                 // stats were not provided by the user
                 machine_item.insert_null(MACHINES_TABLE.stats.key);
@@ -275,13 +257,13 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let machine_needs_update = if let Some(m) = tables.get(MACHINES_TABLE.table_name) {
         if m.len() != 1 {
             // make new machine item
-            init_machine_item(key_manager, &request, &mut machine_item, false)
+            init_machine_item(&request, &mut machine_item, false)
         } else {
-            init_machine_item(key_manager, &request, &mut m[0].to_owned(), true)
+            init_machine_item(&request, &mut m[0].to_owned(), true)
         }
     } else {
         // make new machine item
-        init_machine_item(key_manager, &request, &mut machine_item, false)
+        init_machine_item(&request, &mut machine_item, false)
     }?;
 
     // all items are present in the database
@@ -290,11 +272,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     let license_product_map = products_map.get_mut_map_by_str(&product_id.encoded_id)?;
     let max_machines = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.machines_allowed)?.parse::<usize>()?;
-    let mut offline_machines_list = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines)?.to_owned();
-    let mut online_machines_list = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.online_machines)?.to_owned();
-    let current_machine_count = offline_machines_list.len() + online_machines_list.len();
+    let mut offline_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines.key)?.to_owned();
+    let mut online_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.online_machines.key)?.to_owned();
+    let current_machine_count = offline_machines_map.keys().len() + online_machines_map.keys().len();
     
-    let exists_in_machine_list = offline_machines_list.contains(&request.machine_id) || online_machines_list.contains(&request.machine_id);
+    let exists_in_machine_list = offline_machines_map.contains_key(&request.machine_id) || online_machines_map.contains_key(&request.machine_id);
 
     let product_protobuf_data: ProductDbItem = key_manager.decrypt_db_proto(
         &PRODUCTS_TABLE.table_name, 
@@ -353,28 +335,27 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             product_item.increase_number(&PRODUCTS_TABLE.num_machines_total, 1)?;
             // success response, update tables
             if is_offline_attempt {
-                offline_machines_list.push(request.machine_id.clone());
+                insert_machine_into_machine_map(&mut offline_machines_map, &request);
                 product_item.increase_number(&PRODUCTS_TABLE.num_offline_machines, 1)?;
-                update_lists(&mut updated_license, license_product_map, None, Some(offline_machines_list));
+                update_lists(&mut updated_license, license_product_map, None, Some(offline_machines_map));
             } else {
-                online_machines_list.push(request.machine_id.clone());
-                update_lists(&mut updated_license, license_product_map, Some(online_machines_list), None);
+                insert_machine_into_machine_map(&mut online_machines_map, &request);
+                update_lists(&mut updated_license, license_product_map, Some(online_machines_map), None);
             }
         } else {
             // machine limit reached
             return Err(ApiError::OverMaxMachines(responses))
         }
     } else {
+        // machine exists in machine lists
         if is_offline_attempt {
             // remove machine from online machines list if it is there, then add it to offline machines list
-            if let Some(pos) = online_machines_list.iter().position(|m| m == &request.machine_id) {
-                online_machines_list.remove(pos);
-                offline_machines_list.push(request.machine_id.clone());
-                update_lists(&mut updated_license, license_product_map, Some(online_machines_list), Some(offline_machines_list));
-            } else if !offline_machines_list.contains(&request.machine_id) {
-                offline_machines_list.push(request.machine_id.clone());
-                update_lists(&mut updated_license, license_product_map, None, Some(offline_machines_list));
-            }
+            if online_machines_map.contains_key(&request.machine_id) {
+                online_machines_map.remove(&request.machine_id);
+                insert_machine_into_machine_map(&mut offline_machines_map, &request);
+                update_lists(&mut updated_license, license_product_map,
+                Some(online_machines_map), Some(offline_machines_map));
+            } 
         }
     }
     

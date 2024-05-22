@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package get_license_request;
+
+message GetLicenseRequest {
+    string user_id = 1;
+    uint64 timestamp = 20;
+}
+
+message GetLicenseResponse {
+    map<string, MachineInfo> licensed_products = 1;
+    
+    uint64 timestamp = 20;
+}
+
+message MachineInfo {
+
+}

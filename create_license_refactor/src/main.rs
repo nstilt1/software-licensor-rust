@@ -7,7 +7,7 @@ use utils::crypto::http_private_key_manager::Id;
 use utils::dynamodb::maps::Maps;
 use utils::prelude::proto::protos::create_license_request::{CreateLicenseRequest, LicenseDbItem};
 use utils::prelude::proto::protos::create_license_response::CreateLicenseResponse;
-use utils::prelude::proto::protos::create_product_request::ProductDbItem;
+use utils::prelude::proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::rusoto_dynamodb::{BatchGetItemInput, BatchWriteItemInput, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::prelude::*;
 use utils::tables::licenses::LICENSES_TABLE;
@@ -128,6 +128,17 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         return Err(ApiError::NotFound)
     };
 
+    let store_item_protobuf: StoreDbItem = key_manager.decrypt_db_proto(
+        &STORES_TABLE.table_name,
+        store_id.binary_id.as_ref(),
+        store_item.get_item(STORES_TABLE.protobuf_data)?
+    )?;
+    let store_config = if let Some(c) = &store_item_protobuf.configs {
+        c
+    } else {
+        return Err(ApiError::InvalidDbSchema("Missing store config".into()))
+    };
+
     // verify signature
     let public_key = store_item.get_item(STORES_TABLE.public_key)?;
     let pubkey = PublicKey::from_sec1_bytes(&public_key)?;
@@ -182,15 +193,13 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let mut issues: HashMap<String, String> = HashMap::new();
     for product_id_string in product_map_keys.iter() {
         let product_item = product_items.get(product_id_string.as_str()).expect("key should exist");
-        let protobuf_bytes = product_item.get_item(PRODUCTS_TABLE.protobuf_data)?;
-        let product_protobuf_data: ProductDbItem = key_manager.decrypt_db_proto(PRODUCTS_TABLE.table_name, &store_id.binary_id.as_ref(), &protobuf_bytes)?;
         let machines_per_license = product_item.get_item(PRODUCTS_TABLE.max_machines_per_license)?.parse::<u64>()?;
         let product_info = request.product_info.get(product_id_string.as_str()).expect("valid key");
-        let subscription_expiration_period = product_protobuf_data.subscription_license_expiration_days;
+        let subscription_expiration_period = store_config.subscription_license_expiration_days;
         let subscription_expiration_period_seconds = (subscription_expiration_period as u64) * 60 * 60 * 24;
         // leniency adds a little extra time to the initial expiration period to 
         // counteract any potential delays from server communications
-        let subscription_leniency_seconds = product_protobuf_data.subscription_license_expiration_leniency_hours as u64 * 60 * 60;
+        let subscription_leniency_seconds = store_config.subscription_license_expiration_leniency_hours as u64 * 60 * 60;
         // validate license types in request
         let types = &[license_types::PERPETUAL, license_types::SUBSCRIPTION, license_types::TRIAL];
         if !types.contains(&product_info.license_type.to_lowercase().as_str()) {

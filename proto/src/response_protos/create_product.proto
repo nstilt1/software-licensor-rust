@@ -10,10 +10,5 @@ message CreateProductResponse {
     // the public verifying key for this product. You will need to verify 
     // the server's signature on the key file with this public key.
     bytes product_public_key = 2;
-    // The supported languages for the licensing server's responses.
-    // Keep these handy because they will need to be passed into the 
-    // license_auth request to be able to fetch the response in the 
-    // correct language
-    repeated string supported_languages = 3;
     uint64 timestamp = 10;
 }

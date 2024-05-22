@@ -11,12 +11,6 @@ pub struct CreateProductResponse {
     /// the server's signature on the key file with this public key.
     #[prost(bytes = "vec", tag = "2")]
     pub product_public_key: ::prost::alloc::vec::Vec<u8>,
-    /// The supported languages for the licensing server's responses.
-    /// Keep these handy because they will need to be passed into the
-    /// license_auth request to be able to fetch the response in the
-    /// correct language
-    #[prost(string, repeated, tag = "3")]
-    pub supported_languages: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(uint64, tag = "10")]
     pub timestamp: u64,
 }

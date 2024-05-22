@@ -18,34 +18,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     if request.version.len() < 1 {
         return Err(ApiError::InvalidRequest("The version must be at least one number".into()))
     }
-    if request.language_support.keys().len() < 1
-    {
-        return Err(ApiError::InvalidRequest("There must be language support for at least one language".into()))
-    }
     if request.timestamp < SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() - 60 {
         return Err(ApiError::InvalidRequest("Timestamp is too old".into()))
-    }
-
-    // some basic validation for language support lengths
-    for lang in request.language_support.values() {
-        let mut lens = [
-            lang.incorrect_offline_code.len(), 
-            lang.license_no_longer_active.len(),
-            lang.no_license_found.len(),
-            lang.over_max_machines.len(),
-            lang.success.len(),
-            lang.trial_ended.len()
-        ];
-        lens.sort();
-        let min = lens[0];
-        let max = lens[lens.len() - 1];
-        if min < 3 {
-            return Err(ApiError::InvalidRequest("Language Support responses must be at least 3 bytes long".into()))
-        }
-        let hard_coded_max_len = 180;
-        if max > hard_coded_max_len {
-            return Err(ApiError::InvalidRequest(format!("Language Support responses must not exceed {} bytes per response", hard_coded_max_len)))
-        }
     }
 
     // the StoreId has already been verified in `decrypt_and_hash_request()` but
@@ -109,15 +83,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         store_id: store_id.binary_id.as_ref().into(),
         product_id: product_id.binary_id.as_ref().into(),
         product_name: request.product_name.to_owned(),
-        language_support: request.language_support.to_owned(),
-        offline_license_frequency_hours: request.offline_license_frequency_hours,
-        perpetual_license_expiration_days: request.perpetual_license_expiration_days,
-        perpetual_license_frequency_hours: request.perpetual_license_frequency_hours,
-        subscription_license_expiration_days: request.subscription_license_expiration_days,
-        subscription_license_expiration_leniency_hours: request.subscription_license_expiration_leniency_hours,
-        subscription_license_frequency_hours: request.subscription_license_frequency_hours,
-        trial_license_expiration_days: request.trial_license_expiration_days,
-        trial_license_frequency_hours: request.trial_license_frequency_hours,
     };
 
     product_item.insert_item_into(
@@ -158,16 +123,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         ..Default::default()
     }).await?;
 
-    let lang_support_keys = request.language_support.keys();
-    let mut languages: Vec<String> = Vec::with_capacity(lang_support_keys.len());
-    for lang in lang_support_keys {
-        languages.push(lang.to_string())
-    }
-
     let response = CreateProductResponse {
         product_id: product_id.encoded_id,
         product_public_key: product_pubkey.to_vec(),
-        supported_languages: languages,
         timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
     };
 

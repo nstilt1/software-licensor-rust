@@ -28,6 +28,7 @@ message LicenseKeyFile {
     // 8: trial ended
     // 16: license no longer active
     // 32: incorrect offline code
+    // 64: Offline codes are not allowed for this product
     uint32 message_code = 31;
     // the message to show if the license ever expires on the user
     string post_expiration_message = 35;

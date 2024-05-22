@@ -38,6 +38,7 @@ pub struct LicenseKeyFile {
     /// 8: trial ended
     /// 16: license no longer active
     /// 32: incorrect offline code
+    /// 64: Offline codes are not allowed for this product
     #[prost(uint32, tag = "31")]
     pub message_code: u32,
     /// the message to show if the license ever expires on the user

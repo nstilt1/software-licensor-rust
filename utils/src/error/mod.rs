@@ -23,6 +23,7 @@ pub enum ApiError {
     OverMaxMachines,
     TrialEnded,
     InvalidLicenseCode,
+    OfflineIsNotAllowed
 }
 
 impl ApiError {
@@ -46,6 +47,7 @@ impl ApiError {
             Self::OverMaxMachines => 403,
             Self::TrialEnded => 403,
             Self::InvalidLicenseCode => 403,
+            Self::OfflineIsNotAllowed => 403,
         }
     }
 }
@@ -79,6 +81,7 @@ impl std::fmt::Display for ApiError {
                 Self::OverMaxMachines => f.write_str("4"),
                 Self::TrialEnded => f.write_str("8"),
                 Self::InvalidLicenseCode => f.write_str("2"),
+                Self::OfflineIsNotAllowed => f.write_str("64"),
             }
         }
         #[cfg(not(debug_assertions))]
@@ -98,6 +101,7 @@ impl std::fmt::Display for ApiError {
                 Self::OverMaxMachines => f.write_str("4"),
                 Self::TrialEnded => f.write_str("8"),
                 Self::InvalidLicenseCode => f.write_str("2"),
+                Self::OfflineIsNotAllowed => f.write_str("64"),
                 _ => format_args!("Forbidden")
             }
         )}

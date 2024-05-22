@@ -2,6 +2,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use proto::protos::store_db_item::StoreDbItem;
+use utils::prelude::proto::protos::store_db_item;
 use utils::prelude::*;
 use utils::tables::stores::STORES_TABLE;
 use rusoto_core::Region;
@@ -61,6 +62,28 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     
     // a solid store_id has been found, most likely with one try. Now, we
     // will create the database item
+    let configs = if let Some(c) = &request.configs {
+        // validate configs with bounds
+        let mut c = c.clone();
+        macro_rules! bound {
+            ($value:expr, $lower_bound:literal) => {
+                $value = $value.max($lower_bound)
+            };
+        }
+        bound!(c.max_machines_per_license, 3);
+        bound!(c.offline_license_frequency_hours, 300);
+        bound!(c.perpetual_license_expiration_days, 24);
+        bound!(c.perpetual_license_frequency_hours, 300);
+        bound!(c.subscription_license_expiration_days, 30);
+        bound!(c.subscription_license_expiration_leniency_hours, 6);
+        bound!(c.subscription_license_frequency_hours, 16);
+        bound!(c.trial_license_expiration_days, 3);
+        bound!(c.trial_license_frequency_hours, 72);
+        c
+    } else {
+        return Err(ApiError::InvalidRequest("Configs are required".into()))
+    };
+
     let proto = StoreDbItem {
         contact_first_name: request.contact_first_name.to_owned(),
         contact_last_name: request.contact_last_name.to_owned(),
@@ -71,6 +94,16 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         state: request.state.to_owned(),
         country: request.country.to_owned(),
         product_ids: Vec::new(),
+        configs: Some(store_db_item::Configs {
+            offline_license_frequency_hours: configs.offline_license_frequency_hours,
+            perpetual_license_expiration_days: configs.perpetual_license_expiration_days,
+            perpetual_license_frequency_hours: configs.perpetual_license_frequency_hours,
+            subscription_license_expiration_days: configs.subscription_license_expiration_days,
+            subscription_license_expiration_leniency_hours: configs.subscription_license_expiration_leniency_hours,
+            subscription_license_frequency_hours: configs.subscription_license_frequency_hours,
+            trial_license_expiration_days: configs.trial_license_expiration_days,
+            trial_license_frequency_hours: configs.trial_license_frequency_hours,
+        })
     };
     
     let encrypted_protobuf = key_manager.encrypt_db_proto(STORES_TABLE.table_name, store_id.binary_id.as_ref(), &proto)?;

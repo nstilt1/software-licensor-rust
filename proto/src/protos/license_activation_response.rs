@@ -9,6 +9,8 @@ pub struct LicenseKeyFile {
     pub customer_first_name: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub customer_last_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub product_version: ::prost::alloc::string::String,
     #[prost(string, tag = "10")]
     pub license_code: ::prost::alloc::string::String,
     #[prost(string, tag = "11")]
@@ -29,6 +31,15 @@ pub struct LicenseKeyFile {
     pub check_back_timestamp: ::core::option::Option<u64>,
     #[prost(string, tag = "30")]
     pub message: ::prost::alloc::string::String,
+    /// a response code; valid codes are
+    /// 1: success
+    /// 2: no license found
+    /// 4: reached the machine limit
+    /// 8: trial ended
+    /// 16: license no longer active
+    /// 32: incorrect offline code
+    #[prost(uint32, tag = "31")]
+    pub message_code: u32,
     /// the message to show if the license ever expires on the user
     #[prost(string, tag = "35")]
     pub post_expiration_message: ::prost::alloc::string::String,

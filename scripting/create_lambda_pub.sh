@@ -1,5 +1,3 @@
-
-
 # store the name of the lambda:
 name=$1
 # store the IAM number

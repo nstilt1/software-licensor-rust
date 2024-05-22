@@ -9,71 +9,12 @@ pub struct CreateProductRequest {
     pub product_name: ::prost::alloc::string::String,
     #[prost(string, tag = "21")]
     pub product_id_prefix: ::prost::alloc::string::String,
-    /// this contains some messages in different languages, depending on the
-    /// developer's configuration. I would like to make some default messages,
-    /// but it also depends on the developer to translate their software to reach
-    /// maximum potential
-    #[prost(map = "string, message", tag = "30")]
-    pub language_support: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        LanguageSupport,
-    >,
     #[prost(bool, tag = "40")]
     pub is_offline_allowed: bool,
     #[prost(uint32, tag = "60")]
     pub max_machines_per_license: u32,
-    /// some notes about "frequency" and "expiration":
-    ///
-    /// the frequency dictates the minimum amount of time that must pass before a
-    /// client will reconnect with the server to check on the status of their
-    /// license(s). This is important in case the user tries to remove a machine
-    /// from their license, or if they were to refund their license purchase
-    ///
-    /// the expiration dictates how long the client will be able to go without
-    /// contacting the server. The expiration is important in the event that a
-    /// user were to deactivate a computer on their license, and if the
-    /// "deactivated" client never reached back out to the server to find out
-    /// that it is supposed to be deactivated
-    #[prost(uint32, tag = "70")]
-    pub offline_license_frequency_hours: u32,
-    #[prost(uint32, tag = "80")]
-    pub perpetual_license_expiration_days: u32,
-    #[prost(uint32, tag = "90")]
-    pub perpetual_license_frequency_hours: u32,
-    #[prost(uint32, tag = "100")]
-    pub subscription_license_expiration_days: u32,
-    /// these "leniency hours" get added onto the expiration date in case there's
-    /// a niche timing unalignment with any communicating servers, such as the
-    /// payment processor processing the subscription payment that has to be
-    /// hooked from the store's backend that has to send a request to the
-    /// licensing
-    #[prost(uint32, tag = "110")]
-    pub subscription_license_expiration_leniency_hours: u32,
-    #[prost(uint32, tag = "120")]
-    pub subscription_license_frequency_hours: u32,
-    #[prost(uint32, tag = "130")]
-    pub trial_license_expiration_days: u32,
-    #[prost(uint32, tag = "140")]
-    pub trial_license_frequency_hours: u32,
     #[prost(uint64, tag = "150")]
     pub timestamp: u64,
-}
-/// this contains some customizable messages in a given language
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct LanguageSupport {
-    #[prost(string, tag = "1")]
-    pub incorrect_offline_code: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub license_no_longer_active: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub no_license_found: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub over_max_machines: ::prost::alloc::string::String,
-    #[prost(string, tag = "5")]
-    pub trial_ended: ::prost::alloc::string::String,
-    #[prost(string, tag = "6")]
-    pub success: ::prost::alloc::string::String,
 }
 /// store database item. This is stored in a protobuf message so that its contents can be easily encrypted. The content in the encrypted message will not be able to be analyzed with tools such as AWS Athena.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -87,46 +28,4 @@ pub struct ProductDbItem {
     pub product_id: ::prost::alloc::vec::Vec<u8>,
     #[prost(string, tag = "20")]
     pub product_name: ::prost::alloc::string::String,
-    /// this contains some messages in different languages, depending on the
-    /// developer's configuration. I would like to make some default messages,
-    /// but it also depends on the developer to translate their software to reach
-    /// maximum potential
-    #[prost(map = "string, message", tag = "30")]
-    pub language_support: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        LanguageSupport,
-    >,
-    /// some notes about "frequency" and "expiration":
-    ///
-    /// the frequency dictates the minimum amount of time that must pass before a
-    /// client will reconnect with the server to check on the status of their
-    /// license(s). This is important in case the user tries to remove a machine
-    /// from their license, or if they were to refund their license purchase
-    ///
-    /// the expiration dictates how long the client will be able to go without
-    /// contacting the server. The expiration is important in the event that a
-    /// user were to deactivate a computer on their license, and if the
-    /// "deactivated" client never reached back out to the server to find out
-    /// that it is supposed to be deactivated
-    #[prost(uint32, tag = "70")]
-    pub offline_license_frequency_hours: u32,
-    #[prost(uint32, tag = "80")]
-    pub perpetual_license_expiration_days: u32,
-    #[prost(uint32, tag = "90")]
-    pub perpetual_license_frequency_hours: u32,
-    #[prost(uint32, tag = "100")]
-    pub subscription_license_expiration_days: u32,
-    /// these "leniency hours" get added onto the expiration date in case there's
-    /// a niche timing unalignment with any communicating servers, such as the
-    /// payment processor processing the subscription payment that has to be
-    /// hooked from the store's backend that has to send a request to the
-    /// licensing
-    #[prost(uint32, tag = "110")]
-    pub subscription_license_expiration_leniency_hours: u32,
-    #[prost(uint32, tag = "120")]
-    pub subscription_license_frequency_hours: u32,
-    #[prost(uint32, tag = "130")]
-    pub trial_license_expiration_days: u32,
-    #[prost(uint32, tag = "140")]
-    pub trial_license_frequency_hours: u32,
 }

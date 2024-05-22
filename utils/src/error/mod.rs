@@ -1,6 +1,5 @@
 use http_private_key_manager::ProtocolError;
 use lambda_http::{Response, Body, Error};
-use proto::protos::create_product_request::LanguageSupport;
 
 pub mod into;
 
@@ -18,11 +17,11 @@ pub enum ApiError {
     NotFound,
     ThroughputError,
     // licensing errors:
-    IncorrectOfflineCode(LanguageSupport),
-    LicenseNoLongerActive(LanguageSupport),
-    NoLicenseFound(LanguageSupport),
-    OverMaxMachines(LanguageSupport),
-    TrialEnded(LanguageSupport),
+    IncorrectOfflineCode,
+    LicenseNoLongerActive,
+    NoLicenseFound,
+    OverMaxMachines,
+    TrialEnded,
     InvalidLicenseCode,
 }
 
@@ -41,11 +40,11 @@ impl ApiError {
             Self::NotFound => 404,
             Self::ThroughputError => 500,
             // licensing errors
-            Self::IncorrectOfflineCode(_) => 403,
-            Self::LicenseNoLongerActive(_) => 403,
-            Self::NoLicenseFound(_) => 403,
-            Self::OverMaxMachines(_) => 403,
-            Self::TrialEnded(_) => 403,
+            Self::IncorrectOfflineCode => 403,
+            Self::LicenseNoLongerActive => 403,
+            Self::NoLicenseFound => 403,
+            Self::OverMaxMachines => 403,
+            Self::TrialEnded => 403,
             Self::InvalidLicenseCode => 403,
         }
     }
@@ -74,12 +73,12 @@ impl std::fmt::Display for ApiError {
                 Self::NotFound => f.write_str("Not found; perhaps the resource was not in the database."),
                 Self::ThroughputError => f.write_str("There was a throughput error. Try again in a few minutes"),
                 // licensing errors
-                Self::IncorrectOfflineCode(l) => f.write_str(&l.incorrect_offline_code),
-                Self::LicenseNoLongerActive(l) => f.write_str(&l.license_no_longer_active),
-                Self::NoLicenseFound(l) => f.write_str(&l.no_license_found),
-                Self::OverMaxMachines(l) => f.write_str(&l.over_max_machines),
-                Self::TrialEnded(l) => f.write_str(&l.trial_ended),
-                Self::InvalidLicenseCode => f.write_str("Invalid license code."),
+                Self::IncorrectOfflineCode => f.write_str("32"),
+                Self::LicenseNoLongerActive => f.write_str("16"),
+                Self::NoLicenseFound => f.write_str("2"),
+                Self::OverMaxMachines => f.write_str("4"),
+                Self::TrialEnded => f.write_str("8"),
+                Self::InvalidLicenseCode => f.write_str("2"),
             }
         }
         #[cfg(not(debug_assertions))]
@@ -93,12 +92,12 @@ impl std::fmt::Display for ApiError {
                 Self::NotFound => "Not Found",
                 Self::ThroughputError => "The servers are a bit busy at the momement. Try again in a few minutes",
                 // licensing errors
-                Self::IncorrectOfflineCode(l) => f.write_str(&l.incorrect_offline_code),
-                Self::LicenseNoLongerActive(l) => f.write_str(&l.license_no_longer_active),
-                Self::NoLicenseFound(l) => f.write_str(&l.no_license_found),
-                Self::OverMaxMachines(l) => f.write_str(&l.over_max_machines),
-                Self::TrialEnded(l) => f.write_str(&l.trial_ended),
-                Self::InvalidLicenseCode => f.write_str("Invalid license code."),
+                Self::IncorrectOfflineCode => f.write_str("32"),
+                Self::LicenseNoLongerActive => f.write_str("16"),
+                Self::NoLicenseFound => f.write_str("2"),
+                Self::OverMaxMachines => f.write_str("4"),
+                Self::TrialEnded => f.write_str("8"),
+                Self::InvalidLicenseCode => f.write_str("2"),
                 _ => format_args!("Forbidden")
             }
         )}

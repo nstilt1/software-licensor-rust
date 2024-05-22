@@ -10,7 +10,6 @@ pub mod create_license_response;
 
 pub mod license_activation_request;
 pub mod license_activation_response;
-pub mod machine_db_item;
 
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};

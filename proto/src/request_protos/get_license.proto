@@ -10,15 +10,19 @@ message GetLicenseRequest {
 message GetLicenseResponse {
     // a map of product_ids to license info
     map<string, LicenseInfo> licensed_products = 1;
+    string license_code = 2;
+    string offline_code = 3;
     uint64 timestamp = 20;
 }
 
 message LicenseInfo {
-    repeated Machine machines = 1;
-    uint32 machine_limit = 2;
+    repeated Machine offline_machines = 1;
+    repeated Machine online_machines = 2;
+    uint32 machine_limit = 3;
 }
 
 message Machine {
-    string os = 1;
-    string computer_name = 2;
+    string id = 1;
+    string os = 2;
+    string computer_name = 3;
 }

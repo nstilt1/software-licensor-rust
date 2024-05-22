@@ -11,6 +11,8 @@ pub mod create_license_response;
 pub mod license_activation_request;
 pub mod license_activation_response;
 
+pub mod get_license_request;
+
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -25,6 +27,7 @@ use self::{
     store_db_item::StoreDbItem,
     license_activation_request::{LicenseActivationRequest, Stats},
     license_activation_response::LicenseKeyFile,
+    get_license_request::{GetLicenseRequest, GetLicenseResponse},
 };
 
 
@@ -87,3 +90,6 @@ impl_zeroize_on_drop_for_struct!(LicenseDbItem, license_id, customer_first_name,
 impl_zeroize_on_drop_for_struct!(LicenseActivationRequest, license_code, machine_id);
 impl_zeroize_on_drop_for_struct!(Stats, computer_name);
 impl_zeroize_on_drop_for_struct!(LicenseKeyFile, machine_id, license_code);
+
+impl_zeroize_on_drop_for_struct!(GetLicenseRequest, user_id);
+impl_zeroize_on_drop_for_struct!(GetLicenseResponse, license_code, offline_code);

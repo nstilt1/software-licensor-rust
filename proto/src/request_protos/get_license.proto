@@ -8,11 +8,17 @@ message GetLicenseRequest {
 }
 
 message GetLicenseResponse {
-    map<string, MachineInfo> licensed_products = 1;
-    
+    // a map of product_ids to license info
+    map<string, LicenseInfo> licensed_products = 1;
     uint64 timestamp = 20;
 }
 
-message MachineInfo {
+message LicenseInfo {
+    repeated Machine machines = 1;
+    uint32 machine_limit = 2;
+}
 
+message Machine {
+    string os = 1;
+    string computer_name = 2;
 }

@@ -13,5 +13,39 @@ message RegisterStoreRequest {
     string state = 27;
     string country = 29;
     bytes public_signing_key = 30;
+    Configs configs = 35;
     uint64 timestamp = 50;
+}
+
+message Configs {
+    uint32 max_machines_per_license = 60;
+
+    // some notes about "frequency" and "expiration": 
+    //
+    // the frequency dictates the minimum amount of time that must pass before a
+    // client will reconnect with the server to check on the status of their 
+    // license(s). This is important in case the user tries to remove a machine 
+    // from their license, or if they were to refund their license purchase
+    //
+    // the expiration dictates how long the client will be able to go without 
+    // contacting the server. The expiration is important in the event that a
+    // user were to deactivate a computer on their license, and if the 
+    // "deactivated" client never reached back out to the server to find out 
+    // that it is supposed to be deactivated
+    uint32 offline_license_frequency_hours = 70;
+
+    uint32 perpetual_license_expiration_days = 80;
+    uint32 perpetual_license_frequency_hours = 90;
+
+    uint32 subscription_license_expiration_days = 100;
+    // these "leniency hours" get added onto the expiration date in case there's 
+    // a niche timing unalignment with any communicating servers, such as the 
+    // payment processor processing the subscription payment that has to be 
+    // hooked from the store's backend that has to send a request to the 
+    // licensing
+    uint32 subscription_license_expiration_leniency_hours = 110;
+    uint32 subscription_license_frequency_hours = 120;
+
+    uint32 trial_license_expiration_days = 130;
+    uint32 trial_license_frequency_hours = 140;
 }

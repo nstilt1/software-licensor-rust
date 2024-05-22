@@ -8,6 +8,7 @@ use utils::prelude::proto::protos::create_license_request::LicenseDbItem;
 use utils::prelude::proto::protos::create_product_request::ProductDbItem;
 use utils::prelude::proto::protos::license_activation_request::{LicenseActivationRequest, Stats};
 use utils::prelude::proto::protos::license_activation_response::{LicenseActivationResponse, LicenseKeyFile};
+use utils::prelude::proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::rusoto_dynamodb::{BatchGetItemInput, BatchWriteItemInput, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::tables::machines::MACHINES_TABLE;
 use utils::{now_as_seconds, prelude::*, StringSanitization};
@@ -86,7 +87,9 @@ fn insert_stats(stats_map: &mut AttributeValueHashMap, stats: &Stats) {
 fn insert_machine_into_machine_map(map: &mut AttributeValueHashMap, request: &LicenseActivationRequest) {
     let mach_map = if let Some(s) = &request.hardware_stats {
         let mut mach_map = AttributeValueHashMap::new(); 
-        mach_map.insert_item(MACHINE.os_name, s.os_name.clone());
+        let mut truncated_name = s.os_name.clone();
+        truncated_name.truncate(15);
+        mach_map.insert_item(MACHINE.os_name, truncated_name);
         mach_map.insert_item(MACHINE.computer_name, s.computer_name.clone());
         mach_map
     } else {
@@ -235,6 +238,17 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         return Err(ApiError::NotFound.into())
     };
 
+    let store_item_protobuf_data: StoreDbItem = key_manager.decrypt_db_proto(
+        &STORES_TABLE.table_name, 
+        store_id.binary_id.as_ref(), 
+        store_item.get_item(STORES_TABLE.protobuf_data)?
+    )?;
+    let store_configs = if let Some(c) = &store_item_protobuf_data.configs {
+        c
+    } else {
+        return Err(ApiError::InvalidDbSchema("Missing store_configs".into()))
+    };
+
     product_item = if let Some(p) = tables.get(PRODUCTS_TABLE.table_name) {
         if p.len() != 1 {
             return Err(ApiError::NotFound)
@@ -283,10 +297,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         &store_id.binary_id.as_ref(), 
         product_item.get_item(PRODUCTS_TABLE.protobuf_data)?
     )?;
-    let responses = match product_protobuf_data.language_support.get(&request.language_id) {
-        Some(l) => l.to_owned(),
-        None => return Err(ApiError::InvalidRequest("Language ID did not match the database".into()))
-    };
 
     let expiry_time = license_item.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?;
     let license_type = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
@@ -296,7 +306,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         if custom_message.len() > 0 {
             custom_message.clone()
         } else {
-            responses.success.clone()
+            "1".to_string()
         }
     };
 
@@ -304,6 +314,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         product_id: product_id.encoded_id.clone(),
         customer_first_name: "".into(),
         customer_last_name: "".into(),
+        product_version: product_protobuf_data.version.clone(),
         license_code: request.license_code.clone(),
         license_type: license_type.clone(),
         machine_id: request.machine_id.clone(),
@@ -311,6 +322,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         expiration_timestamp: None,
         check_back_timestamp: None,
         message: "".into(),
+        message_code: 1,
         post_expiration_message: "".into(),
     };
     
@@ -320,8 +332,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     if is_expiring && expiry_time != 0 && expiry_time < SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() {
         // expiry time has been reached
         match license_type.as_str() {
-            license_types::TRIAL => return Err(ApiError::TrialEnded(responses)),
-            license_types::SUBSCRIPTION => return Err(ApiError::LicenseNoLongerActive(responses)),
+            license_types::TRIAL => return Err(ApiError::TrialEnded),
+            license_types::SUBSCRIPTION => return Err(ApiError::LicenseNoLongerActive),
             _ => unreachable!()
         }
     }
@@ -344,7 +356,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             }
         } else {
             // machine limit reached
-            return Err(ApiError::OverMaxMachines(responses))
+            return Err(ApiError::OverMaxMachines)
         }
     } else {
         // machine exists in machine lists
@@ -364,7 +376,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         license_types::TRIAL => {
             let expire_time = if expiry_time == 0 {
                 // trial license is being activated; set the expiry time accordingly
-                let expire_time = now + (product_protobuf_data.trial_license_expiration_days as u64 * 24 * 60 * 60);
+                let expire_time = now + (store_configs.trial_license_expiration_days as u64 * 24 * 60 * 60);
                 license_product_map.insert_item(
                     LICENSES_TABLE.products_map_item.fields.expiry_time,
                     expire_time.to_string());
@@ -373,19 +385,19 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             } else {
                 license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?
             };
-            let check_up_time = now + (product_protobuf_data.trial_license_frequency_hours as u64 * 60 * 60);
-            key_file.post_expiration_message = responses.trial_ended;
+            let check_up_time = now + (store_configs.trial_license_frequency_hours as u64 * 60 * 60);
+            key_file.post_expiration_message = ApiError::TrialEnded.to_string();
             (expire_time, check_up_time)
         },
         license_types::SUBSCRIPTION => {
-            let expire_time = now + (product_protobuf_data.subscription_license_expiration_days as u64 * 24 * 60 * 60);
-            let check_up_time = now + (product_protobuf_data.subscription_license_frequency_hours as u64 * 60 * 60);
-            key_file.post_expiration_message = responses.license_no_longer_active;
+            let expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
+            let check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
+            key_file.post_expiration_message = ApiError::LicenseNoLongerActive.to_string();
             (expire_time, check_up_time)
         },
         license_types::PERPETUAL => {
-            let expire_time = now + (product_protobuf_data.perpetual_license_expiration_days as u64 * 24 * 60 * 60);
-            let check_up_time = now + (product_protobuf_data.perpetual_license_frequency_hours as u64 * 60 * 60);
+            let expire_time = now + (store_configs.perpetual_license_expiration_days as u64 * 24 * 60 * 60);
+            let check_up_time = now + (store_configs.perpetual_license_frequency_hours as u64 * 60 * 60);
             (expire_time, check_up_time)
         },
         _ => return Err(ApiError::InvalidDbSchema("Invalid license type".into()))

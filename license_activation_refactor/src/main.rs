@@ -338,7 +338,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         }
     }
     let mut updated_license = false;
-
+    let product_allows_offline = *product_item.get_item(PRODUCTS_TABLE.is_offline_allowed)?;
     // check offline code
     let (first_name, last_name) = check_licenses_db_proto(key_manager, is_offline_attempt, &offline_license_code, &store_id, &license_item)?;
     // check machine lists
@@ -347,6 +347,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             product_item.increase_number(&PRODUCTS_TABLE.num_machines_total, 1)?;
             // success response, update tables
             if is_offline_attempt {
+                if !product_allows_offline {
+                    return Err(ApiError::OfflineIsNotAllowed);
+                }
                 insert_machine_into_machine_map(&mut offline_machines_map, &request);
                 product_item.increase_number(&PRODUCTS_TABLE.num_offline_machines, 1)?;
                 update_lists(&mut updated_license, license_product_map, None, Some(offline_machines_map));
@@ -361,6 +364,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     } else {
         // machine exists in machine lists
         if is_offline_attempt {
+            if !product_allows_offline {
+                return Err(ApiError::OfflineIsNotAllowed)
+            }
             // remove machine from online machines list if it is there, then add it to offline machines list
             if online_machines_map.contains_key(&request.machine_id) {
                 online_machines_map.remove(&request.machine_id);

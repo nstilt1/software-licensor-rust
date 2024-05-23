@@ -8,7 +8,7 @@ use utils::tables::stores::STORES_TABLE;
 use rusoto_core::Region;
 use rusoto_dynamodb::{DynamoDbClient, DynamoDb, GetItemInput, PutItemInput};
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
-use proto::protos::{register_store_request::RegisterStoreRequest, register_store_response::RegisterStoreResponse};
+use proto::protos::register_store_request::{RegisterStoreRequest, RegisterStoreResponse};
 use proto::prost::Message;
 use http_private_key_manager::Request as RestRequest;
 

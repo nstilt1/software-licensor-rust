@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package license_db_item;
+
+message LicenseDbItem {
+    bytes license_id = 10;
+    string customer_first_name = 20;
+    string customer_last_name = 30;
+    string customer_email = 40;
+    // a string appended to a license code that can allow the user to 
+    // activate an offline license. This "secret" is used because 
+    // offline machines cannot be reliably deactivated
+    string offline_secret = 50;
+}

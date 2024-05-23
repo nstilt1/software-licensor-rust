@@ -4,10 +4,16 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use utils::crypto::http_private_key_manager::Id;
 use utils::dynamodb::maps::Maps;
-use utils::prelude::proto::protos::create_license_request::LicenseDbItem;
-use utils::prelude::proto::protos::create_product_request::ProductDbItem;
-use utils::prelude::proto::protos::license_activation_request::{LicenseActivationRequest, Stats};
-use utils::prelude::proto::protos::license_activation_response::{LicenseActivationResponse, LicenseKeyFile};
+use proto::protos::{
+    license_db_item::LicenseDbItem,
+    product_db_item::ProductDbItem,
+    license_activation_request::{
+        LicenseActivationRequest,
+        LicenseActivationResponse,
+        LicenseKeyFile,
+        Stats,
+    },
+};
 use utils::prelude::proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::rusoto_dynamodb::{BatchGetItemInput, BatchWriteItemInput, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::tables::machines::MACHINES_TABLE;

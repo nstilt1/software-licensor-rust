@@ -1,7 +1,7 @@
 //! A plugin creation API method for a licensing service.
 
 use std::collections::HashMap;
-use utils::prelude::proto::protos::create_license_request::LicenseDbItem;
+use utils::prelude::proto::protos::license_db_item::LicenseDbItem;
 use utils::prelude::proto::protos::get_license_request::{GetLicenseRequest, GetLicenseResponse, LicenseInfo, Machine};
 use utils::{now_as_seconds, prelude::*};
 use utils::tables::licenses::LICENSES_TABLE;

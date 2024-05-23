@@ -4,10 +4,16 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use utils::crypto::http_private_key_manager::Id;
 use utils::dynamodb::maps::Maps;
-use utils::prelude::proto::protos::create_license_request::LicenseDbItem;
-use utils::prelude::proto::protos::create_product_request::ProductDbItem;
-use utils::prelude::proto::protos::license_activation_request::{LicenseActivationRequest, Stats};
-use utils::prelude::proto::protos::license_activation_response::{LicenseActivationResponse, LicenseKeyFile};
+use proto::protos::{
+    license_db_item::LicenseDbItem,
+    product_db_item::ProductDbItem,
+    license_activation_request::{
+        LicenseActivationRequest,
+        LicenseActivationResponse,
+        LicenseKeyFile,
+        Stats,
+    },
+};
 use utils::prelude::proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::rusoto_dynamodb::{BatchGetItemInput, BatchWriteItemInput, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::tables::machines::MACHINES_TABLE;
@@ -301,6 +307,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let expiry_time = license_item.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?;
     let license_type = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
 
+    let license_is_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_license_active)?;
+    if !license_is_active {
+        return Err(ApiError::LicenseNoLongerActive)
+    }
+
     let success_message = {
         let custom_message = license_item.get_item(LICENSES_TABLE.custom_success_message)?;
         if custom_message.len() > 0 {
@@ -391,19 +402,26 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             } else {
                 license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?
             };
-            let check_up_time = now + (store_configs.trial_license_frequency_hours as u64 * 60 * 60);
+            let mut check_up_time = now + (store_configs.trial_license_frequency_hours as u64 * 60 * 60);
+            check_up_time = check_up_time.min(expire_time);
             key_file.post_expiration_message = ApiError::TrialEnded.to_string();
             (expire_time, check_up_time)
         },
         license_types::SUBSCRIPTION => {
+            let is_subscription_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_subscription_active)?;
+            if !is_subscription_active {
+                return Err(ApiError::LicenseNoLongerActive)
+            }
             let expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
-            let check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
+            let mut check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
+            check_up_time = check_up_time.min(expire_time);
             key_file.post_expiration_message = ApiError::LicenseNoLongerActive.to_string();
             (expire_time, check_up_time)
         },
         license_types::PERPETUAL => {
             let expire_time = now + (store_configs.perpetual_license_expiration_days as u64 * 24 * 60 * 60);
-            let check_up_time = now + (store_configs.perpetual_license_frequency_hours as u64 * 60 * 60);
+            let mut check_up_time = now + (store_configs.perpetual_license_frequency_hours as u64 * 60 * 60);
+            check_up_time = check_up_time.min(expire_time);
             (expire_time, check_up_time)
         },
         _ => return Err(ApiError::InvalidDbSchema("Invalid license type".into()))

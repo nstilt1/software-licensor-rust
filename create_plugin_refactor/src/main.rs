@@ -3,8 +3,10 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use utils::dynamodb::maps::Maps;
-use utils::prelude::proto::protos::create_product_request::{CreateProductRequest, ProductDbItem};
-use utils::prelude::proto::protos::create_product_response::CreateProductResponse;
+use proto::protos::{
+    product_db_item::ProductDbItem,
+    create_product_request::{CreateProductRequest, CreateProductResponse},
+};
 use utils::prelude::*;
 use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;

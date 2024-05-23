@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package create_license_request;
 
-// A store registration request
 message CreateLicenseRequest {
     string customer_first_name = 10;
     string customer_last_name = 20;
@@ -27,13 +26,17 @@ message ProductInfo {
     string subtotal = 40;
 }
 
-message LicenseDbItem {
-    bytes license_id = 10;
-    string customer_first_name = 20;
-    string customer_last_name = 30;
-    string customer_email = 40;
-    // a string appended to a license code that can allow the user to 
-    // activate an offline license. This "secret" is used because 
-    // offline machines cannot be reliably deactivated
-    string offline_secret = 50;
+message CreateLicenseResponse {
+    // this license code will be used for all products from this store for 
+    // this user
+    string license_code = 1;
+    // the offline code (if there is one) for the user to activate an offline
+    // license for their licenses
+    string offline_code = 2;
+    // the updated machine limits for each product
+    map<string, uint64> machine_limits = 3;
+    // if there are any issues, there will be an error message corresponding to 
+    // the product ID
+    map<string, string> issues = 4;
+    uint64 timestamp = 10;
 }

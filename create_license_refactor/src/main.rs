@@ -5,9 +5,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use utils::crypto::http_private_key_manager::private_key_generator::elliptic_curve::rand_core::RngCore;
 use utils::crypto::http_private_key_manager::Id;
 use utils::dynamodb::maps::Maps;
-use utils::prelude::proto::protos::create_license_request::{CreateLicenseRequest, LicenseDbItem};
-use utils::prelude::proto::protos::create_license_response::CreateLicenseResponse;
-use utils::prelude::proto::protos::store_db_item::StoreDbItem;
+use proto::protos::{
+    create_license_request::{CreateLicenseRequest, CreateLicenseResponse},
+    store_db_item::StoreDbItem,
+    license_db_item::LicenseDbItem,
+};
 use utils::prelude::rusoto_dynamodb::{BatchGetItemInput, BatchWriteItemInput, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::prelude::*;
 use utils::tables::licenses::LICENSES_TABLE;

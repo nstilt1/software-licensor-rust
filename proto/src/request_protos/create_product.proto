@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package create_product_request;
 
-// store database item. This is stored in a protobuf message so that its contents can be easily encrypted. The content in the encrypted message will not be able to be analyzed with tools such as AWS Athena.
 message CreateProductRequest {
     string version = 1;
     string product_name = 20;
@@ -12,10 +11,12 @@ message CreateProductRequest {
     uint64 timestamp = 150;
 }
 
-// store database item. This is stored in a protobuf message so that its contents can be easily encrypted. The content in the encrypted message will not be able to be analyzed with tools such as AWS Athena.
-message ProductDbItem {
-    string version = 1;
-    bytes store_id = 10;
-    bytes product_id = 12;
-    string product_name = 20;
+message CreateProductResponse {
+    // the product id that you will need to specify in the license_auth
+    // request
+    string product_id = 1;
+    // the public verifying key for this product. You will need to verify 
+    // the server's signature on the key file with this public key.
+    bytes product_public_key = 2;
+    uint64 timestamp = 10;
 }

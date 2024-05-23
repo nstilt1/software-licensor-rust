@@ -7,6 +7,7 @@ use proto::protos::{
     product_db_item::ProductDbItem,
     create_product_request::{CreateProductRequest, CreateProductResponse},
 };
+use utils::prelude::proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::*;
 use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
@@ -110,6 +111,21 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     product_item.insert_item_into(PRODUCTS_TABLE.protobuf_data, encrypted_protobuf);
 
     store_item.increase_number(&STORES_TABLE.num_products, 1)?;
+
+    let mut store_proto: StoreDbItem = key_manager.decrypt_db_proto(
+        &STORES_TABLE.table_name,
+        store_id.binary_id.as_ref(),
+        store_item.get_item(STORES_TABLE.protobuf_data)?
+    )?;
+    store_proto.product_ids.push(product_id.binary_id.as_ref().to_vec());
+    store_item.insert_item_into(
+        STORES_TABLE.protobuf_data,
+        key_manager.encrypt_db_proto(
+            &STORES_TABLE.table_name, 
+            store_id.binary_id.as_ref(), 
+            &store_proto
+        )?
+    );
 
     let mut request_items: HashMap<String, Vec<WriteRequest>> = HashMap::new();
     request_items.insert(STORES_TABLE.table_name.into(), vec![WriteRequest {

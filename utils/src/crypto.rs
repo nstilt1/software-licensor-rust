@@ -148,6 +148,7 @@ pub type KeyManager = HttpPrivateKeyManager<
 /// 
 /// The key needs to be changed to something secure, and the initialization should probably be handled in conjunction with a `Box` or stack bleaching.
 pub fn init_key_manager(kdf_key: Option<&[u8]>, alphabet: Option<&str>) -> KeyManager {
+    #[allow(unused_mut)]
     let mut key = Box::new(
         std::env::var("KEY_MANAGER_PRIVATE_KEY").expect("KEY_MANAGER_PRIVATE_KEY not set")
     );

@@ -189,7 +189,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
 
     let mut store_item = AttributeValueHashMap::new();
-    let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], STORE_DB_SALT);
+    let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
     store_item.insert_item_into(STORES_TABLE.id, hashed_store_id.to_vec());
     request_items.insert(STORES_TABLE.table_name.to_string(), KeysAndAttributes {
         consistent_read: Some(true),
@@ -198,7 +198,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     });
 
     let mut license_item = AttributeValueHashMap::new();
-    let hashed_license_id = salty_hash(&[store_id.binary_id.as_ref(), license_id.binary_id.as_ref()], LICENSE_DB_SALT);
+    let hashed_license_id = salty_hash(&[store_id.binary_id.as_ref(), license_id.binary_id.as_ref()], &LICENSE_DB_SALT);
     license_item.insert_item_into(LICENSES_TABLE.id, hashed_license_id.to_vec());
     request_items.insert(LICENSES_TABLE.table_name.to_string(), KeysAndAttributes {
         consistent_read: Some(false),
@@ -207,7 +207,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     });
 
     let mut product_item = AttributeValueHashMap::new();
-    let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], PRODUCT_DB_SALT);
+    let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], &PRODUCT_DB_SALT);
     product_item.insert_item_into(PRODUCTS_TABLE.id, hashed_product_id.to_vec());
     request_items.insert(PRODUCTS_TABLE.table_name.to_string(), KeysAndAttributes {
         consistent_read: Some(false),

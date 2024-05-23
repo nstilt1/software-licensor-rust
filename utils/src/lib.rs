@@ -1,3 +1,5 @@
+#![feature(lazy_cell)]
+
 pub mod base64;
 pub mod crypto;
 pub mod dynamodb;

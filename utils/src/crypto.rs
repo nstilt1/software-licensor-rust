@@ -36,12 +36,19 @@ use zeroize::Zeroize;
 
 use crate::error::ApiError;
 
+use std::sync::LazyLock;
+
 /// A salt for the Stores table.
-pub const STORE_DB_SALT: &[u8] = b"use a different salt than this for your own database";
-/// A salt for the Products table
-pub const PRODUCT_DB_SALT: &[u8] = b"use different salt than this";
-/// A salt for the Licenses table
-pub const LICENSE_DB_SALT: &[u8] = b"use a different salt for the licenses table";
+pub static STORE_DB_SALT: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("STORE_TABLE_SALT").expect("STORE_TABLE_SALT not set")
+});
+pub static PRODUCT_DB_SALT: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("PRODUCT_TABLE_SALT").expect("PRODUCT_TABLE_SALT not set")
+});
+pub static LICENSE_DB_SALT: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("LICENSE_TABLE_SALT").expect("LICENSE_TABLE_SALT not set")
+});
+
 /// Constant for License Code Length. This depends on the `LicenseCode` `IdLen`,
 /// as well as that the license code will be displayed in hexadecimal.
 pub const LICENSE_CODE_LEN: usize = <LicenseCode as EncodedId>::IdLen::USIZE * 2;
@@ -55,12 +62,12 @@ pub mod license_types {
 /// Hasher for the database. Sha3 is faster with `asm` on `aarch64`.
 type DbHasher = sha3::Sha3_384;
 /// Hashes data with a constant salt.
-pub fn salty_hash(data: &[&[u8]], salt: &[u8]) -> Output<DbHasher> {
+pub fn salty_hash(data: &[&[u8]], salt: &String) -> Output<DbHasher> {
     let mut digest = DbHasher::new();
     for d in data.iter() {
         digest.update(d);
     }
-    digest.update(salt);
+    digest.update(salt.as_bytes());
     digest.finalize()
 }
 
@@ -141,10 +148,18 @@ pub type KeyManager = HttpPrivateKeyManager<
 /// 
 /// The key needs to be changed to something secure, and the initialization should probably be handled in conjunction with a `Box` or stack bleaching.
 pub fn init_key_manager(kdf_key: Option<&[u8]>, alphabet: Option<&str>) -> KeyManager {
-    KeyManager::from_key_generator(
-        KeyGen::new(kdf_key.unwrap_or(&[32u8; 64]), b"plugin licensor"), 
+    let mut key = Box::new(
+        std::env::var("KEY_MANAGER_PRIVATE_KEY").expect("KEY_MANAGER_PRIVATE_KEY not set")
+    );
+    let result = KeyManager::from_key_generator(
+        KeyGen::new(kdf_key.unwrap_or(key.as_bytes()), b"software licensor"), 
         Alphabet::new(alphabet.unwrap_or("qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM/_")).unwrap()
-    )
+    );
+    #[cfg(feature = "zeroize")]
+    {
+        key.zeroize();
+    }
+    result
 }
 
 pub trait DigitalLicensingThemedKeymanager {

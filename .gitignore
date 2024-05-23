@@ -1,9 +1,6 @@
-**/private.rs
 **/target
 *.zip
 **/builds/
-**/oldBuilds/
 **/deploy.sh
 **/create_lambda.sh
-**/keys/
-**/old/rsa.rs
+.env

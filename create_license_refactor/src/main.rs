@@ -23,10 +23,10 @@ use http_private_key_manager::Request as RestRequest;
 
 fn init_license(key_manager: &mut KeyManager, request: &CreateLicenseRequest, license_item: &mut AttributeValueHashMap, store_id: &Id<StoreId>) -> Result<(String, String), ApiError> {
     let license_code = key_manager.generate_license_code(&store_id)?;
-    let primary_index = salty_hash(&[store_id.binary_id.as_ref(), license_code.binary_id.as_ref()], LICENSE_DB_SALT);
+    let primary_index = salty_hash(&[store_id.binary_id.as_ref(), license_code.binary_id.as_ref()], &LICENSE_DB_SALT);
     license_item.insert_item_into(LICENSES_TABLE.id, primary_index.to_vec());
     license_item.insert_item_into(LICENSES_TABLE.custom_success_message, request.custom_success_message.clone());
-    license_item.insert_item_into(LICENSES_TABLE.email_hash, salty_hash(&[request.customer_email.as_bytes()], LICENSE_DB_SALT).to_vec());
+    license_item.insert_item_into(LICENSES_TABLE.email_hash, salty_hash(&[request.customer_email.as_bytes()], &LICENSE_DB_SALT).to_vec());
     license_item.insert_item(LICENSES_TABLE.products_map_item.key, AttributeValueHashMap::new());
     
     let offline_secret_u16 = key_manager.rng.next_u32() as u16;
@@ -65,7 +65,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let store_id = key_manager.get_store_id()?;
 
     let mut store_item = AttributeValueHashMap::new();
-    let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], STORE_DB_SALT);
+    let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
     
     store_item.insert_item(STORES_TABLE.id, hashed_store_id.to_vec().into());
     
@@ -83,7 +83,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     for k in product_map_keys.iter() {
         let mut product_item = AttributeValueHashMap::new();
         let (product_id, _) = key_manager.validate_product_id(&k, &store_id)?;
-        let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], PRODUCT_DB_SALT);
+        let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], &PRODUCT_DB_SALT);
         product_item.insert_item_into(PRODUCTS_TABLE.id, hashed_product_id.to_vec());
         product_items.insert(k.to_string(), product_item);
         pid_hash_to_product_id_hmap.insert(hashed_product_id.to_vec().into(), k.to_string());
@@ -99,7 +99,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     
     let secondary_index = salty_hash(
         &[store_id.binary_id.as_ref(), request.user_id.as_bytes()],
-        LICENSE_DB_SALT
+        &LICENSE_DB_SALT
     );
     license_item.insert_item_into(LICENSES_TABLE.hashed_store_id_and_user_id, secondary_index.to_vec());
     request_items.insert(LICENSES_TABLE.table_name.to_string(), KeysAndAttributes {

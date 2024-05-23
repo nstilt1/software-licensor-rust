@@ -40,7 +40,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let client = DynamoDbClient::new(Region::UsEast1);
 
     loop {
-        let hashed_id = salty_hash(&[store_id.binary_id.as_ref()], STORE_DB_SALT);
+        let hashed_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
         
         store_item.insert_item_into(STORES_TABLE.id, hashed_id.to_vec());
         

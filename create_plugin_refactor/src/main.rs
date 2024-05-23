@@ -29,7 +29,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let client = DynamoDbClient::new(Region::UsEast1);
     let mut store_item = AttributeValueHashMap::new();
     let store_id = key_manager.get_store_id()?;
-    let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], STORE_DB_SALT);
+    let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
     store_item.insert_item_into(STORES_TABLE.id, hashed_store_id.to_vec());
 
     let get_output = client.get_item(
@@ -62,7 +62,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let (product_id, product_pubkey) = loop {
         let (p_id, p_pk) = key_manager.generate_product_id(&request.product_id_prefix, &store_id)?;
         // hash plugin id before inserting it into table
-        let hashed_product_id = salty_hash(&[p_id.binary_id.as_ref()], PRODUCT_DB_SALT);
+        let hashed_product_id = salty_hash(&[p_id.binary_id.as_ref()], &PRODUCT_DB_SALT);
         product_item.insert_item_into(PRODUCTS_TABLE.id, hashed_product_id.to_vec());
         
         let get_output = &client.get_item(
@@ -89,7 +89,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     product_item.insert_item_into(
         PRODUCTS_TABLE.hashed_store_id, 
-        salty_hash(&[store_id.binary_id.as_ref()], PRODUCT_DB_SALT).to_vec()
+        salty_hash(&[store_id.binary_id.as_ref()], &PRODUCT_DB_SALT).to_vec()
     );
 
     product_item.insert_item(PRODUCTS_TABLE.is_offline_allowed, request.is_offline_allowed);

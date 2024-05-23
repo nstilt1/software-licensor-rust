@@ -18,7 +18,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let client = DynamoDbClient::new(Region::UsEast1);
     let mut store_item = AttributeValueHashMap::new();
     let store_id = key_manager.get_store_id()?;
-    let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], STORE_DB_SALT);
+    let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
     store_item.insert_item_into(STORES_TABLE.id, hashed_store_id.to_vec());
 
     let get_output = client.get_item(
@@ -50,7 +50,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     license_item.insert_item_into(
         LICENSES_TABLE.hashed_store_id_and_user_id, 
         salty_hash(&[store_id.binary_id.as_ref(), 
-        request.user_id.as_bytes()], LICENSE_DB_SALT).to_vec()
+        request.user_id.as_bytes()], &LICENSE_DB_SALT).to_vec()
     );
     let get_output = client.get_item(GetItemInput {
         key: license_item,

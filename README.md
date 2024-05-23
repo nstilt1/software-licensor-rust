@@ -67,6 +67,18 @@ unzip awscliv2.zip
 sudo ./aws/install
 ```
 
+## Setting up local environment variables:
+
+Several environment variables need to be set for this to work:
+
+1. KEY_MANAGER_PRIVATE_KEY - needs to be a minimum length of the key manager's hash function's output, and a maximum of the hash function's internal buffer. This is currently using `sha3_512` since it is faster on `aarch64` with inline assembly. So for this, ideally the length should be between 64-72 bytes (inclusive).
+
+2. STORE_TABLE_SALT - a salt for the stores table
+
+3. PRODUCT_TABLE_SALT - a salt for the products table
+
+4. LICENSE_TABLE_SALT - a slat for the licenses table
+
 # Getting this to work
 
 There are a few things that you would need to do to get this to work, besides building it.

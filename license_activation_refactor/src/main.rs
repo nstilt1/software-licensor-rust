@@ -396,7 +396,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             } else {
                 license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?
             };
-            let check_up_time = now + (store_configs.trial_license_frequency_hours as u64 * 60 * 60);
+            let mut check_up_time = now + (store_configs.trial_license_frequency_hours as u64 * 60 * 60);
+            check_up_time = check_up_time.min(expire_time);
             key_file.post_expiration_message = ApiError::TrialEnded.to_string();
             (expire_time, check_up_time)
         },
@@ -406,13 +407,15 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 return Err(ApiError::LicenseNoLongerActive)
             }
             let expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
-            let check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
+            let mut check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
+            check_up_time = check_up_time.min(expire_time);
             key_file.post_expiration_message = ApiError::LicenseNoLongerActive.to_string();
             (expire_time, check_up_time)
         },
         license_types::PERPETUAL => {
             let expire_time = now + (store_configs.perpetual_license_expiration_days as u64 * 24 * 60 * 60);
-            let check_up_time = now + (store_configs.perpetual_license_frequency_hours as u64 * 60 * 60);
+            let mut check_up_time = now + (store_configs.perpetual_license_frequency_hours as u64 * 60 * 60);
+            check_up_time = check_up_time.min(expire_time);
             (expire_time, check_up_time)
         },
         _ => return Err(ApiError::InvalidDbSchema("Invalid license type".into()))

@@ -28,3 +28,6 @@ panic = "abort"
 
 [dependencies]
 utils = { path = "../utils" }
+
+[features]
+zeroize = ["utils/zeroize"]

@@ -26,4 +26,11 @@ tokio = { version = "1", features = ["macros"] }
 zeroize = { version = "1.7.0", optional = true }
 
 [features]
-zeroize = ["dep:zeroize", "http_private_key_manager/zeroize", "proto/zeroize"]
+zeroize = [
+    "dep:zeroize", 
+    "http_private_key_manager/zeroize", 
+    "proto/zeroize",
+    "sha2/zeroize",
+    "sha3/zeroize",
+    "aes-gcm/zeroize",
+]

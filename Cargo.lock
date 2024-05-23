@@ -50,6 +50,7 @@ dependencies = [
  "ctr",
  "ghash",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -225,6 +226,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ded684142010808eb980d9974ef794da2bcf97d13396143b1515e9f0fb4a10e"
 dependencies = [
  "crypto-common 0.2.0-pre.5",
+ "zeroize",
 ]
 
 [[package]]
@@ -440,6 +442,7 @@ dependencies = [
  "const-oid",
  "crypto-common 0.2.0-pre.5",
  "subtle",
+ "zeroize",
 ]
 
 [[package]]

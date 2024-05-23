@@ -22,7 +22,7 @@ aws lambda create-function --function-name ${name} \\
 --handler bootstrap \\
 --zip-file fileb://./\$filename \\
 --runtime provided.al2 \\
---role arn:aws:iam::${iam} for the Lambda Function \\
+--role ${iam} \\
 --region us-east-1 \\
 --architectures arm64
 EOF

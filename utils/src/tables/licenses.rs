@@ -48,7 +48,7 @@ pub const MACHINE: MachineMap = MachineMap {
 
 pub const LICENSES_TABLE: LicensesTable = LicensesTable {
     table_name: "LICENSES-AgKSHjwfYk0lu-s-a2nvizD-DgUP5ORzOO_ZQRajJ12z2nxBs1kvMTse",
-    id: Item::new("hashed_id"),
+    id: Item::new("id"),
     protobuf_data: Item::new("data"),
     hashed_store_id_and_user_id: Item::new("user_id_hash"),
     custom_success_message: Item::new("custom_message"),

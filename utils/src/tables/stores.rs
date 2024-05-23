@@ -23,8 +23,8 @@ pub struct StoresTable {
 
 pub const STORES_TABLE: StoresTable = StoresTable {
     table_name: STORES_TABLE_NAME,
-    id: Item::new("hashed_id"),
-    email: Item::new("hashed_email"),
+    id: Item::new("id"),
+    email: Item::new("email"),
     protobuf_data: Item::new("DATA"),
     public_key: Item::new("PUBKEY"),
     registration_date: Item::new("REGISTRATION_DATE"),

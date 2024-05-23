@@ -301,6 +301,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let expiry_time = license_item.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?;
     let license_type = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
 
+    let license_is_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_license_active)?;
+    if !license_is_active {
+        return Err(ApiError::LicenseNoLongerActive)
+    }
+
     let success_message = {
         let custom_message = license_item.get_item(LICENSES_TABLE.custom_success_message)?;
         if custom_message.len() > 0 {
@@ -396,6 +401,10 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             (expire_time, check_up_time)
         },
         license_types::SUBSCRIPTION => {
+            let is_subscription_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_subscription_active)?;
+            if !is_subscription_active {
+                return Err(ApiError::LicenseNoLongerActive)
+            }
             let expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
             let check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
             key_file.post_expiration_message = ApiError::LicenseNoLongerActive.to_string();

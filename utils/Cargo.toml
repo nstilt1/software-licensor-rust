@@ -20,7 +20,7 @@ rand_chacha = "0.3.1"
 rusoto_core = "0.48.0"
 rusoto_dynamodb = "0.48.0"
 sha2 = { version = "0.11.0-pre.3" }
-sha3 = { version = "0.11.0-pre.3"}
+sha3 = { version = "0.11.0-pre.3", features = ["asm"]}
 substring = "1.4.5"
 tokio = { version = "1", features = ["macros"] }
 zeroize = { version = "1.7.0", optional = true }

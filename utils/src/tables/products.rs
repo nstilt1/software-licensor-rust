@@ -48,7 +48,7 @@ pub struct ProductsTable {
 
 pub const PRODUCTS_TABLE: ProductsTable = ProductsTable {
     table_name: "PRODUCTS-BMEvbp9AszCuk5pZg_yt6f_rinRsdIycprMMcNzMYkljl94EPpstEfjr",
-    id: Item::new("hashed_id"),
+    id: Item::new("id"),
     protobuf_data: Item::new("data"),
     hashed_store_id: Item::new("store_id_hash"),
     num_machines_total: Item::new("total_machines"),

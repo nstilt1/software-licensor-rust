@@ -13,10 +13,23 @@ fi
 #fi
 
 # build
-cross build --release --target aarch64-unknown-linux-musl
-#cross build --target aarch64-unknown-linux-musl
-timestamp=$(date '+%y-%m-%d-%H-%M-%S')
-filename="create_plugin_refactor_${timestamp}.zip"
-cd builds
-echo "creating $filename..."
-zip -j "$filename" "../../target/aarch64-unknown-linux-musl/release/create_plugin_refactor"
+
+# GNU does not work at the moment
+#cross build --release --features zeroize --target aarch64-unknown-linux-gnu \ 
+
+if [ -z "$1" ]; then
+    echo "compiling without extra features"
+    features_flag=""
+else
+    echo "compiling with features: $1"
+    features_flag="--features $1"
+fi
+cross build --release  --target aarch64-unknown-linux-musl     && {
+    timestamp=24-05-24-14-03-05
+    filename="create_plugin_refactor_.zip"
+    cd builds
+    echo "creating ..."
+    zip -j "" "../../target/aarch64-unknown-linux-musl/release/create_plugin_refactor"
+} || {
+    echo "Build failed"
+}

@@ -85,15 +85,15 @@ impl std::fmt::Display for ApiError {
             }
         }
         #[cfg(not(debug_assertions))]
-        {f.write_str(
-            match self.error_type {
-                Self::IdExpired => format_args!("The token has expired"),
-                Self::RequestWentThrough => format_args!("There was an error, but your request went through"),
-                Self::DynamoDbError(x) => format_args!("There was an internal server error"),
+        {
+            match self {
+                Self::IdExpired => f.write_str("The token has expired"),
+                Self::RequestWentThrough => f.write_str("There was an error, but your request went through"),
+                Self::DynamoDbError(x) => f.write_str("There was an internal server error"),
                 Self::ServerError(x) => write_fmt!(f, "There was an internal server error: {}", x),
                 Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
-                Self::NotFound => "Not Found",
-                Self::ThroughputError => "The servers are a bit busy at the momement. Try again in a few minutes",
+                Self::NotFound => f.write_str("Not Found"),
+                Self::ThroughputError => f.write_str("The servers are a bit busy at the momement. Try again in a few minutes"),
                 // licensing errors
                 Self::IncorrectOfflineCode => f.write_str("32"),
                 Self::LicenseNoLongerActive => f.write_str("16"),
@@ -102,9 +102,9 @@ impl std::fmt::Display for ApiError {
                 Self::TrialEnded => f.write_str("8"),
                 Self::InvalidLicenseCode => f.write_str("2"),
                 Self::OfflineIsNotAllowed => f.write_str("64"),
-                _ => format_args!("Forbidden")
+                _ => f.write_str("Forbidden")
             }
-        )}
+        }
     }
 }
 

@@ -13,7 +13,7 @@ message LicenseActivationRequest {
     // a pre-determined language
     string language_id = 3;
     // hardware/simd statistics
-    optional Stats hardware_stats = 4;
+    Stats hardware_stats = 4;
     string product_id = 5;
     uint64 timestamp = 50;
 }
@@ -66,13 +66,13 @@ message LicenseKeyFile {
     string machine_id = 20;
     uint64 timestamp = 21;
     // determines when the license expires or needs to be renewed
-    optional uint64 expiration_timestamp = 25;
+    uint64 expiration_timestamp = 25;
     // determines when the client should attempt to renew the license
     // expiration. Useful for allowing users to deactivate their machines 
     // that they've stopped using
     // It is also useful for subscriptions and trials automatically renewing
     // the expiration
-    optional uint64 check_back_timestamp = 26;
+    uint64 check_back_timestamp = 26;
     string message = 30;
     // a response code; valid codes are
     // 1: success

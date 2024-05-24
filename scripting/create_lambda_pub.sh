@@ -40,13 +40,27 @@ fi
 #fi
 
 # build
-cross build --release --target aarch64-unknown-linux-musl
-#cross build --target aarch64-unknown-linux-musl
-timestamp=\$(date '+%y-%m-%d-%H-%M-%S')
-filename="${name}_\${timestamp}.zip"
-cd builds
-echo "creating \$filename..."
-zip -j "\$filename" "../../target/aarch64-unknown-linux-musl/release/${name}"
+
+# GNU does not work at the moment
+#cross build --release --features zeroize --target aarch64-unknown-linux-gnu \ 
+
+if [ -z "\$1" ]; then
+    echo "compiling without extra features"
+    features_flag=""
+else
+    echo "compiling with features: \$1"
+    features_flag="--features \$1"
+fi
+cross build --release ${features_flag} --target aarch64-unknown-linux-musl \
+    && {
+    timestamp=$(date '+%y-%m-%d-%H-%M-%S')
+    filename="${name}_${timestamp}.zip"
+    cd builds
+    echo "creating $filename..."
+    zip -j "$filename" "../../target/aarch64-unknown-linux-musl/release/${name}"
+} || {
+    echo "Build failed"
+}
 EOF
 
 # make it executable
@@ -62,7 +76,7 @@ aws lambda create-function --function-name ${name} \\
 --handler bootstrap \\
 --zip-file fileb://./\$filename \\
 --runtime provided.al2 \\
---role arn:aws:iam::$iam for the Lambda Function \\
+--role ${iam} \\
 --region us-east-1 \\
 --architectures arm64
 EOF

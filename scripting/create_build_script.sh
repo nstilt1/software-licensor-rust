@@ -35,11 +35,11 @@ else
 fi
 cross build --release ${features_flag} --target aarch64-unknown-linux-musl \
     && {
-    timestamp=$(date '+%y-%m-%d-%H-%M-%S')
-    filename="${name}_${timestamp}.zip"
+    timestamp=\$(date '+%y-%m-%d-%H-%M-%S')
+    filename="\${timestamp}_\$1_${name}.zip"
     cd builds
-    echo "creating $filename..."
-    zip -j "$filename" "../../target/aarch64-unknown-linux-musl/release/${name}"
+    echo "creating \$filename..."
+    zip -j "\$filename" "../../target/aarch64-unknown-linux-musl/release/${name}"
 } || {
     echo "Build failed"
 }

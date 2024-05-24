@@ -25,11 +25,11 @@ else
     features_flag="--features $1"
 fi
 cross build --release  --target aarch64-unknown-linux-musl     && {
-    timestamp=24-05-24-14-03-05
-    filename="create_license_refactor_.zip"
+    timestamp=$(date '+%y-%m-%d-%H-%M-%S')
+    filename="${timestamp}_$1_create_license_refactor.zip"
     cd builds
-    echo "creating ..."
-    zip -j "" "../../target/aarch64-unknown-linux-musl/release/create_license_refactor"
+    echo "creating $filename..."
+    zip -j "$filename" "../../target/aarch64-unknown-linux-musl/release/create_license_refactor"
 } || {
     echo "Build failed"
 }

@@ -24,7 +24,7 @@ else
     echo "compiling with features: $1"
     features_flag="--features $1"
 fi
-cross build --release  --target aarch64-unknown-linux-musl     && {
+cross build --release ${features_flag} --target aarch64-unknown-linux-musl     && {
     timestamp=$(date '+%y-%m-%d-%H-%M-%S')
     filename="${timestamp}_$1_register_store_refactor.zip"
     cd builds

@@ -51,13 +51,13 @@ else
     echo "compiling with features: \$1"
     features_flag="--features \$1"
 fi
-cross build --release ${features_flag} --target aarch64-unknown-linux-musl \
+cross build --release \${features_flag} --target aarch64-unknown-linux-musl \
     && {
-    timestamp=$(date '+%y-%m-%d-%H-%M-%S')
-    filename="${name}_${timestamp}.zip"
+    timestamp=\$(date '+%y-%m-%d-%H-%M-%S')
+    filename="\${timestamp}_\$1_${name}.zip"
     cd builds
-    echo "creating $filename..."
-    zip -j "$filename" "../../target/aarch64-unknown-linux-musl/release/${name}"
+    echo "creating \$filename..."
+    zip -j "\$filename" "../../target/aarch64-unknown-linux-musl/release/${name}"
 } || {
     echo "Build failed"
 }
@@ -65,24 +65,6 @@ EOF
 
 # make it executable
 sudo chmod +x ./build.sh
-
-# create deploy.sh
-cat << EOF > deploy.sh
-# find latest build file
-cd builds
-filename=\$(find . -maxdepth 1 -type f -printf "%f\n" | sort | tail -n 1)
-
-aws lambda create-function --function-name ${name} \\
---handler bootstrap \\
---zip-file fileb://./\$filename \\
---runtime provided.al2 \\
---role ${iam} \\
---region us-east-1 \\
---architectures arm64
-EOF
-
-# make it executable
-sudo chmod +x ./deploy.sh
 
 # create update_func.sh
 cat << EOF > update_func.sh

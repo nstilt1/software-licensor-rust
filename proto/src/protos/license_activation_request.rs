@@ -116,15 +116,15 @@ pub struct LicenseKeyFile {
     #[prost(uint64, tag = "21")]
     pub timestamp: u64,
     /// determines when the license expires or needs to be renewed
-    #[prost(uint64, optional, tag = "25")]
-    pub expiration_timestamp: ::core::option::Option<u64>,
+    #[prost(uint64, tag = "25")]
+    pub expiration_timestamp: u64,
     /// determines when the client should attempt to renew the license
     /// expiration. Useful for allowing users to deactivate their machines
     /// that they've stopped using
     /// It is also useful for subscriptions and trials automatically renewing
     /// the expiration
-    #[prost(uint64, optional, tag = "26")]
-    pub check_back_timestamp: ::core::option::Option<u64>,
+    #[prost(uint64, tag = "26")]
+    pub check_back_timestamp: u64,
     #[prost(string, tag = "30")]
     pub message: ::prost::alloc::string::String,
     /// a response code; valid codes are

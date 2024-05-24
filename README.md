@@ -47,6 +47,8 @@ rustup update
 cargo install cargo-lambda
 ```
 
+Install Docker Desktop on your Host OS and enable its use on WSL if you are using WSL (highly recommended if you're on Windows).
+
 Install cross
 
 ```bash
@@ -56,7 +58,7 @@ cargo install cross
 Install `aarch64` build target:
 
 ```bash
-rustup target add aarch64-unknown-linux-gnu
+rustup target add aarch64-unknown-linux-musl
 ```
 
 Install `aws-cli`:
@@ -66,6 +68,8 @@ curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip
 unzip awscliv2.zip
 sudo ./aws/install
 ```
+
+Then run `./build.sh` or `./build.sh "zeroize"` to cross compile the code for the AWS Graviton2 processor, for running with AWS Lambda. Adding `"zeroize"`, or any list of features will enable those features on the crate being built.
 
 ## Setting up local environment variables:
 
@@ -88,7 +92,8 @@ Here is a non-comprehensive list of what you would need to do to get the refacto
 1. make an AWS account if you do not have one
 2. create some DynamoDB tables with table names, primary keys, and global secondary keys specified in `utils/src/tables/`, or change the names in those files to use different table names. You can generate some table names with `cargo test -- --nocapture`. The long and random table names provide a little entropy when generating resource encryption keys when encrypting some of the data in the tables. Yes, AWS supposedly encrypts the tables at rest, but why not add an extra layer of encryption? And, believe it or not, the encrypted protobuf messages can actually be smaller in size than putting it in plaintext NoSQL due to the potentially long keys since Protobuf keys are just binary numbers. The downside is that analytics tools such as AWS Athena likely will not be able to analyze any Protobuf/encrypted data.
 3. Create an `IAM Role` that can read and write to these tables. This is best done by first creating an IAM Policy with DynamoDB permissions for BatchGetItem, GetItem, BatchWriteItem, UpdateItem, and PutItem. You may also need the Lambda permission for "InvokeFunction".
-4. Deploy the lambda functions, specifying the `IAM Role` that can access those tables.
+4. Deploy the lambda functions. First, call `create_deployment_scripts`, specifying the `IAM Role` that can access the tables. Then call `build.sh` and `deploy.sh` to deploy the functions to the cloud. If anything changes, you need to call `update_func.sh` to update the functions.
 5. Navigate to `API Gateway` and create an `HTTP API` or `REST API`. Do some research on the two, but you'll probably want a `REST API`. The differences are explained [here](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-vs-rest.html)
 6. Add the lambda functions to this API, and ensure that these API endpoints are accessible from the public internet.
 7. Optionally, configure AWS WAF to restrict the (ab)usage of the API. You don't want to get DOS-ed.
+8. Optionally, take `AWS Lambda Power Tuning` for a spin to potentially increase the speed and lower the cost of the lambda functions.

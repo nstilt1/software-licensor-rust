@@ -1,3 +1,12 @@
+# name of the lambda
+name=$1
+
+cd ..
+cd $name
+mkdir builds
+
+# create build.sh
+cat << EOF > build.sh
 export RUSTFLAGS="-Ctarget-cpu=neoverse-n1 -Ctarget-feature=+lse"
 
 echo "COMPILING!!! Your compiled code will be ready in a moment"
@@ -17,19 +26,21 @@ fi
 # GNU does not work at the moment
 #cross build --release --features zeroize --target aarch64-unknown-linux-gnu \ 
 
-if [ -z "$1" ]; then
+if [ -z "\$1" ]; then
     echo "compiling without extra features"
     features_flag=""
 else
-    echo "compiling with features: $1"
-    features_flag="--features $1"
+    echo "compiling with features: \$1"
+    features_flag="--features \$1"
 fi
-cross build --release  --target aarch64-unknown-linux-musl     && {
-    timestamp=24-05-24-14-03-05
-    filename="create_license_refactor_.zip"
+cross build --release ${features_flag} --target aarch64-unknown-linux-musl \
+    && {
+    timestamp=$(date '+%y-%m-%d-%H-%M-%S')
+    filename="${name}_${timestamp}.zip"
     cd builds
-    echo "creating ..."
-    zip -j "" "../../target/aarch64-unknown-linux-musl/release/create_license_refactor"
+    echo "creating $filename..."
+    zip -j "$filename" "../../target/aarch64-unknown-linux-musl/release/${name}"
 } || {
     echo "Build failed"
 }
+EOF

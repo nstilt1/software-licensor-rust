@@ -8,21 +8,31 @@ edition = "2021"
 [dependencies]
 aes-gcm = { version = "0.10" }
 aes-gcm-siv = "0.11"
+aws-config = { version= "1.5.0", features = ["behavior-version-latest"] }
+aws-sdk-dynamodb = "1.30.1"
+aws-sdk-s3 = "1.30.1"
 base64 = "0.22.1"
 bytes = "1.0"
 chacha20poly1305 = "0.10"
 http_private_key_manager = { path = "../../../libs/crypto-on-the-edge/key_manager" }
-lambda_http = "0.11.1"
+lambda_http = "0.11"
+lambda_runtime = "0.11"
+log = "0.4"
 openssl = { version = "0.10", features = ["vendored"] }
 p384 = { git = "https://github.com/RustCrypto/elliptic-curves.git", branch = "master", package = "p384", version = "0.14.0-pre", features = ["jwk", "ecdsa"]  }
 proto = { path = "../proto" }
 rand_chacha = "0.3.1"
 rusoto_core = "0.48.0"
 rusoto_dynamodb = "0.48.0"
+rusoto_s3 = "0.48.0"
+serde_json = "1"
 sha2 = { version = "0.11.0-pre.3" }
 sha3 = { version = "0.11.0-pre.3", features = ["asm"]}
+simple_logger = "5"
 substring = "1.4.5"
-tokio = { version = "1", features = ["macros"] }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.5", features = ["env-filter"] }
 zeroize = { version = "1.7.0", optional = true }
 
 [features]

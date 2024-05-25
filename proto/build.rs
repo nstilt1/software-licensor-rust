@@ -8,6 +8,7 @@ fn main() {
                 "src/request_protos/create_license.proto",
                 "src/request_protos/license_activation.proto",
                 "src/request_protos/get_license.proto",
+                "src/request_protos/pubkeys.proto",
                 "src/database_protos/store.proto",
                 "src/database_protos/product.proto",
                 "src/database_protos/license.proto",

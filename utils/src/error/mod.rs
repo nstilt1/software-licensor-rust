@@ -89,7 +89,7 @@ impl std::fmt::Display for ApiError {
             match self {
                 Self::IdExpired => f.write_str("The token has expired"),
                 Self::RequestWentThrough => f.write_str("There was an error, but your request went through"),
-                Self::DynamoDbError(x) => f.write_str("There was an internal server error"),
+                Self::DynamoDbError(_) => f.write_str("There was an internal server error"),
                 Self::ServerError(x) => write_fmt!(f, "There was an internal server error: {}", x),
                 Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
                 Self::NotFound => f.write_str("Not Found"),

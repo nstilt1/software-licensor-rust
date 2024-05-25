@@ -3,6 +3,6 @@ cd builds
 filename=$(find . -maxdepth 1 -type f -printf "%f\n" | sort | tail -n 1)
 
 aws lambda update-function-code \
---function-name create_plugin_refactor \
+--function-name publish_rotating_keys \
 --zip-file fileb://./$filename \
 --region us-east-1

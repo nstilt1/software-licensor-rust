@@ -127,7 +127,7 @@ type KeyGen = KeyGenerator<
     Sha3_512
 >;
 
-type EcdsaAlg = NistP384;
+pub type EcdsaAlg = NistP384;
 type EcdhAlg = NistP384;
 type EcdhDigest = sha2::Sha384;
 type EcdsaDigest = sha2::Sha384;

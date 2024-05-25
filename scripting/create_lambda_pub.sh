@@ -57,7 +57,9 @@ cross build --release \${features_flag} --target aarch64-unknown-linux-musl \
     filename="\${timestamp}_\$1_${name}.zip"
     cd builds
     echo "creating \$filename..."
-    zip -j "\$filename" "../../target/aarch64-unknown-linux-musl/release/${name}"
+    mv ../../target/aarch64-unknown-linux-musl/release/${name} "bootstrap"
+    zip -j "\$filename" "bootstrap"
+    rm "bootstrap
 } || {
     echo "Build failed"
 }
@@ -74,7 +76,7 @@ filename=\$(find . -maxdepth 1 -type f -printf "%f\n" | sort | tail -n 1)
 
 aws lambda update-function-code \\
 --function-name ${name} \\
---zip-file fileb://./\$filename.zip \\
+--zip-file fileb://./\$filename \\
 --region us-east-1
 EOF
 

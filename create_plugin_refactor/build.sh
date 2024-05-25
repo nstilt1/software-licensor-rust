@@ -29,7 +29,9 @@ cross build --release ${features_flag} --target aarch64-unknown-linux-musl     &
     filename="${timestamp}_$1_create_plugin_refactor.zip"
     cd builds
     echo "creating $filename..."
-    zip -j "$filename" "../../target/aarch64-unknown-linux-musl/release/create_plugin_refactor"
+    mv ../../target/aarch64-unknown-linux-musl/release/create_plugin_refactor "bootstrap"
+    zip -j "$filename" ./"bootstrap"
+    rm bootstrap
 } || {
     echo "Build failed"
 }

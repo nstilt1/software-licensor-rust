@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package pubkeys;
+
+// Some ecdh key information. This key expires, but it is designed to be 
+// used immediately after it is fetched by the client and swapped out with
+// a non-expiring one. The non-expiring one is meant to only be used once 
+// as well, and the response from the server will contain a new public 
+// key for the next request.
+message ExpiringEcdhKey {
+    bytes ecdh_key_id = 1;
+    bytes ecdh_public_key = 2;
+}
+
+message ExpiringEcdsaKey {
+    bytes ecdsa_key_id = 1;
+    bytes ecdsa_public_key = 2;
+    uint64 expiration = 3;
+}
+
+message PubkeyRepo {
+    // randomly select an ECDH key from this list of keys.
+    repeated ExpiringEcdhKey ecdh_keys = 1;
+    ExpiringEcdsaKey ecdsa_key = 2;
+}

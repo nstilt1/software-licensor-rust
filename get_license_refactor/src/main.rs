@@ -1,13 +1,14 @@
 //! A plugin creation API method for a licensing service.
 
 use std::collections::HashMap;
+use utils::aws_config::meta::region::RegionProviderChain;
+use utils::aws_sdk_dynamodb::Client;
+use utils::aws_sdk_s3::primitives::Blob;
 use utils::prelude::proto::protos::license_db_item::LicenseDbItem;
 use utils::prelude::proto::protos::get_license_request::{GetLicenseRequest, GetLicenseResponse, LicenseInfo, Machine};
 use utils::{now_as_seconds, prelude::*};
 use utils::tables::licenses::LICENSES_TABLE;
 use utils::tables::stores::STORES_TABLE;
-use rusoto_core::Region;
-use rusoto_dynamodb::{DynamoDbClient, DynamoDb, GetItemInput};
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::prost::Message;
 use http_private_key_manager::Request as RestRequest;
@@ -15,20 +16,21 @@ use http_private_key_manager::Request as RestRequest;
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut GetLicenseRequest, hasher: D, signature: Vec<u8>) -> Result<GetLicenseResponse, ApiError> {
     // the StoreId has already been verified in `decrypt_and_hash_request()` but
     // we still need to verify the signature against the public key in the db
-    let client = DynamoDbClient::new(Region::UsEast1);
+    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
+    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
+    let client = Client::new(&aws_config);
+    
     let mut store_item = AttributeValueHashMap::new();
     let store_id = key_manager.get_store_id()?;
     let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
-    store_item.insert_item_into(STORES_TABLE.id, hashed_store_id.to_vec());
+    store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
 
-    let get_output = client.get_item(
-        GetItemInput {
-            table_name: STORES_TABLE.table_name.to_string(),
-            key: store_item,
-            consistent_read: Some(false),
-            ..Default::default()
-        }
-    ).await?;
+    let get_output = client.get_item()
+        .table_name(STORES_TABLE.table_name)
+        .set_key(Some(store_item))
+        .consistent_read(false)
+        .send()
+        .await?;
     
     store_item = match get_output.item {
         Some(x) => x,
@@ -39,7 +41,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     let public_key = store_item.get_item(STORES_TABLE.public_key)?;
     // verify signature with public key
-    let pubkey = PublicKey::from_sec1_bytes(&public_key)?;
+    let pubkey = PublicKey::from_sec1_bytes(&public_key.as_ref())?;
     let verifier = VerifyingKey::from(pubkey);
     let signature = DerSignature::try_from(signature.as_slice())?;
     verifier.verify_digest(hasher, &signature)?;
@@ -47,16 +49,16 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     // signature verified
     // get license item from db
     let mut license_item = AttributeValueHashMap::new();
-    license_item.insert_item_into(
+    license_item.insert_item(
         LICENSES_TABLE.hashed_store_id_and_user_id, 
-        salty_hash(&[store_id.binary_id.as_ref(), 
-        request.user_id.as_bytes()], &LICENSE_DB_SALT).to_vec()
+        Blob::new(salty_hash(&[store_id.binary_id.as_ref(), 
+        request.user_id.as_bytes()], &LICENSE_DB_SALT).to_vec())
     );
-    let get_output = client.get_item(GetItemInput {
-        key: license_item,
-        consistent_read: Some(false),
-        ..Default::default()
-    }).await?;
+    let get_output = client.get_item()
+        .set_key(Some(license_item))
+        .consistent_read(false)
+        .send()
+        .await?;
     
     license_item = match get_output.item {
         Some(x) => x,
@@ -66,8 +68,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let (license_code, offline_code) = {
         let license_protobuf: LicenseDbItem = key_manager.decrypt_db_proto(
             &LICENSES_TABLE.table_name, 
-            license_item.get_item(LICENSES_TABLE.id)?,
-            license_item.get_item(LICENSES_TABLE.protobuf_data)?
+            license_item.get_item(LICENSES_TABLE.id)?.as_ref(),
+            license_item.get_item(LICENSES_TABLE.protobuf_data)?.as_ref()
         )?;
         let license_code = bytes_to_license(&license_protobuf.license_id);
         (license_code, license_protobuf.offline_secret.to_string())

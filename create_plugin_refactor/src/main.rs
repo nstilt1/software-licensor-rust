@@ -2,6 +2,10 @@
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use utils::aws_config::meta::region::RegionProviderChain;
+use utils::aws_sdk_dynamodb::types::{PutRequest, WriteRequest};
+use utils::aws_sdk_dynamodb::Client;
+use utils::aws_sdk_s3::primitives::Blob;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
     product_db_item::ProductDbItem,
@@ -11,8 +15,6 @@ use utils::prelude::proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::*;
 use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
-use rusoto_core::Region;
-use rusoto_dynamodb::{DynamoDbClient, DynamoDb, GetItemInput, BatchWriteItemInput, PutRequest, WriteRequest};
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::prost::Message;
 use http_private_key_manager::Request as RestRequest;
@@ -27,20 +29,21 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     // the StoreId has already been verified in `decrypt_and_hash_request()` but
     // we still need to verify the signature against the public key in the db
-    let client = DynamoDbClient::new(Region::UsEast1);
+    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
+    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
+    let client = Client::new(&aws_config);
+    
     let mut store_item = AttributeValueHashMap::new();
     let store_id = key_manager.get_store_id()?;
     let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
-    store_item.insert_item_into(STORES_TABLE.id, hashed_store_id.to_vec());
+    store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
 
-    let get_output = client.get_item(
-        GetItemInput {
-            table_name: STORES_TABLE.table_name.to_string(),
-            key: store_item,
-            consistent_read: Some(true),
-            ..Default::default()
-        }
-    ).await?;
+    let get_output = client.get_item()
+        .table_name(STORES_TABLE.table_name)
+        .set_key(Some(store_item))
+        .consistent_read(false)
+        .send()
+        .await?;
     
     store_item = match get_output.item {
         Some(x) => x,
@@ -51,7 +54,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     let public_key = store_item.get_item(STORES_TABLE.public_key)?;
     // verify signature with public key
-    let pubkey = PublicKey::from_sec1_bytes(&public_key)?;
+    let pubkey = PublicKey::from_sec1_bytes(&public_key.as_ref())?;
     let verifier = VerifyingKey::from(pubkey);
     let signature = DerSignature::try_from(signature.as_slice())?;
     verifier.verify_digest(hasher, &signature)?;
@@ -64,16 +67,19 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         let (p_id, p_pk) = key_manager.generate_product_id(&request.product_id_prefix, &store_id)?;
         // hash plugin id before inserting it into table
         let hashed_product_id = salty_hash(&[p_id.binary_id.as_ref()], &PRODUCT_DB_SALT);
-        product_item.insert_item_into(PRODUCTS_TABLE.id, hashed_product_id.to_vec());
+        product_item.insert_item(PRODUCTS_TABLE.id, Blob::new(hashed_product_id.to_vec()));
         
-        let get_output = &client.get_item(
-            GetItemInput {
-                table_name: PRODUCTS_TABLE.table_name.to_owned(),
-                key: product_item.to_owned(),
-                consistent_read: Some(true),
-                ..Default::default()
-            }
-        ).await?;
+        // with a 48-byte, mostly random ID, it is extremely improbable 
+        // that it already exists in the DB, and there's an even smaller 
+        // chance that it was added to the DB in the last 10 seconds, so
+        // might as well do an eventually consistent read... but maybe 
+        // it shouldn't be done at all
+        let get_output = client.get_item()
+            .table_name(PRODUCTS_TABLE.table_name)
+            .set_key(Some(product_item.clone()))
+            .consistent_read(false)
+            .send()
+            .await?;
 
         if get_output.item.is_none() {
             break (p_id, p_pk);
@@ -88,9 +94,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         product_name: request.product_name.to_owned(),
     };
 
-    product_item.insert_item_into(
+    product_item.insert_item(
         PRODUCTS_TABLE.hashed_store_id, 
-        salty_hash(&[store_id.binary_id.as_ref()], &PRODUCT_DB_SALT).to_vec()
+        Blob::new(salty_hash(&[store_id.binary_id.as_ref()], &PRODUCT_DB_SALT).to_vec())
     );
 
     product_item.insert_item(PRODUCTS_TABLE.is_offline_allowed, request.is_offline_allowed);
@@ -108,39 +114,44 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         &product_id.binary_id.as_ref(), 
         &product_protobuf
     )?;
-    product_item.insert_item_into(PRODUCTS_TABLE.protobuf_data, encrypted_protobuf);
+    product_item.insert_item(PRODUCTS_TABLE.protobuf_data, Blob::new(encrypted_protobuf));
 
     store_item.increase_number(&STORES_TABLE.num_products, 1)?;
 
     let mut store_proto: StoreDbItem = key_manager.decrypt_db_proto(
         &STORES_TABLE.table_name,
         store_id.binary_id.as_ref(),
-        store_item.get_item(STORES_TABLE.protobuf_data)?
+        store_item.get_item(STORES_TABLE.protobuf_data)?.as_ref()
     )?;
     store_proto.product_ids.push(product_id.binary_id.as_ref().to_vec());
-    store_item.insert_item_into(
+    store_item.insert_item(
         STORES_TABLE.protobuf_data,
-        key_manager.encrypt_db_proto(
+        Blob::new(key_manager.encrypt_db_proto(
             &STORES_TABLE.table_name, 
             store_id.binary_id.as_ref(), 
             &store_proto
-        )?
+        )?)
     );
 
     let mut request_items: HashMap<String, Vec<WriteRequest>> = HashMap::new();
-    request_items.insert(STORES_TABLE.table_name.into(), vec![WriteRequest {
-        put_request: Some(PutRequest { item: store_item } ),
-        ..Default::default()
-    }]);
-    request_items.insert(PRODUCTS_TABLE.table_name.into(), vec![WriteRequest {
-        put_request: Some(PutRequest { item: product_item } ),
-        ..Default::default()
-    }]);
-    client.batch_write_item(BatchWriteItemInput {
-        request_items,
-        ..Default::default()
-    }).await?;
+    request_items.insert(STORES_TABLE.table_name.into(), vec![WriteRequest::builder()
+        .put_request(PutRequest::builder()
+            .set_item(Some(store_item))
+            .build()?
+        ).build()
+    ]);
+    request_items.insert(PRODUCTS_TABLE.table_name.into(), vec![WriteRequest::builder()
+        .put_request(PutRequest::builder()
+            .set_item(Some(product_item))
+            .build()?
+        ).build()
+    ]);
 
+    client.batch_write_item()
+        .set_request_items(Some(request_items))
+        .send()
+        .await?;
+    
     let response = CreateProductResponse {
         product_id: product_id.encoded_id,
         product_public_key: product_pubkey.to_vec(),

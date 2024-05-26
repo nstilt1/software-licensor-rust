@@ -7,8 +7,7 @@ use http_private_key_manager::{
         typenum::Unsigned, 
         EncodedId
     }, 
-    utils::StringSanitization, 
-    HttpPrivateKeyManager,
+    utils::StringSanitization,
 };
 pub use http_private_key_manager::{
     private_key_generator::{
@@ -25,7 +24,6 @@ use p384::NistP384;
 pub use http_private_key_manager;
 use http_private_key_manager::prelude::*;
 use proto::prost::Message;
-use rand_chacha::ChaCha8Rng;
 pub use sha2;
 use sha3::Sha3_512;
 pub use aes_gcm::{Aes128Gcm, Aes256Gcm};

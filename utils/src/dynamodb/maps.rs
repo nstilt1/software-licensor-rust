@@ -3,7 +3,7 @@ use aws_sdk_dynamodb::types::AttributeValue;
 
 use crate::{error::ApiError, tables::Item, OptionHandler};
 
-use super::maps_mk2::AttrValAbstraction;
+use super::maps_mk2::{AttrValAbstraction, AttributeValueHashMap};
 
 pub static S: char = 's';
 pub static N: char = 'n';
@@ -35,6 +35,8 @@ pub trait Maps {
     /// Supply it with a vec of (PrimaryKeyId, PrimaryKeyValue)
     fn insert_strings(&mut self, keys: Vec<(&str, &str)>) -> Self;
 
+    fn insert_map(&mut self, key: &str, map: AttributeValueHashMap);
+
     fn new_map(keys: Vec<(&str, &str)>) -> Self;
 
     /// Increase a number in a hashmap
@@ -58,6 +60,12 @@ impl<T> GetOrMutateHashmap<T> for HashMap<String, T> {
 }
 
 impl Maps for HashMap<String, AttributeValue> {
+    fn insert_map(&mut self, key: &str, map: AttributeValueHashMap) {
+        self.insert(
+            key.to_string(),
+            AttributeValue::M(map)
+        );
+    }
     fn increase_float(&mut self, key: &str, to_add: &str) -> Result<(), ApiError> {
         // inserting data returns the current value, which works well for incrementing
         let existing_value = self.insert_data(&key, &to_add.to_string(), N);

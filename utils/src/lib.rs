@@ -21,8 +21,6 @@ pub use lambda_runtime;
 pub use serde_json;
 /// The primary dependencies that will be required for lambda functions are re-exported so as to minimize the chance of different API methods having different versions of dependencies, which would result in more crates to download and compile.
 pub mod prelude {
-    pub use rusoto_dynamodb;
-    pub use rusoto_core;
     pub use http_private_key_manager;
     pub use lambda_http;
     pub use crate::crypto::*;

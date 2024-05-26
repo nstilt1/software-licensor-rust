@@ -1,19 +1,16 @@
 use std::num::{ParseFloatError, ParseIntError};
 
 use super::ApiError;
+use aws_sdk_dynamodb::error::SdkError;
+use aws_sdk_dynamodb::error::BuildError;
 use base64::DecodeError;
 use http_private_key_manager::ProtocolError;
 use http_private_key_manager::private_key_generator::error::{IdCreationError, InvalidId};
-use rusoto_core::RusotoError;
-use rusoto_dynamodb::{
-    //BatchGetItemError, 
-    BatchWriteItemError, 
-    //GetItemError, 
-    PutItemError
-};
 use aws_sdk_dynamodb::operation::{
     get_item::GetItemError,
-    batch_get_item::BatchGetItemError
+    batch_get_item::BatchGetItemError,
+    batch_write_item::BatchWriteItemError,
+    put_item::PutItemError,
 };
 impl From<ProtocolError> for ApiError {
     fn from(err: ProtocolError) -> Self {
@@ -30,11 +27,23 @@ impl From<BatchGetItemError> for ApiError {
         match value {
             BatchGetItemError::InternalServerError(x) => Self::ServerError(x.to_string()),
             BatchGetItemError::InvalidEndpointException(x) => Self::ServerError(x.to_string()),
-            BatchGetItemError::ProvisionedThroughputExceededException(x) => Self::ThroughputError,
+            BatchGetItemError::ProvisionedThroughputExceededException(_) => Self::ThroughputError,
             BatchGetItemError::RequestLimitExceeded(_) => Self::ThroughputError,
             BatchGetItemError::ResourceNotFoundException(_) => Self::NotFound,
             _ => Self::ServerError(value.to_string()),
         }
+    }
+}
+
+impl From<SdkError<BatchGetItemError>> for ApiError {
+    fn from(value: SdkError<BatchGetItemError>) -> Self {
+        value.into()
+    }
+}
+
+impl From<BuildError> for ApiError {
+    fn from(value: BuildError) -> Self {
+        Self::ServerError(value.to_string())
     }
 }
 
@@ -93,14 +102,20 @@ impl From<GetItemError> for ApiError {
     }
 }
 
+impl From<SdkError<GetItemError>> for ApiError {
+    fn from(value: SdkError<GetItemError>) -> Self {
+        value.into()
+    }
+}
+
 impl From<PutItemError> for ApiError {
     fn from(value: PutItemError) -> Self {
         ApiError::DynamoDbError(value.to_string())
     }
 }
 
-impl From<RusotoError<PutItemError>> for ApiError {
-    fn from(value: RusotoError<PutItemError>) -> Self {
+impl From<SdkError<PutItemError>> for ApiError {
+    fn from(value: SdkError<PutItemError>) -> Self {
         value.into()
     }
 }
@@ -108,17 +123,18 @@ impl From<RusotoError<PutItemError>> for ApiError {
 impl From<BatchWriteItemError> for ApiError {
     fn from(value: BatchWriteItemError) -> Self {
         match value {
-            BatchWriteItemError::InternalServerError(e) => Self::ServerError(e),
-            BatchWriteItemError::ItemCollectionSizeLimitExceeded(e) => Self::ServerError(e),
-            BatchWriteItemError::ProvisionedThroughputExceeded(_e) => Self::ThroughputError,
+            BatchWriteItemError::InternalServerError(e) => Self::ServerError(e.to_string()),
             BatchWriteItemError::RequestLimitExceeded(_e) => Self::ThroughputError,
-            BatchWriteItemError::ResourceNotFound(e) => Self::ServerError(e),
+            BatchWriteItemError::ItemCollectionSizeLimitExceededException(_) => Self::ThroughputError,
+            BatchWriteItemError::ProvisionedThroughputExceededException(_) => Self::ThroughputError,
+            BatchWriteItemError::ResourceNotFoundException(_) => Self::NotFound,
+            _ => Self::ServerError(value.to_string()),
         }
     }
 }
 
-impl From<RusotoError<BatchWriteItemError>> for ApiError {
-    fn from(value: RusotoError<BatchWriteItemError>) -> Self {
+impl From<SdkError<BatchWriteItemError>> for ApiError {
+    fn from(value: SdkError<BatchWriteItemError>) -> Self {
         value.into()
     }
 }

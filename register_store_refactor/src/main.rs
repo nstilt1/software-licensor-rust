@@ -2,15 +2,16 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use proto::protos::store_db_item::StoreDbItem;
+use utils::aws_sdk_s3::primitives::Blob;
 use utils::prelude::proto::protos::store_db_item;
 use utils::prelude::*;
 use utils::tables::stores::STORES_TABLE;
-use rusoto_core::Region;
-use rusoto_dynamodb::{DynamoDbClient, DynamoDb, GetItemInput, PutItemInput};
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::protos::register_store_request::{RegisterStoreRequest, RegisterStoreResponse};
 use proto::prost::Message;
 use http_private_key_manager::Request as RestRequest;
+use utils::aws_sdk_dynamodb::Client;
+use utils::aws_config::meta::region::RegionProviderChain;
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut RegisterStoreRequest, hasher: D, signature: Vec<u8>) -> Result<RegisterStoreResponse, ApiError> {
     if request.contact_first_name.len() < 2 || 
@@ -37,21 +38,22 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let mut store_id = key_manager.get_store_id()?;
 
     let mut store_item = AttributeValueHashMap::new();
-    let client = DynamoDbClient::new(Region::UsEast1);
+    
+    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
+    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
+    let client = Client::new(&aws_config);
 
     loop {
         let hashed_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
         
-        store_item.insert_item_into(STORES_TABLE.id, hashed_id.to_vec());
+        store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_id.to_vec()));
         
-        let get_output = &client.get_item(
-            GetItemInput {
-                table_name: STORES_TABLE.table_name.to_owned(),
-                key: store_item.to_owned(),
-                consistent_read: Some(true),
-                ..Default::default()
-            }
-        ).await?;
+        let get_output = client.get_item()
+            .table_name(STORES_TABLE.table_name)
+            .consistent_read(false)
+            .set_key(Some(store_item.clone()))
+            .send()
+            .await?;
 
         if get_output.item.is_some() {
             store_id = key_manager.regenerate_store_id()?;
@@ -107,9 +109,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
     
     let encrypted_protobuf = key_manager.encrypt_db_proto(STORES_TABLE.table_name, store_id.binary_id.as_ref(), &proto)?;
-    store_item.insert_item_into(STORES_TABLE.protobuf_data, encrypted_protobuf);
+    store_item.insert_item(STORES_TABLE.protobuf_data, Blob::new(encrypted_protobuf));
 
-    store_item.insert_item_into(STORES_TABLE.public_key, request.public_signing_key.clone());
+    store_item.insert_item(STORES_TABLE.public_key, Blob::new(request.public_signing_key.to_vec()));
     store_item.insert_item(STORES_TABLE.registration_date, request.timestamp.to_string());
 
     store_item.insert_item_into(STORES_TABLE.num_products, "0");
@@ -117,13 +119,12 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     store_item.insert_item_into(STORES_TABLE.num_auths, "0");
     store_item.insert_item_into(STORES_TABLE.num_license_regens, "0");
 
-    let put_input = PutItemInput {
-        table_name: STORES_TABLE.table_name.to_owned(),
-        item: store_item,
-        ..Default::default()
-    };
-    client.put_item(put_input).await?;
-
+    client.put_item()
+        .table_name(STORES_TABLE.table_name)
+        .set_item(Some(store_item))
+        .send()
+        .await?;
+    
     let response = RegisterStoreResponse {
         store_id: store_id.encoded_id,
         timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()

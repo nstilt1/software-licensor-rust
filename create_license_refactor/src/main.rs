@@ -2,6 +2,10 @@
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use utils::aws_config::meta::region::RegionProviderChain;
+use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, WriteRequest};
+use utils::aws_sdk_dynamodb::Client;
+use utils::aws_sdk_s3::primitives::Blob;
 use utils::crypto::http_private_key_manager::private_key_generator::elliptic_curve::rand_core::RngCore;
 use utils::crypto::http_private_key_manager::Id;
 use utils::dynamodb::maps::Maps;
@@ -10,13 +14,10 @@ use proto::protos::{
     store_db_item::StoreDbItem,
     license_db_item::LicenseDbItem,
 };
-use utils::prelude::rusoto_dynamodb::{BatchGetItemInput, BatchWriteItemInput, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::prelude::*;
 use utils::tables::licenses::LICENSES_TABLE;
 use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
-use rusoto_core::Region;
-use rusoto_dynamodb::{DynamoDbClient, DynamoDb};
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::prost::Message;
 use http_private_key_manager::Request as RestRequest;
@@ -24,9 +25,9 @@ use http_private_key_manager::Request as RestRequest;
 fn init_license(key_manager: &mut KeyManager, request: &CreateLicenseRequest, license_item: &mut AttributeValueHashMap, store_id: &Id<StoreId>) -> Result<(String, String), ApiError> {
     let license_code = key_manager.generate_license_code(&store_id)?;
     let primary_index = salty_hash(&[store_id.binary_id.as_ref(), license_code.binary_id.as_ref()], &LICENSE_DB_SALT);
-    license_item.insert_item_into(LICENSES_TABLE.id, primary_index.to_vec());
+    license_item.insert_item(LICENSES_TABLE.id, Blob::new(primary_index.to_vec()));
     license_item.insert_item_into(LICENSES_TABLE.custom_success_message, request.custom_success_message.clone());
-    license_item.insert_item_into(LICENSES_TABLE.email_hash, salty_hash(&[request.customer_email.as_bytes()], &LICENSE_DB_SALT).to_vec());
+    license_item.insert_item(LICENSES_TABLE.email_hash, Blob::new(salty_hash(&[request.customer_email.as_bytes()], &LICENSE_DB_SALT).to_vec()));
     license_item.insert_item(LICENSES_TABLE.products_map_item.key, AttributeValueHashMap::new());
     
     let offline_secret_u16 = key_manager.rng.next_u32() as u16;
@@ -39,7 +40,7 @@ fn init_license(key_manager: &mut KeyManager, request: &CreateLicenseRequest, li
         offline_secret: offline_secret.clone(),
     };
     let encrypted = key_manager.encrypt_db_proto(LICENSES_TABLE.table_name, &license_code.binary_id.as_ref(), &protobuf_data)?;
-    license_item.insert_item_into(LICENSES_TABLE.protobuf_data, encrypted);
+    license_item.insert_item(LICENSES_TABLE.protobuf_data, Blob::new(encrypted));
     Ok((license_code.encoded_id, offline_secret))
 }
 
@@ -60,6 +61,10 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         return Err(ApiError::InvalidRequest("Timestamp is too old".into()))
     }
 
+    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
+    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
+    let client = Client::new(&aws_config);
+
     let mut request_items: HashMap<String, KeysAndAttributes> = HashMap::new();
 
     let store_id = key_manager.get_store_id()?;
@@ -67,13 +72,13 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let mut store_item = AttributeValueHashMap::new();
     let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
     
-    store_item.insert_item(STORES_TABLE.id, hashed_store_id.to_vec().into());
+    store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
     
-    request_items.insert(STORES_TABLE.table_name.to_string(), KeysAndAttributes {
-        consistent_read: Some(true),
-        keys: vec![store_item],
-        ..Default::default()
-    });
+    request_items.insert(STORES_TABLE.table_name.to_string(), KeysAndAttributes::builder()
+        .set_keys(Some(vec![store_item]))
+        .consistent_read(false)
+        .build()?
+    );
 
     // insert product ids into request_items
     let product_map_keys: Vec<&String> = request.product_info.keys().collect();
@@ -84,15 +89,15 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         let mut product_item = AttributeValueHashMap::new();
         let (product_id, _) = key_manager.validate_product_id(&k, &store_id)?;
         let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], &PRODUCT_DB_SALT);
-        product_item.insert_item_into(PRODUCTS_TABLE.id, hashed_product_id.to_vec());
+        product_item.insert_item(PRODUCTS_TABLE.id, Blob::new(hashed_product_id.to_vec()));
         product_items.insert(k.to_string(), product_item);
         pid_hash_to_product_id_hmap.insert(hashed_product_id.to_vec().into(), k.to_string());
     }
-    request_items.insert(PRODUCTS_TABLE.table_name.to_string(), KeysAndAttributes {
-        keys: product_items.values().cloned().collect(),
-        consistent_read: Some(true),
-        ..Default::default()
-    });
+    request_items.insert(PRODUCTS_TABLE.table_name.to_string(), KeysAndAttributes::builder()
+        .set_keys(Some(product_items.values().cloned().collect()))
+        .consistent_read(false)
+        .build()?
+    );
 
     // check for pre-existing license
     let mut license_item = AttributeValueHashMap::new();
@@ -101,19 +106,17 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         &[store_id.binary_id.as_ref(), request.user_id.as_bytes()],
         &LICENSE_DB_SALT
     );
-    license_item.insert_item_into(LICENSES_TABLE.hashed_store_id_and_user_id, secondary_index.to_vec());
-    request_items.insert(LICENSES_TABLE.table_name.to_string(), KeysAndAttributes {
-        keys: vec![license_item.clone()],
-        consistent_read: Some(true),
-        ..Default::default()
-    });
+    license_item.insert_item(LICENSES_TABLE.hashed_store_id_and_user_id, Blob::new(secondary_index.to_vec()));
+    request_items.insert(LICENSES_TABLE.table_name.to_string(), KeysAndAttributes::builder()
+        .set_keys(Some(vec![license_item.clone()]))
+        .consistent_read(true)
+        .build()?
+    );
 
-    let client = DynamoDbClient::new(Region::UsEast1);
-
-    let batch_get = client.batch_get_item(BatchGetItemInput {
-        request_items,
-        ..Default::default()
-    }).await?;
+    let batch_get = client.batch_get_item()
+        .set_request_items(Some(request_items))
+        .send()
+        .await?;
 
     let tables = if let Some(r) = batch_get.responses {
         r
@@ -133,7 +136,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let store_item_protobuf: StoreDbItem = key_manager.decrypt_db_proto(
         &STORES_TABLE.table_name,
         store_id.binary_id.as_ref(),
-        store_item.get_item(STORES_TABLE.protobuf_data)?
+        store_item.get_item(STORES_TABLE.protobuf_data)?.as_ref()
     )?;
     let store_config = if let Some(c) = &store_item_protobuf.configs {
         c
@@ -143,7 +146,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     // verify signature
     let public_key = store_item.get_item(STORES_TABLE.public_key)?;
-    let pubkey = PublicKey::from_sec1_bytes(&public_key)?;
+    let pubkey = PublicKey::from_sec1_bytes(&public_key.as_ref())?;
     let verifier = VerifyingKey::from(pubkey);
     let signature = DerSignature::try_from(signature.as_slice())?;
     verifier.verify_digest(hasher, &signature)?;
@@ -155,7 +158,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         }
         // ensure that product items are pointing to the responses from the db
         for prod in p.iter() {
-            let id = prod.get_item(PRODUCTS_TABLE.id)?;
+            let id = prod.get_item(PRODUCTS_TABLE.id)?.as_ref();
             
             let map = product_items.get_mut(
                 pid_hash_to_product_id_hmap.get(id).expect("hmap should contain the value")
@@ -176,7 +179,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             let protobuf: LicenseDbItem = key_manager.decrypt_db_proto(
                 LICENSES_TABLE.table_name, 
                 &store_id.binary_id.as_ref(), 
-                license_item.get_item(LICENSES_TABLE.protobuf_data)?
+                license_item.get_item(LICENSES_TABLE.protobuf_data)?.as_ref()
             )?;
             let license_code = bytes_to_license(&protobuf.license_id);
 
@@ -189,7 +192,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     let mut machine_limits: HashMap<String, u64> = HashMap::new();
     // update products in license map
-    let products_map = license_item.get_item_mut(LICENSES_TABLE.products_map_item.key)?;
+    let (mut products_map, mut_products_map) = license_item.get_item_mut(LICENSES_TABLE.products_map_item.key)?;
     // some updates might fail, such as if the user is trying to obtain a trial 
     // for the same product again
     let mut issues: HashMap<String, String> = HashMap::new();
@@ -210,7 +213,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         let purchased_license_type = product_info.license_type.to_lowercase();
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
-        let license_info = if let Ok(existing_license_info) = products_map.get_mut_map_by_str(&product_id_string) {
+        let (mut license_info, mut_license_info) = if let Ok((mut existing_license_info, mut_existing_license_info)) = products_map.get_mut_map_by_str(&product_id_string) {
             // product map exists in the license map; user owns/owned a license
             // for this product
             // check that newly purchased license is not a trial license
@@ -224,18 +227,21 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 // increase machines by quantity * max_machines_per_license
                 let num_machines = existing_license_info.increase_number(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license * product_info.quantity as u64)?;
                 machine_limits.insert(product_id_string.to_string(), num_machines);
+                (existing_license_info, mut_existing_license_info)
             } else if &purchased_license_type == existing_license_type && purchased_license_type == license_types::SUBSCRIPTION {
                 // extend expiry time
-                let expiry_time = existing_license_info.get_item_mut(LICENSES_TABLE.products_map_item.fields.expiry_time)?;
+                let (mut expiry_time, mut_expiry_time) = existing_license_info.get_item_mut(LICENSES_TABLE.products_map_item.fields.expiry_time)?;
                 if expiry_time != "0" {
                     let expiry_time_seconds = expiry_time.parse::<u64>().expect("Should be valid");
                     // adjust expiry time based on whether the expiry time has already passed
                     if expiry_time_seconds < now {
-                        *expiry_time = (now + subscription_expiration_period_seconds + subscription_leniency_seconds).to_string();
+                        expiry_time = (now + subscription_expiration_period_seconds + subscription_leniency_seconds).to_string();
                     } else {
-                        *expiry_time = (subscription_expiration_period_seconds + expiry_time_seconds).to_string();
+                        expiry_time = (subscription_expiration_period_seconds + expiry_time_seconds).to_string();
                     }
+                    *mut_expiry_time = AttributeValue::N(expiry_time)
                 }
+                (existing_license_info, mut_existing_license_info)
             } else {
                 // license type purchased is different than the existing one
                 if purchased_license_type == license_types::SUBSCRIPTION && existing_license_type == license_types::PERPETUAL {
@@ -251,19 +257,18 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 // since the only license types are `Perpetual`, `Subscription`, 
                 // and `Trial`, this must be either Trial -> Perpetual or 
                 // Subscription -> Perpetual.
-                let max_machines = existing_license_info.get_item_mut(LICENSES_TABLE.products_map_item.fields.machines_allowed)?;
-                let new_limit = product_info.quantity as u64 * machines_per_license;
-                *max_machines = new_limit.to_string();
-                machine_limits.insert(product_id_string.to_string(), new_limit);
                 existing_license_info.insert_item_into(LICENSES_TABLE.products_map_item.fields.license_type, purchased_license_type);
-                
+                let new_limit = product_info.quantity as u64 * machines_per_license;
+                let max_machines = new_limit.to_string();
+                machine_limits.insert(product_id_string.to_string(), new_limit);
+                existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, max_machines);
+                (existing_license_info, mut_existing_license_info)
             }
-            existing_license_info
         } else {
             // product map does not exist in the license map; user does not
             // already own a license for this product
-            products_map.insert_map(&product_id_string, Some(AttributeValueHashMap::new()));
-            let new_license_info = products_map.get_mut_map_by_str(&product_id_string).expect("We just set this");
+            products_map.insert_map(&product_id_string, AttributeValueHashMap::new());
+            let (mut new_license_info, mut_new_license_info) = products_map.get_mut_map_by_str(&product_id_string).expect("We just set this");
             new_license_info.insert_item_into(LICENSES_TABLE.products_map_item.fields.activation_time, "0");
             
             if purchased_license_type == license_types::TRIAL {
@@ -283,32 +288,38 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines.key, HashMap::new());
             new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines.key, HashMap::new());
             
-            new_license_info
+            (new_license_info, mut_new_license_info)
         };
         license_info.insert_item(LICENSES_TABLE.products_map_item.fields.is_subscription_active, true);
         license_info.insert_item(LICENSES_TABLE.products_map_item.fields.is_license_active, true);
+        *mut_license_info = AttributeValue::M(license_info);
     }
+
+    *mut_products_map = AttributeValue::M(products_map);
 
     // update store table
     store_item.increase_number(&STORES_TABLE.num_licenses, 1)?;
 
     // write to database
     let mut write_request_map: HashMap<String, Vec<WriteRequest>> = HashMap::new();
-    write_request_map.insert(STORES_TABLE.table_name.into(), vec![WriteRequest {
-        put_request: Some(PutRequest { item: store_item } ), 
-        ..Default::default()
-    }]);
-    write_request_map.insert(LICENSES_TABLE.table_name.into(), vec![WriteRequest {
-        put_request: Some(PutRequest { item: license_item } ),
-        ..Default::default()
-    }]);
+    write_request_map.insert(STORES_TABLE.table_name.into(), vec![WriteRequest::builder()
+        .put_request(PutRequest::builder()
+            .set_item(Some(store_item))
+            .build()?
+        ).build()
+    ]);
 
-    client.batch_write_item(
-        BatchWriteItemInput {
-            request_items: write_request_map,
-            ..Default::default()
-        }
-    ).await?;
+    write_request_map.insert(LICENSES_TABLE.table_name.into(), vec![WriteRequest::builder()
+        .put_request(PutRequest::builder()
+            .set_item(Some(license_item))
+            .build()?
+        ).build()
+    ]);
+
+    client.batch_write_item()
+        .set_request_items(Some(write_request_map))
+        .send()
+        .await?;
 
     // respond to request
     let response = CreateLicenseResponse {

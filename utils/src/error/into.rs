@@ -5,8 +5,16 @@ use base64::DecodeError;
 use http_private_key_manager::ProtocolError;
 use http_private_key_manager::private_key_generator::error::{IdCreationError, InvalidId};
 use rusoto_core::RusotoError;
-use rusoto_dynamodb::{BatchGetItemError, BatchWriteItemError, GetItemError, PutItemError};
-
+use rusoto_dynamodb::{
+    //BatchGetItemError, 
+    BatchWriteItemError, 
+    //GetItemError, 
+    PutItemError
+};
+use aws_sdk_dynamodb::operation::{
+    get_item::GetItemError,
+    batch_get_item::BatchGetItemError
+};
 impl From<ProtocolError> for ApiError {
     fn from(err: ProtocolError) -> Self {
         match err {
@@ -17,11 +25,15 @@ impl From<ProtocolError> for ApiError {
     }
 }
 
-impl From<RusotoError<BatchGetItemError>> for ApiError {
-    fn from(value: RusotoError<BatchGetItemError>) -> Self {
+impl From<BatchGetItemError> for ApiError {
+    fn from(value: BatchGetItemError) -> Self {
         match value {
-            RusotoError::Service(BatchGetItemError::ResourceNotFound(x)) => Self::DynamoDbResourceNotFound(x),
-            _ => Self::DynamoDbError(value.to_string())
+            BatchGetItemError::InternalServerError(x) => Self::ServerError(x.to_string()),
+            BatchGetItemError::InvalidEndpointException(x) => Self::ServerError(x.to_string()),
+            BatchGetItemError::ProvisionedThroughputExceededException(x) => Self::ThroughputError,
+            BatchGetItemError::RequestLimitExceeded(_) => Self::ThroughputError,
+            BatchGetItemError::ResourceNotFoundException(_) => Self::NotFound,
+            _ => Self::ServerError(value.to_string()),
         }
     }
 }
@@ -71,17 +83,13 @@ impl From<p384::elliptic_curve::Error> for ApiError {
 impl From<GetItemError> for ApiError {
     fn from(value: GetItemError) -> Self {
         match value {
-            GetItemError::InternalServerError(e) => Self::ServerError(e),
-            GetItemError::ProvisionedThroughputExceeded(_e) => Self::ThroughputError,
+            GetItemError::InternalServerError(e) => Self::ServerError(e.to_string()),
+            GetItemError::ProvisionedThroughputExceededException(_e) => Self::ThroughputError,
             GetItemError::RequestLimitExceeded(_e) => Self::ThroughputError,
-            GetItemError::ResourceNotFound(e) => return Self::ServerError(format!("Error: resource not found; {}", e))
+            GetItemError::InvalidEndpointException(e) => Self::ServerError(e.to_string()),
+            GetItemError::ResourceNotFoundException(_) => Self::NotFound,
+            _ => todo!(),
         }
-    }
-}
-
-impl From<RusotoError<GetItemError>> for ApiError {
-    fn from(value: RusotoError<GetItemError>) -> Self {
-        value.into()
     }
 }
 

@@ -2,9 +2,10 @@
 //! with some boilerplate code.
 
 use std::collections::HashMap;
+use aws_sdk_s3::primitives::Blob;
 //pub use proto::prost::bytes::Bytes;
 pub use bytes::Bytes;
-use rusoto_dynamodb::AttributeValue;
+use aws_sdk_dynamodb::types::AttributeValue;
 
 use crate::error::ApiError;
 use crate::tables::Item;
@@ -76,7 +77,7 @@ trait AbstractAttributeValueMaps {
     /// Gets an attribute value.
     fn get_attr_val<A: AttrValAbstraction>(&self, key: &str) -> Result<&A::ArgType, ApiError>;
     /// Gets a mutable attribute value
-    fn get_attr_val_mut<A: AttrValAbstraction>(&mut self, key: &str) -> Result<&mut A::ArgType, ApiError>;
+    fn get_attr_val_mut<A: AttrValAbstraction>(&mut self, key: &str) -> Result<&mut AttributeValue, ApiError>;
 }
 
 impl AbstractAttributeValueMaps for AttributeValueHashMap {
@@ -95,38 +96,31 @@ impl AbstractAttributeValueMaps for AttributeValueHashMap {
             None => return Err(ApiError::InvalidDbSchema("Key `{}` was not in the hashmap".into()))
         };
         let val = match A::get_val(attr_val) {
-            Some(v) => v,
-            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` AttributeValue had a mismatched type in the database", key)))
+            Ok(v) => v,
+            Err(_) => return Err(ApiError::InvalidDbSchema(format!("Key `{}` AttributeValue had a mismatched type in the database", key)))
         };
         Ok(val)
     }
     #[inline]
-    fn get_attr_val_mut<A: AttrValAbstraction>(&mut self, key: &str) -> Result<&mut A::ArgType, ApiError> {
+    fn get_attr_val_mut<A: AttrValAbstraction>(&mut self, key: &str) -> Result<&mut AttributeValue, ApiError> {
         let attr_val = match self.get_mut(key) {
             Some(x) => x,
             None => return Err(ApiError::InvalidDbSchema("Key `{}` was not in the hashmap".into()))
         };
-        let val = match A::get_val_mut(attr_val) {
-            Some(v) => v,
-            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` AttributeValue had a mismatched type in the database", key)))
-        };
-        Ok(val)
+        Ok(attr_val)
     }
 }
 
 pub trait AttrValAbstraction {
     /// The argument type for initializing an `AttributeValue`.
-    type ArgType;
+    type ArgType: Clone;
     /// Gets the string value of an `ArgType`.
     fn get_str_val(v: &Self::ArgType) -> String;
     /// Initializes an `AttributeValue` from an `ArgType`.
     fn attribute_value(data: Self::ArgType) -> AttributeValue;
     /// Gets the `ArgType` from an `AttributeValue`.
-    fn get_val(attr_val: &AttributeValue) -> Option<&Self::ArgType>;
-    /// Gets a mutable `ArgType` from an `AttributeValue`.
-    fn get_val_mut(attr_val: &mut AttributeValue) -> Option<&mut Self::ArgType>;
+    fn get_val(attr_val: &AttributeValue) -> Result<&Self::ArgType, &AttributeValue>;
 }
-
 macro_rules! write_get_str_val {
     (true) => {
         #[inline]
@@ -143,40 +137,33 @@ macro_rules! write_get_str_val {
 }
 
 macro_rules! impl_attr_val_abstraction {
-    ($struct:ident, $arg_type:ty, $member_name:ident, $use_to_string:tt, $doc:expr) => {
+    ($struct:ident, $arg_type:ty, $member_name:ident, $as_type:ident, $use_to_string:tt, $doc:expr) => {
         #[doc = $doc]
         pub struct $struct;
         impl AttrValAbstraction for $struct {
             type ArgType = $arg_type;
             #[inline]
             fn attribute_value(data: Self::ArgType) -> AttributeValue {
-                AttributeValue {
-                    $member_name: Some(data),
-                    ..Default::default()
-                }
+                AttributeValue::$member_name(data)
             }
             #[inline]
-            fn get_val(attr_val: &AttributeValue) -> Option<&Self::ArgType> {
-                attr_val.$member_name.as_ref()
-            }
-            #[inline]
-            fn get_val_mut(attr_val: &mut AttributeValue) -> Option<&mut Self::ArgType> {
-                attr_val.$member_name.as_mut()
+            fn get_val(attr_val: &AttributeValue) -> Result<&Self::ArgType, &AttributeValue> {
+                attr_val.$as_type()
             }
             write_get_str_val!($use_to_string);
         }
     };
 }
 
-impl_attr_val_abstraction!(B, Bytes, b, false, "The `Binary` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(Bool, bool, bool, true, "The `Boolean` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(BS, Vec<Bytes>, bs, false, "The `Binary Set` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(B, Blob, B, as_b, false, "The `Binary` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(Bool, bool, Bool, as_bool, true, "The `Boolean` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(BS, Vec<Blob>, Bs, as_bs, false, "The `Binary Set` generic type for an `AttributeValue`");
 // `List` is not implemented because it seems like a great way to cause errors
-impl_attr_val_abstraction!(M, AttributeValueHashMap, m, false, "The `Map` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(N, String, n, true, "The `Number` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(NS, Vec<String>, ns, false, "The `Number Set` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(S, String, s, true, "The `String` generic type for an `AttributeValue`");
-impl_attr_val_abstraction!(SS, Vec<String>, ss, false, "The `String Set` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(M, AttributeValueHashMap, M, as_m, false, "The `Map` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(N, String, N, as_n, true, "The `Number` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(NS, Vec<String>, Ns, as_ns, false, "The `Number Set` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(S, String, S, as_s, true, "The `String` generic type for an `AttributeValue`");
+impl_attr_val_abstraction!(SS, Vec<String>, Ss, as_ss, false, "The `String Set` generic type for an `AttributeValue`");
 
 pub trait ItemIntegration {
     /// Inserts an item into the `AttributeValueHashMap`.
@@ -186,11 +173,11 @@ pub trait ItemIntegration {
     /// Gets the value for an item from an `AttributeValueHashMap`.
     fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError>;
     /// Gets a mutable reference to an item value from an `AttributeValueHashMap`.
-    fn get_item_mut<T: AttrValAbstraction>(&mut self, item: Item<T>) -> Result<&mut T::ArgType, ApiError>;
+    fn get_item_mut<T: AttrValAbstraction>(&mut self, item: Item<T>) -> Result<(T::ArgType, &mut AttributeValue), ApiError>;
     /// Gets a reference to a hashmap. Useful for dynamically named hashmaps.
     fn get_map_by_str(&self, key: &str) -> Result<&<M as AttrValAbstraction>::ArgType, ApiError>;
     /// Gets a mutable reference to a hashmap. Useful for dynamically named hashmaps.
-    fn get_mut_map_by_str(&mut self, key: &str) -> Result<&mut <M as AttrValAbstraction>::ArgType, ApiError>;
+    fn get_mut_map_by_str(&mut self, key: &str) -> Result<(<M as AttrValAbstraction>::ArgType, &mut AttributeValue), ApiError>;
 }
 
 impl ItemIntegration for AttributeValueHashMap {
@@ -207,16 +194,22 @@ impl ItemIntegration for AttributeValueHashMap {
         self.get_attr_val::<T>(item.key)
     }
     #[inline]
-    fn get_item_mut<T: AttrValAbstraction>(&mut self, item: Item<T>) -> Result<&mut T::ArgType, ApiError> {
-        self.get_attr_val_mut::<T>(item.key)
+    fn get_item_mut<T: AttrValAbstraction>(&mut self, item: Item<T>) -> Result<(T::ArgType, &mut AttributeValue), ApiError> {
+        Ok((
+            self.get_attr_val::<T>(item.key).cloned()?, 
+            self.get_attr_val_mut::<T>(item.key)?
+        ))
     }
     #[inline]
     fn get_map_by_str(&self, key: &str) -> Result<&<M as AttrValAbstraction>::ArgType, ApiError> {
         self.get_attr_val::<M>(key)
     }
     #[inline]
-    fn get_mut_map_by_str(&mut self, key: &str) -> Result<&mut <M as AttrValAbstraction>::ArgType, ApiError> {
-        self.get_attr_val_mut::<M>(key)
+    fn get_mut_map_by_str(&mut self, key: &str) -> Result<(<M as AttrValAbstraction>::ArgType, &mut AttributeValue), ApiError> {
+        Ok((
+            self.get_attr_val::<M>(key)?.to_owned(),
+            self.get_attr_val_mut::<M>(key)?
+        ))
     }
 }
 
@@ -245,7 +238,7 @@ pub trait NullableFields {
 impl NullableFields for AttributeValueHashMap {
     #[inline]
     fn insert_null<T: AttrValAbstraction>(&mut self, key: Item<T>) {
-        self.insert(key.key.into(), AttributeValue { null: Some(true), ..Default::default() } );
+        self.insert(key.key.into(), AttributeValue::Null(true) );
     }
     #[inline]
     fn get_potential_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<String, ApiError> {
@@ -253,12 +246,12 @@ impl NullableFields for AttributeValueHashMap {
             Some(x) => x,
             None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.key)))
         };
-        match attr_val.null {
-            Some(_x) => Ok("Not provided.".into()),
-            None => {
+        match attr_val.is_null() {
+            true => Ok("Not provided.".into()),
+            false => {
                 match T::get_val(attr_val) {
-                    Some(v) => Ok(T::get_str_val(v)),
-                    None => Err(ApiError::InvalidDbSchema(format!("Key `{}` had a type issue", key.key)))
+                    Ok(v) => Ok(T::get_str_val(v)),
+                    Err(_) => Err(ApiError::InvalidDbSchema(format!("Key `{}` had a type issue", key.key)))
                 }
             }
         }
@@ -269,10 +262,7 @@ impl NullableFields for AttributeValueHashMap {
             Some(x) => x,
             None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.key)))
         };
-        match attr_val.null {
-            Some(x) => Ok(x),
-            None => Ok(false)
-        }
+        Ok(attr_val.is_null())
     }
 }
 
@@ -287,8 +277,8 @@ mod tests {
         let mut map: HashMap<String, AttributeValue> = HashMap::new();
         
         let (key, expected) = ("test_bytes", b"expected");
-        map.insert_attr_val::<B>(key, expected.as_slice().into());
-        assert_eq!(map.get_attr_val::<B>(key).unwrap().to_vec(), expected);
+        map.insert_attr_val::<B>(key, Blob::new(expected));
+        assert_eq!(map.get_attr_val::<B>(key).unwrap(), &Blob::new(expected));
 
         let (key, expected) = ("test_bool", true);
         map.insert_attr_val::<Bool>(key, expected);

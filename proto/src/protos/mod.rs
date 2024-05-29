@@ -1,5 +1,8 @@
 pub mod pubkeys;
 
+pub mod request;
+pub mod response;
+
 pub mod register_store_request;
 pub mod store_db_item;
 

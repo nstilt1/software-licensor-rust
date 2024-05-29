@@ -7,5 +7,14 @@ members = [
     "register_store_refactor",
 	"utils",
     "proto",
-    "publish_rotating_keys"
+    "publish_rotating_keys", 
+    "power_tuning"
 ]
+
+[profile.release]
+strip = true
+#debug = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

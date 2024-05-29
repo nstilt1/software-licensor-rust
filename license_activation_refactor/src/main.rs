@@ -301,7 +301,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     // check offline code
     let (first_name, last_name) = check_licenses_db_proto(key_manager, is_offline_attempt, &offline_license_code, &store_id, &license_item)?;
-    
+
     let success_message = {
         let custom_message = license_item.get_item(LICENSES_TABLE.custom_success_message)?;
         if custom_message.len() > 0 {
@@ -542,7 +542,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     let chosen_symm_algo = request.symmetric_algorithm.to_lowercase();
     let (encrypted, signature) = process_request_with_symmetric_algorithm!(
-        key_manager, 
+        &mut key_manager, 
         process_request,
         &mut request,
         req_bytes,

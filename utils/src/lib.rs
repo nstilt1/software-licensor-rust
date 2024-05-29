@@ -12,13 +12,14 @@ use error::ApiError;
 use lambda_http::{Response, Body, Error as LambdaError};
 use substring::Substring;
 pub use http_private_key_manager::utils::StringSanitization;
-pub use tracing_subscriber;
-pub use tracing;
 pub use aws_config;
 pub use aws_sdk_dynamodb;
 pub use aws_sdk_s3;
 pub use lambda_runtime;
 pub use serde_json;
+pub use aws_sdk_lambda;
+pub use http_private_key_manager::{debug_log, error_log};
+
 /// The primary dependencies that will be required for lambda functions are re-exported so as to minimize the chance of different API methods having different versions of dependencies, which would result in more crates to download and compile.
 pub mod prelude {
     pub use http_private_key_manager;
@@ -29,6 +30,9 @@ pub mod prelude {
     pub use tokio;
     pub use proto;
     pub use crate::dynamodb::maps_mk2::*;
+    pub use tracing_subscriber;
+    pub use tracing;
+    pub use log;
 }
 
 pub trait OptionHandler<T> {

@@ -20,7 +20,9 @@ pub use p384::{
     PublicKey,
     ecdsa::{DerSignature, VerifyingKey},
 };
-use p384::NistP384;
+pub use p384::NistP384;
+pub use p384;
+pub use chacha20poly1305;
 pub use http_private_key_manager;
 use http_private_key_manager::prelude::*;
 use proto::prost::Message;
@@ -29,6 +31,8 @@ use sha3::Sha3_512;
 pub use aes_gcm::{Aes128Gcm, Aes256Gcm};
 pub use aes_gcm_siv::{Aes128GcmSiv, Aes256GcmSiv};
 pub use chacha20poly1305::ChaCha20Poly1305;
+#[cfg(feature = "local")]
+use dotenv::dotenv;
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
@@ -146,6 +150,8 @@ pub type KeyManager = HttpPrivateKeyManager<
 /// 
 /// The key needs to be changed to something secure, and the initialization should probably be handled in conjunction with a `Box` or stack bleaching.
 pub fn init_key_manager(kdf_key: Option<&[u8]>, alphabet: Option<&str>) -> KeyManager {
+    #[cfg(feature = "local")]
+    dotenv().ok();
     #[allow(unused_mut)]
     let mut key = Box::new(
         std::env::var("KEY_MANAGER_PRIVATE_KEY").expect("KEY_MANAGER_PRIVATE_KEY not set")

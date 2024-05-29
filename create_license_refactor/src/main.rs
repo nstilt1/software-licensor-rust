@@ -8,6 +8,7 @@ use utils::aws_sdk_dynamodb::Client;
 use utils::aws_sdk_s3::primitives::Blob;
 use utils::crypto::http_private_key_manager::private_key_generator::elliptic_curve::rand_core::RngCore;
 use utils::crypto::http_private_key_manager::Id;
+use utils::crypto::p384::ecdsa::Signature;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
     create_license_request::{CreateLicenseRequest, CreateLicenseResponse},
@@ -148,7 +149,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let public_key = store_item.get_item(STORES_TABLE.public_key)?;
     let pubkey = PublicKey::from_sec1_bytes(&public_key.as_ref())?;
     let verifier = VerifyingKey::from(pubkey);
-    let signature = DerSignature::try_from(signature.as_slice())?;
+    let signature: Signature = Signature::from_bytes(signature.as_slice().try_into().unwrap())?;
     verifier.verify_digest(hasher, &signature)?;
 
     // make sure all products are present in the database
@@ -356,7 +357,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     let chosen_symm_algo = request.symmetric_algorithm.to_lowercase();
     let (encrypted, signature) = process_request_with_symmetric_algorithm!(
-        key_manager, 
+        &mut key_manager, 
         process_request,
         &mut request,
         req_bytes,

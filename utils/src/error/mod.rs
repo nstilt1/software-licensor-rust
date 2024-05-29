@@ -60,7 +60,7 @@ macro_rules! write_fmt {
 
 impl std::fmt::Display for ApiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        #[cfg(debug_assertions)]
+        #[cfg(feature = "debug")]
         {
             match self {
                 Self::IdExpired => f.write_str("The token has expired"),
@@ -84,7 +84,7 @@ impl std::fmt::Display for ApiError {
                 Self::OfflineIsNotAllowed => f.write_str("64"),
             }
         }
-        #[cfg(not(debug_assertions))]
+        #[cfg(not(feature = "debug"))]
         {
             match self {
                 Self::IdExpired => f.write_str("The token has expired"),

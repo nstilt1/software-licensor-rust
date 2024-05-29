@@ -6,6 +6,7 @@ use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{PutRequest, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
 use utils::aws_sdk_s3::primitives::Blob;
+use utils::crypto::p384::ecdsa::Signature;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
     product_db_item::ProductDbItem,
@@ -56,7 +57,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     // verify signature with public key
     let pubkey = PublicKey::from_sec1_bytes(&public_key.as_ref())?;
     let verifier = VerifyingKey::from(pubkey);
-    let signature = DerSignature::try_from(signature.as_slice())?;
+    let signature: Signature = Signature::from_bytes(signature.as_slice().try_into().unwrap())?;
     verifier.verify_digest(hasher, &signature)?;
 
     // signature verified
@@ -184,7 +185,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     let chosen_symm_algo = request.symmetric_algorithm.to_lowercase();
     let (encrypted, signature) = process_request_with_symmetric_algorithm!(
-        key_manager, 
+        &mut key_manager, 
         process_request,
         &mut request,
         req_bytes,

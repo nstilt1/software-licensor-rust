@@ -14,7 +14,6 @@ message RegisterStoreRequest {
     string country = 29;
     bytes public_signing_key = 30;
     Configs configs = 35;
-    uint64 timestamp = 50;
 }
 
 message Configs {

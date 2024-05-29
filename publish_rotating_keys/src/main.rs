@@ -2,7 +2,7 @@ use aws_lambda_events::event::eventbridge::EventBridgeEvent;
 use utils::{
     aws_config::{
         self, meta::region::RegionProviderChain
-    }, aws_sdk_s3::{primitives::ByteStream, Client}, prelude::*, serde_json::{json, Value}, tracing_subscriber
+    }, aws_sdk_s3::{primitives::ByteStream, Client}, prelude::*, serde_json::{json, Value}
 };
 use utils::lambda_runtime;
 use lambda_runtime::{service_fn, Error, LambdaEvent};
@@ -59,7 +59,7 @@ async fn function_handler(_event: LambdaEvent<EventBridgeEvent>) -> Result<Value
     s3_client.put_object()
         .bucket(std::env::var("PUBKEY_BUCKET").expect("missing PUBKEY_BUCKET env"))
         .key("public_keys")
-        .body(ByteStream::from(pubkey_repo.encode_to_vec()))
+        .body(ByteStream::from(pubkey_repo.encode_length_delimited_to_vec()))
         .send()
         .await?;
     Ok(json!({ "message": "Pubkeys written successfully"}))

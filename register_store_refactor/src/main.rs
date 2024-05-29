@@ -1,5 +1,7 @@
 //! A store registration API method for a licensing service.
-
+use utils::crypto::p384::ecdsa::Signature;
+use utils::crypto::sha2::Sha384;
+use utils::{debug_log, error_log, now_as_seconds};
 use std::time::{SystemTime, UNIX_EPOCH};
 use proto::protos::store_db_item::StoreDbItem;
 use utils::aws_sdk_s3::primitives::Blob;
@@ -14,6 +16,7 @@ use utils::aws_sdk_dynamodb::Client;
 use utils::aws_config::meta::region::RegionProviderChain;
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut RegisterStoreRequest, hasher: D, signature: Vec<u8>) -> Result<RegisterStoreResponse, ApiError> {
+    debug_log!("In process_request");
     if request.contact_first_name.len() < 2 || 
         request.contact_last_name.len() < 2 ||
         request.store_name.len() < 1 ||
@@ -23,26 +26,33 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     {
         return Err(ApiError::InvalidRequest("Please provide accurate information".into()))
     }
-    if request.timestamp < SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() - 60 {
-        return Err(ApiError::InvalidRequest("Timestamp is too old".into()))
-    }
+
+    debug_log!("Made it past initial validation");
     // verify public key before storing info in the database to ensure that they know how to format requests and that everything is working properly
     // with an established client, we will need to fetch the public key 
     // from the database to verify the signature instead of this
     let pubkey = PublicKey::from_sec1_bytes(&request.public_signing_key)?;
+    debug_log!("Initialized pubkey");
     let verifier = VerifyingKey::from(pubkey);
-    let signature = DerSignature::try_from(signature.as_slice())?;
+    let signature: Signature = Signature::from_bytes(signature.as_slice().try_into().unwrap())?;
+    debug_log!("Initialized signature");
     verifier.verify_digest(hasher, &signature)?;
+
+    debug_log!("Verfied signature");
 
     // generate store ID and make sure it isn't already in the database
     let mut store_id = key_manager.get_store_id()?;
+    debug_log!("Got the store ID");
 
     let mut store_item = AttributeValueHashMap::new();
-    
+
     let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
+    debug_log!("Set region_provider");
     let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
+    debug_log!("Set aws_config");
     let client = Client::new(&aws_config);
 
+    debug_log!("Initialized dynamodb client");
     loop {
         let hashed_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
         
@@ -61,6 +71,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             break;
         }
     }
+    debug_log!("Picked a store ID");
     
     // a solid store_id has been found, most likely with one try. Now, we
     // will create the database item
@@ -109,10 +120,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
     
     let encrypted_protobuf = key_manager.encrypt_db_proto(STORES_TABLE.table_name, store_id.binary_id.as_ref(), &proto)?;
+    debug_log!("Encrypted store db item");
     store_item.insert_item(STORES_TABLE.protobuf_data, Blob::new(encrypted_protobuf));
 
     store_item.insert_item(STORES_TABLE.public_key, Blob::new(request.public_signing_key.to_vec()));
-    store_item.insert_item(STORES_TABLE.registration_date, request.timestamp.to_string());
+    store_item.insert_item(STORES_TABLE.registration_date, now_as_seconds().to_string());
 
     store_item.insert_item_into(STORES_TABLE.num_products, "0");
     store_item.insert_item_into(STORES_TABLE.num_licenses, "0");
@@ -125,6 +137,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         .send()
         .await?;
     
+    debug_log!("Put store item in database");
+    
     let response = RegisterStoreResponse {
         store_id: store_id.encoded_id,
         timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
@@ -136,6 +150,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 /// There are some code example in the following URLs:
 /// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
 async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
+    debug_log!("In function_handler()");
     // Extract some useful information from the request
     if event.query_string_parameters_ref().is_some() {
         return ApiError::InvalidRequest("There should be no query string parameters.".into()).respond();
@@ -146,32 +161,54 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         return Err(Box::new(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into())))
     };
     let (mut request, req_bytes) = if let Body::Binary(contents) = event.body() {
-        (RestRequest::decode(contents.as_slice())?, contents)
+        (RestRequest::decode_length_delimited(contents.as_slice())?, contents)
     } else {
         return ApiError::InvalidRequest("Body is not binary".into()).respond()
     };
 
+    debug_log!("About to init key_manager");
+
     let mut key_manager = init_key_manager(None, None);
+    debug_log!("Initialized key_manager");
 
     let chosen_symm_algo = request.symmetric_algorithm.to_lowercase();
-    let (encrypted, signature) = process_request_with_symmetric_algorithm!(
-        key_manager, 
-        process_request,
-        &mut request,
-        req_bytes,
-        RegisterStoreRequest,
-        RegisterStoreResponse,
-        sha2::Sha384,
-        signature,
-        chosen_symm_algo.as_str(),
-        true,                     // is_handshake    
-        // the following values allow the client to choose the symmetric encryption algorithm via the `symmetric_algorithm` field in the request's protobuf message
-        ("chacha20poly1305", ChaCha20Poly1305),
-        ("aes-gcm-128", Aes128Gcm),
-        ("aes-gcm-siv-128", Aes128GcmSiv),
-        ("aes-gcm-256", Aes256Gcm),
-        ("aes-gcm-siv-256", Aes256GcmSiv)
-    );
+
+    let (encrypted, signature) = match chosen_symm_algo.as_str() {
+        "chacha20poly1305" => {
+            let (mut decrypted, hash) = {
+                debug_log!("In chacha20poly1305 segment");
+                let result = key_manager.decrypt_and_hash_request::<ChaCha20Poly1305, Sha384, RegisterStoreRequest>(&mut request, req_bytes, true);
+                debug_log!("Got result in chacha20poly1305 segment");
+                if result.is_err() {
+                    debug_log!("Result was an error");
+                    error_log!("Error: {}", result.unwrap_err().to_string());
+                    panic!()
+                }
+                result.unwrap()
+            };
+            debug_log!("Sending result to process_request()");
+            let mut response = process_request(&mut key_manager, &mut decrypted, hash, signature).await?;
+            debug_log!("Encrypting and signing the response");
+            key_manager.encrypt_and_sign_response::<ChaCha20Poly1305, RegisterStoreResponse>(&mut response)?
+        },
+        "aes-gcm-128" => {
+            debug_log!("In aes-gcm-128 segment");
+            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes128Gcm, Sha384, RegisterStoreRequest>(&mut request, req_bytes, true)?;
+            let mut response = process_request(&mut key_manager, &mut decrypted, hash, signature).await?;
+            key_manager.encrypt_and_sign_response::<Aes128Gcm, RegisterStoreResponse>(&mut response)?
+        },
+        "aes-gcm-256" => {
+            debug_log!("In aes-gcm-256 segment");
+            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes256Gcm, Sha384, RegisterStoreRequest>(&mut request, req_bytes, true)?;
+            let mut response = process_request(&mut key_manager, &mut decrypted, hash, signature).await?;
+            key_manager.encrypt_and_sign_response::<Aes256Gcm, RegisterStoreResponse>(&mut response)?
+        }
+        _ => {
+            debug_log!("Invalid symmetric encryption algorithm error");
+            return Err(Box::new(ApiError::InvalidRequest("Invalid symmetric encryption algorithm".into())))
+        }
+    };
+    debug_log!("Processed the request");
 
     // package `encrypted` into a response and `signature` into the header
 
@@ -183,7 +220,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         .header("content-type", "application/x-protobuf")
         .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
         .header("X-Signature", signature.to_bytes().as_slice().to_base64())
-        .body(encrypted.encode_to_vec().into())
+        .body(encrypted.encode_length_delimited_to_vec().into())
         .map_err(Box::new)?;
 
     Ok(resp)
@@ -191,7 +228,11 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing::init_default_subscriber();
-
+    tracing_subscriber::fmt()
+        .json()
+        .with_level(true)
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+    debug_log!("In main()");
     run(service_fn(function_handler)).await
 }

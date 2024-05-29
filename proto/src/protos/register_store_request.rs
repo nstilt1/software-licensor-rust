@@ -23,8 +23,6 @@ pub struct RegisterStoreRequest {
     pub public_signing_key: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "35")]
     pub configs: ::core::option::Option<Configs>,
-    #[prost(uint64, tag = "50")]
-    pub timestamp: u64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -68,6 +68,4 @@ pub struct Configs {
 pub struct RegisterStoreResponse {
     #[prost(string, tag = "1")]
     pub store_id: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "10")]
-    pub timestamp: u64,
 }

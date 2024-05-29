@@ -19,8 +19,6 @@ pub struct LicenseActivationRequest {
     pub hardware_stats: ::core::option::Option<Stats>,
     #[prost(string, tag = "5")]
     pub product_id: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "50")]
-    pub timestamp: u64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

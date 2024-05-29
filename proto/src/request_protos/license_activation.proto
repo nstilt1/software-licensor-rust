@@ -15,7 +15,6 @@ message LicenseActivationRequest {
     // hardware/simd statistics
     Stats hardware_stats = 4;
     string product_id = 5;
-    uint64 timestamp = 50;
 }
 
 message Stats {

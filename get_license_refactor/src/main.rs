@@ -5,14 +5,15 @@ use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::Client;
 use utils::aws_sdk_s3::primitives::Blob;
 use utils::crypto::p384::ecdsa::Signature;
+use utils::crypto::sha2::Sha384;
 use utils::prelude::proto::protos::license_db_item::LicenseDbItem;
 use utils::prelude::proto::protos::get_license_request::{GetLicenseRequest, GetLicenseResponse, LicenseInfo, Machine};
-use utils::{now_as_seconds, prelude::*};
+use utils::{debug_log, prelude::*};
 use utils::tables::licenses::LICENSES_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::prost::Message;
-use http_private_key_manager::Request as RestRequest;
+use http_private_key_manager::{Request as RestRequest, Response as RestResponse};
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut GetLicenseRequest, hasher: D, signature: Vec<u8>) -> Result<GetLicenseResponse, ApiError> {
     // the StoreId has already been verified in `decrypt_and_hash_request()` but
@@ -109,11 +110,46 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         licensed_products,
         license_code,
         offline_code,
-        timestamp: now_as_seconds(),
     };
 
     Ok(response)
 }
+
+async fn handle_crypto(key_manager: &mut KeyManager, request: &mut RestRequest, req_bytes: &[u8], is_handshake: bool, chosen_symmetric_algorithm: &str, signature: Vec<u8>) -> Result<(RestResponse, Signature), ApiError> {
+    type Req = GetLicenseRequest;
+    type Resp = GetLicenseResponse;
+    match chosen_symmetric_algorithm {
+        "chacha20poly1305" => {
+            let (mut decrypted, hash) = {
+                debug_log!("In chacha20poly1305 segment");
+                let result = key_manager.decrypt_and_hash_request::<ChaCha20Poly1305, Sha384, Req>(request, req_bytes, is_handshake);
+                debug_log!("Got result in chacha20poly1305 segment");
+                result.unwrap()
+            };
+            debug_log!("Sending result to process_request()");
+            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
+            debug_log!("Encrypting and signing the response");
+            Ok(key_manager.encrypt_and_sign_response::<ChaCha20Poly1305, Resp>(&mut response)?)
+        },
+        "aes-gcm-128" => {
+            debug_log!("In aes-gcm-128 segment");
+            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes128Gcm, Sha384, Req>(request, req_bytes, is_handshake)?;
+            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
+            Ok(key_manager.encrypt_and_sign_response::<Aes128Gcm, Resp>(&mut response)?)
+        },
+        "aes-gcm-256" => {
+            debug_log!("In aes-gcm-256 segment");
+            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes256Gcm, Sha384, Req>(request, req_bytes, is_handshake)?;
+            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
+            Ok(key_manager.encrypt_and_sign_response::<Aes256Gcm, Resp>(&mut response)?)
+        }
+        _ => {
+            debug_log!("Invalid symmetric encryption algorithm error");
+            return Err(ApiError::InvalidRequest("Invalid symmetric encryption algorithm".into()))
+        }
+    }
+}
+
 /// This is the main body for the function.
 /// Write your code inside it.
 /// There are some code example in the following URLs:
@@ -137,24 +173,13 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     let mut key_manager = init_key_manager(None, None);
 
     let chosen_symm_algo = request.symmetric_algorithm.to_lowercase();
-    let (encrypted, signature) = process_request_with_symmetric_algorithm!(
-        &mut key_manager, 
-        process_request,
-        &mut request,
-        req_bytes,
-        GetLicenseRequest,
-        GetLicenseResponse,
-        sha2::Sha384,
-        signature,
-        chosen_symm_algo.as_str(),
-        false,                     // is_handshake    
-        // the following values allow the client to choose the symmetric encryption algorithm via the `symmetric_algorithm` field in the request's protobuf message
-        ("chacha20poly1305", ChaCha20Poly1305),
-        ("aes-gcm-128", Aes128Gcm),
-        ("aes-gcm-siv-128", Aes128GcmSiv),
-        ("aes-gcm-256", Aes256Gcm),
-        ("aes-gcm-siv-256", Aes256GcmSiv)
-    );
+    let crypto_result = handle_crypto(&mut key_manager, &mut request, req_bytes, false, &chosen_symm_algo, signature).await;
+    
+    let (encrypted, signature) = if let Ok(v) = crypto_result {
+        v
+    } else {
+        return crypto_result.unwrap_err().respond()
+    };
 
     // package `encrypted` into a response and `signature` into the header
 

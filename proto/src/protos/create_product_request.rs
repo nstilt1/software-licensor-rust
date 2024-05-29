@@ -12,8 +12,6 @@ pub struct CreateProductRequest {
     pub is_offline_allowed: bool,
     #[prost(uint32, tag = "60")]
     pub max_machines_per_license: u32,
-    #[prost(uint64, tag = "150")]
-    pub timestamp: u64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -26,6 +24,4 @@ pub struct CreateProductResponse {
     /// the server's signature on the key file with this public key.
     #[prost(bytes = "vec", tag = "2")]
     pub product_public_key: ::prost::alloc::vec::Vec<u8>,
-    #[prost(uint64, tag = "10")]
-    pub timestamp: u64,
 }

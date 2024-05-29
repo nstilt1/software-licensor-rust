@@ -4,8 +4,6 @@
 pub struct GetLicenseRequest {
     #[prost(string, tag = "1")]
     pub user_id: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "20")]
-    pub timestamp: u64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -20,8 +18,6 @@ pub struct GetLicenseResponse {
     pub license_code: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub offline_code: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "20")]
-    pub timestamp: u64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

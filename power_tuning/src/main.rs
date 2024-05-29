@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -13,7 +14,6 @@ use utils::crypto::http_private_key_manager::prelude::ChaCha8Rng;
 use utils::crypto::p384::elliptic_curve::rand_core::SeedableRng;
 use utils::crypto::p384::{
     ecdh::EphemeralSecret,
-    PublicKey,
     ecdsa::{
         Signature,
         SigningKey,
@@ -56,7 +56,6 @@ fn encrypt_and_sign_payload(inner_payload: Vec<u8>, signing_key: SigningKey, is_
         true => "TEST".into(),
         false => "Insert full client ID Here".into()
     };
-    let mut server_key_manager = init_key_manager(None, None);
     let (server_ecdh_key_id, ecdh_pubkey) = (server_keys.0.ecdh_key_id, server_keys.0.ecdh_public_key);
     
     let server_ecdsa_key_id = server_keys.1;
@@ -97,6 +96,34 @@ fn encrypt_and_sign_payload(inner_payload: Vec<u8>, signing_key: SigningKey, is_
         symmetric_key: key,
     }
     
+}
+
+fn generate_create_product_payload() -> Vec<u8> {
+    use protos::create_product_request::CreateProductRequest;
+    let req = CreateProductRequest {
+        version: "0.0".into(),
+        product_name: "Test product".into(),
+        product_id_prefix: "Test".into(),
+        is_offline_allowed: false,
+        max_machines_per_license: 3,
+        timestamp: todo!(),
+    };
+}
+
+fn generate_create_license_payload() -> Vec<u8> {
+    use protos::create_license_request::{CreateLicenseRequest, ProductInfo};
+    let mut product_info: HashMap<String, ProductInfo> = HashMap::new();
+    //product_info.insert()
+    let req = CreateLicenseRequest {
+        customer_first_name: "Test".into(),
+        customer_last_name: "TestLastName".into(),
+        customer_email: "test@m.com".into(),
+        order_id: "Test Order ID".into(),
+        user_id: "Test User ID".into(),
+        custom_success_message: "".into(),
+        product_info: product_info,
+        timestamp: todo!(),
+    };
 }
 
 fn generate_register_store_payload() -> (Vec<u8>, SigningKey) {

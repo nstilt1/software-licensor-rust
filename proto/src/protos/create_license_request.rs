@@ -23,8 +23,6 @@ pub struct CreateLicenseRequest {
         ::prost::alloc::string::String,
         ProductInfo,
     >,
-    #[prost(uint64, tag = "100")]
-    pub timestamp: u64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -59,6 +57,4 @@ pub struct CreateLicenseResponse {
         ::prost::alloc::string::String,
         ::prost::alloc::string::String,
     >,
-    #[prost(uint64, tag = "10")]
-    pub timestamp: u64,
 }

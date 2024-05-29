@@ -1,8 +1,7 @@
 //! A store registration API method for a licensing service.
 use utils::crypto::p384::ecdsa::Signature;
 use utils::crypto::sha2::Sha384;
-use utils::{debug_log, error_log, now_as_seconds};
-use std::time::{SystemTime, UNIX_EPOCH};
+use utils::{debug_log, now_as_seconds};
 use proto::protos::store_db_item::StoreDbItem;
 use utils::aws_sdk_s3::primitives::Blob;
 use utils::prelude::proto::protos::store_db_item;
@@ -11,7 +10,7 @@ use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::protos::register_store_request::{RegisterStoreRequest, RegisterStoreResponse};
 use proto::prost::Message;
-use http_private_key_manager::Request as RestRequest;
+use http_private_key_manager::{Request as RestRequest, Response as RestResponse};
 use utils::aws_sdk_dynamodb::Client;
 use utils::aws_config::meta::region::RegionProviderChain;
 
@@ -141,9 +140,43 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     
     let response = RegisterStoreResponse {
         store_id: store_id.encoded_id,
-        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
     };
     Ok(response)
+}
+
+async fn handle_crypto(key_manager: &mut KeyManager, request: &mut RestRequest, req_bytes: &[u8], is_handshake: bool, chosen_symmetric_algorithm: &str, signature: Vec<u8>) -> Result<(RestResponse, Signature), ApiError> {
+    type Req = RegisterStoreRequest;
+    type Resp = RegisterStoreResponse;
+    match chosen_symmetric_algorithm {
+        "chacha20poly1305" => {
+            let (mut decrypted, hash) = {
+                debug_log!("In chacha20poly1305 segment");
+                let result = key_manager.decrypt_and_hash_request::<ChaCha20Poly1305, Sha384, Req>(request, req_bytes, is_handshake);
+                debug_log!("Got result in chacha20poly1305 segment");
+                result.unwrap()
+            };
+            debug_log!("Sending result to process_request()");
+            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
+            debug_log!("Encrypting and signing the response");
+            Ok(key_manager.encrypt_and_sign_response::<ChaCha20Poly1305, Resp>(&mut response)?)
+        },
+        "aes-gcm-128" => {
+            debug_log!("In aes-gcm-128 segment");
+            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes128Gcm, Sha384, Req>(request, req_bytes, is_handshake)?;
+            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
+            Ok(key_manager.encrypt_and_sign_response::<Aes128Gcm, Resp>(&mut response)?)
+        },
+        "aes-gcm-256" => {
+            debug_log!("In aes-gcm-256 segment");
+            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes256Gcm, Sha384, Req>(request, req_bytes, is_handshake)?;
+            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
+            Ok(key_manager.encrypt_and_sign_response::<Aes256Gcm, Resp>(&mut response)?)
+        }
+        _ => {
+            debug_log!("Invalid symmetric encryption algorithm error");
+            return Err(ApiError::InvalidRequest("Invalid symmetric encryption algorithm".into()))
+        }
+    }
 }
 /// This is the main body for the function.
 /// Write your code inside it.
@@ -173,41 +206,11 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     let chosen_symm_algo = request.symmetric_algorithm.to_lowercase();
 
-    let (encrypted, signature) = match chosen_symm_algo.as_str() {
-        "chacha20poly1305" => {
-            let (mut decrypted, hash) = {
-                debug_log!("In chacha20poly1305 segment");
-                let result = key_manager.decrypt_and_hash_request::<ChaCha20Poly1305, Sha384, RegisterStoreRequest>(&mut request, req_bytes, true);
-                debug_log!("Got result in chacha20poly1305 segment");
-                if result.is_err() {
-                    debug_log!("Result was an error");
-                    error_log!("Error: {}", result.unwrap_err().to_string());
-                    panic!()
-                }
-                result.unwrap()
-            };
-            debug_log!("Sending result to process_request()");
-            let mut response = process_request(&mut key_manager, &mut decrypted, hash, signature).await?;
-            debug_log!("Encrypting and signing the response");
-            key_manager.encrypt_and_sign_response::<ChaCha20Poly1305, RegisterStoreResponse>(&mut response)?
-        },
-        "aes-gcm-128" => {
-            debug_log!("In aes-gcm-128 segment");
-            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes128Gcm, Sha384, RegisterStoreRequest>(&mut request, req_bytes, true)?;
-            let mut response = process_request(&mut key_manager, &mut decrypted, hash, signature).await?;
-            key_manager.encrypt_and_sign_response::<Aes128Gcm, RegisterStoreResponse>(&mut response)?
-        },
-        "aes-gcm-256" => {
-            debug_log!("In aes-gcm-256 segment");
-            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes256Gcm, Sha384, RegisterStoreRequest>(&mut request, req_bytes, true)?;
-            let mut response = process_request(&mut key_manager, &mut decrypted, hash, signature).await?;
-            key_manager.encrypt_and_sign_response::<Aes256Gcm, RegisterStoreResponse>(&mut response)?
-        }
-        _ => {
-            debug_log!("Invalid symmetric encryption algorithm error");
-            return Err(Box::new(ApiError::InvalidRequest("Invalid symmetric encryption algorithm".into())))
-        }
-    };
+    let result = handle_crypto(&mut key_manager, &mut request, req_bytes, true, &chosen_symm_algo, signature).await;
+    if result.as_ref().is_err() {
+        return result.unwrap_err().respond()
+    }
+    let (encrypted, signature) = result.unwrap();
     debug_log!("Processed the request");
 
     // package `encrypted` into a response and `signature` into the header

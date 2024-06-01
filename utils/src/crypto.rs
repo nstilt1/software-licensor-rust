@@ -81,6 +81,13 @@ type BigId<TimestampPolicy> = BinaryId<
     TimestampPolicy
 >;
 
+type MediumId<TimestampPolicy> = BinaryId<
+    U24, // id length - 24 bytes or 32 base64 chars
+    U8, // mac length - 8 bytes or 2^64 MACs
+    6, // prefix length
+    TimestampPolicy
+>;
+
 /// The ECDH Key ID format. Sometimes uses timestamps.
 pub type EcdhKeyId = BigId<use_timestamps::Sometimes>;
 
@@ -95,14 +102,14 @@ pub type StoreId = BigId<use_timestamps::Never>;
 /// The private key will be used to sign responses, but the server's EcdsaKey ID
 /// will also be used to double-sign the response because we want a rotating key's
 /// signature.
-pub type ProductId = BigId<use_timestamps::Never>;
+pub type ProductId = MediumId<use_timestamps::Never>;
 
 /// The binary format of a license code.
 /// 
 /// This LicenseCode type can be represented with 20 hexadigits, and it offers:
 /// 
 /// * a `2 in 16 million (16,777,216)` chance on average of a random ID passing the MAC check
-/// * `1 trillion` unique IDs
+/// * `1 trillion` unique IDs (per version, which changes yearly)
 ///   * `2^(80 IdLen bits - 14 VERSION_BITS - 24 MAC bits - 2 Constant bits) = 1,099,511,627,776`
 pub type LicenseCode = BinaryId<
     U10, // id length for license codes is 10, or 20 hexadigits

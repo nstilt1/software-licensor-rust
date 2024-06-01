@@ -1,4 +1,6 @@
 //! A store registration API method for a licensing service.
+use std::collections::HashMap;
+
 use utils::crypto::p384::ecdsa::Signature;
 use utils::crypto::sha2::Sha384;
 use utils::{debug_log, now_as_seconds};
@@ -105,7 +107,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         discord_username: request.discord_username.to_owned(),
         state: request.state.to_owned(),
         country: request.country.to_owned(),
-        product_ids: Vec::new(),
+        product_ids: HashMap::new(),
         configs: Some(store_db_item::Configs {
             offline_license_frequency_hours: configs.offline_license_frequency_hours,
             perpetual_license_expiration_days: configs.perpetual_license_expiration_days,

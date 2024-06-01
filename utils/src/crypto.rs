@@ -1,7 +1,6 @@
 use base64::alphabet::Alphabet;
 use http_private_key_manager::{
     private_key_generator::{
-        ecdsa::SigningKey, 
         hkdf::hmac::Hmac,
         hkdf::hmac::digest::Output, 
         typenum::Unsigned, 
@@ -247,7 +246,7 @@ pub trait DigitalLicensingThemedKeymanager {
     /// # Notes
     /// 
     /// Some of the "user-supplied" data is actually going to be sent automatically by the client-side code, but it could be sent maliciously from a script, and as such, it is treated as "user-supplied" data.
-    fn validate_product_id(&mut self, product_id: &str, store_id: &Id<StoreId>) -> Result<(Id<ProductId>, SigningKey<EcdsaAlg>), ApiError>;
+    fn validate_product_id(&mut self, product_id: &str, store_id: &Id<StoreId>) -> Result<Id<ProductId>, ApiError>;
 
     /// Checks if a store ID is likely to be authentic. Just because this check passes does not mean that the store ID is in the database.
     /// 
@@ -343,10 +342,9 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
     }
 
     #[inline]
-    fn validate_product_id(&mut self, product_id: &str, store_id: &Id<StoreId>) -> Result<(Id<ProductId>, SigningKey<EcdsaAlg>), ApiError> {
+    fn validate_product_id(&mut self, product_id: &str, store_id: &Id<StoreId>) -> Result<Id<ProductId>, ApiError> {
         let id = self.validate_ecdsa_key_id::<EcdsaAlg, ProductId>(product_id, Some(store_id.binary_id.as_ref()))?;
-        let key = self.key_generator.generate_ecdsa_key_from_id::<EcdsaAlg, ProductId>(&id.binary_id, Some(store_id.binary_id.as_ref()));
-        Ok((id, key))
+        Ok(id)
     }
 
     #[inline]

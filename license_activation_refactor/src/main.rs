@@ -180,7 +180,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let mut product_ids = Vec::new();
     for prod_id in &request.product_ids {
         if let Ok(p) = key_manager.validate_product_id(&prod_id, &store_id) {
-            product_ids.push(p.0)
+            product_ids.push(p)
         } else {
             return Err(ApiError::InvalidAuthentication)
         }

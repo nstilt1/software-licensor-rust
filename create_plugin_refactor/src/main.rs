@@ -13,7 +13,7 @@ use proto::protos::{
     create_product_request::{CreateProductRequest, CreateProductResponse},
 };
 use utils::prelude::proto::protos::store_db_item::StoreDbItem;
-use utils::{debug_log, prelude::*};
+use utils::{debug_log, error_log, prelude::*};
 use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
@@ -21,6 +21,7 @@ use proto::prost::Message;
 use http_private_key_manager::{Request as RestRequest, Response as RestResponse};
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut CreateProductRequest, hasher: D, signature: Vec<u8>) -> Result<CreateProductResponse, ApiError> {
+    debug_log!("In process_request()");
     if request.version.len() < 1 {
         return Err(ApiError::InvalidRequest("The version must be at least one number".into()))
     }
@@ -30,12 +31,16 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
     let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
     let client = Client::new(&aws_config);
-    
+    debug_log!("Set client with aws_config");
+
     let mut store_item = AttributeValueHashMap::new();
     let store_id = key_manager.get_store_id()?;
+    debug_log!("Got store_id");
+
     let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
     store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
 
+    debug_log!("Checking if store id exists in DB");
     let get_output = client.get_item()
         .table_name(STORES_TABLE.table_name)
         .set_key(Some(store_item))
@@ -49,18 +54,23 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         // hashing were to change... in which case, it would happen every time
         None => return Err(ApiError::NotFound)
     };
+    debug_log!("Store ID was found in the DB");
 
     let public_key = store_item.get_item(STORES_TABLE.public_key)?;
+    debug_log!("Got public key");
     // verify signature with public key
     let pubkey = PublicKey::from_sec1_bytes(&public_key.as_ref())?;
+    debug_log!("Set pubkey");
     let verifier = VerifyingKey::from(pubkey);
     let signature: Signature = Signature::from_bytes(signature.as_slice().try_into().unwrap())?;
+    debug_log!("Set signature");
     verifier.verify_digest(hasher, &signature)?;
-
+    debug_log!("Verified signature");
     // signature verified
     // create plugin id and public key, and verify that it isn't already in the db
     let mut product_item = AttributeValueHashMap::new();
     
+    debug_log!("Checking for an unused product_id");
     let (product_id, product_pubkey) = loop {
         let (p_id, p_pk) = key_manager.generate_product_id(&request.product_id_prefix, &store_id)?;
         // hash plugin id before inserting it into table
@@ -83,6 +93,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             break (p_id, p_pk);
         }
     };
+
+    debug_log!("found a valid product id");
 
     // fill the product item with data
     let product_protobuf = ProductDbItem {
@@ -107,6 +119,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     product_item.insert_item_into(PRODUCTS_TABLE.num_perpetual_machines, "0");
     product_item.insert_item_into(PRODUCTS_TABLE.num_license_auths, "0");
     
+    debug_log!("Encrypting the .proto for going into the DB");
     let encrypted_protobuf = key_manager.encrypt_db_proto(
         PRODUCTS_TABLE.table_name, 
         &product_id.binary_id.as_ref(), 
@@ -114,14 +127,17 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     )?;
     product_item.insert_item(PRODUCTS_TABLE.protobuf_data, Blob::new(encrypted_protobuf));
 
+    debug_log!("Increasing num_products by 1");
     store_item.increase_number(&STORES_TABLE.num_products, 1)?;
 
+    debug_log!("Decrypting Store DB Proto");
     let mut store_proto: StoreDbItem = key_manager.decrypt_db_proto(
         &STORES_TABLE.table_name,
         store_id.binary_id.as_ref(),
         store_item.get_item(STORES_TABLE.protobuf_data)?.as_ref()
     )?;
     store_proto.product_ids.push(product_id.binary_id.as_ref().to_vec());
+    debug_log!("Encrypting Stores DB Proto");
     store_item.insert_item(
         STORES_TABLE.protobuf_data,
         Blob::new(key_manager.encrypt_db_proto(
@@ -130,6 +146,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             &store_proto
         )?)
     );
+    debug_log!("Creating request_items for a batch_write_item request");
 
     let mut request_items: HashMap<String, Vec<WriteRequest>> = HashMap::new();
     request_items.insert(STORES_TABLE.table_name.into(), vec![WriteRequest::builder()
@@ -145,6 +162,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         ).build()
     ]);
 
+    debug_log!("performing batch_write_item operation");
     client.batch_write_item()
         .set_request_items(Some(request_items))
         .send()
@@ -155,6 +173,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         product_public_key: product_pubkey.to_vec(),
     };
 
+    debug_log!("Success");
     Ok(response)
 }
 
@@ -199,6 +218,7 @@ async fn handle_crypto(key_manager: &mut KeyManager, request: &mut RestRequest, 
 /// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
 async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     // Extract some useful information from the request
+    debug_log!("In function handler");
     if event.query_string_parameters_ref().is_some() {
         return ApiError::InvalidRequest("There should be no query string parameters.".into()).respond();
     }
@@ -207,21 +227,26 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     } else {
         return Err(Box::new(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into())))
     };
+    debug_log!("Decoding RestRequest");
     let (mut request, req_bytes) = if let Body::Binary(contents) = event.body() {
-        (RestRequest::decode(contents.as_slice())?, contents)
+        (RestRequest::decode_length_delimited(contents.as_slice())?, contents)
     } else {
         return ApiError::InvalidRequest("Body is not binary".into()).respond()
     };
 
+    debug_log!("Initializing key_manager");
     let mut key_manager = init_key_manager(None, None);
 
     let chosen_symmetric_algorithm = request.symmetric_algorithm.to_lowercase();
+    debug_log!("handle_crypto()");
     let crypto_result = handle_crypto(&mut key_manager, &mut request, req_bytes, false, &chosen_symmetric_algorithm, signature).await;
     
     let (encrypted, signature) = if let Ok(v) = crypto_result {
         v
     } else {
-        return crypto_result.unwrap_err().respond()
+        let err = crypto_result.unwrap_err();
+        error_log!("Error encountered: {}", err.to_string());
+        return err.respond()
     };
 
     // package `encrypted` into a response and `signature` into the header
@@ -242,7 +267,11 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing::init_default_subscriber();
+    tracing_subscriber::fmt()
+        .json()
+        .with_level(true)
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
 
     run(service_fn(function_handler)).await
 }

@@ -356,7 +356,7 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
     #[inline]
     fn encrypt_db_proto<M: Message>(&mut self, table_name: &str, related_id: &[u8], data: &M) -> Result<Vec<u8>, ApiError> {
         #[allow(unused_mut)]
-        let mut encoded = data.encode_to_vec();
+        let mut encoded = data.encode_length_delimited_to_vec();
 
         let encrypted = self.encrypt_resource::<ChaCha20Poly1305>(encoded.as_slice(), table_name.as_bytes(), related_id, &[])?;
         
@@ -371,7 +371,7 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
         #[allow(unused_mut)]
         let mut decrypted = self.decrypt_resource::<ChaCha20Poly1305>(data, table_name.as_bytes(), related_id, &[])?;
 
-        let decoded = if let Ok(d) = M::decode(decrypted.as_slice()) {
+        let decoded = if let Ok(d) = M::decode_length_delimited(decrypted.as_slice()) {
             d
         } else {
             return Err(ApiError::InvalidDbSchema("Store DB's protobuf data didn't match the .proto file".into()))

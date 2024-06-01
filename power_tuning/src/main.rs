@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use std::time::Instant;
 
+
 use reqwest::Response;
 use utils::aws_sdk_lambda;
 use utils::aws_config;
@@ -10,8 +11,7 @@ use aws_config::meta::region::RegionProviderChain;
 use utils::crypto::chacha20poly1305::aead::Aead;
 use utils::crypto::chacha20poly1305::Key;
 use utils::crypto::chacha20poly1305::Nonce;
-use utils::crypto::http_private_key_manager::prelude::ChaCha8Rng;
-use utils::crypto::p384::elliptic_curve::rand_core::SeedableRng;
+use rand_chacha::{ChaCha8Rng, rand_core::{RngCore, SeedableRng}};
 use utils::crypto::p384::{
     ecdh::EphemeralSecret,
     ecdsa::{
@@ -21,7 +21,6 @@ use utils::crypto::p384::{
     }
 };
 use utils::crypto::p384::elliptic_curve::rand_core::OsRng;
-use utils::crypto::p384::elliptic_curve::rand_core::RngCore;
 use utils::now_as_seconds;
 use utils::prelude::proto::{protos, prost::Message};
 use utils::prelude::tokio::time::sleep;
@@ -50,11 +49,13 @@ struct Payload {
     pub symmetric_key: Key,
 }
 
-fn encrypt_and_sign_payload(inner_payload: Vec<u8>, signing_key: SigningKey, is_handshake: bool, server_keys: (ExpiringEcdhKey, ExpiringEcdsaKey)) -> Payload {
+fn encrypt_and_sign_payload(inner_payload: Vec<u8>, is_handshake: bool, server_keys: (ExpiringEcdhKey, ExpiringEcdsaKey)) -> Payload {
     use protos::request::{DecryptInfo, Request};
+    let mut rng = ChaCha8Rng::from_seed([4u8; 32]);
+    let signing_key = p384::ecdsa::SigningKey::random(&mut rng);
     let client_id: String = match is_handshake {
         true => "TEST".into(),
-        false => "Insert full client ID Here".into()
+        false => "TESThPFV-DpSuh36imnMPQttBfdzWi8d4U66XUJiFEmJIvxiqbxLUmn1ex1x04g_e".into()
     };
     let (server_ecdh_key_id, ecdh_pubkey) = (server_keys.0.ecdh_key_id, server_keys.0.ecdh_public_key);
     
@@ -106,8 +107,8 @@ fn generate_create_product_payload() -> Vec<u8> {
         product_id_prefix: "Test".into(),
         is_offline_allowed: false,
         max_machines_per_license: 3,
-        timestamp: todo!(),
     };
+    req.encode_length_delimited_to_vec()
 }
 
 fn generate_create_license_payload() -> Vec<u8> {
@@ -122,8 +123,8 @@ fn generate_create_license_payload() -> Vec<u8> {
         user_id: "Test User ID".into(),
         custom_success_message: "".into(),
         product_info: product_info,
-        timestamp: todo!(),
     };
+    req.encode_length_delimited_to_vec()
 }
 
 fn generate_register_store_payload() -> (Vec<u8>, SigningKey) {
@@ -156,7 +157,7 @@ fn generate_register_store_payload() -> (Vec<u8>, SigningKey) {
     (result.encode_length_delimited_to_vec(), signing_key)
 }
 
-async fn get_store_id(response: Response, symmetric_key: Key) -> String {
+async fn decrypt_response(response: Response, symmetric_key: Key) -> Vec<u8> {
     use protos::response::Response as ProtoResponse;
     let body = match response.bytes().await {
         Ok(v) => v,
@@ -174,12 +175,22 @@ async fn get_store_id(response: Response, symmetric_key: Key) -> String {
     let decryptor = ChaCha20Poly1305::new(&symmetric_key);
     let nonce: &Nonce = Nonce::from_slice(&resp.data[..12]);
     let decrypted = decryptor.decrypt(nonce, &resp.data[12..]).unwrap();
+    decrypted
+}
+async fn get_store_id(response: Response, symmetric_key: Key) -> String {
+    let decrypted = decrypt_response(response, symmetric_key).await;
     use protos::register_store_request::RegisterStoreResponse;
     let r = RegisterStoreResponse::decode_length_delimited(decrypted.as_slice()).unwrap();
 
     r.store_id.clone()
 }
 
+async fn get_product_id(response: Response, symmetric_key: Key) -> String {
+    let decrypted = decrypt_response(response, symmetric_key).await;
+    use protos::create_product_request::CreateProductResponse;
+    let r = CreateProductResponse::decode_length_delimited(decrypted.as_slice()).unwrap();
+    r.product_id.clone()
+}
 const GB_PER_MB: f64 = 0.0009765625;
 const GB_S_BASE_COST: f64 = 0.0000133334;
 
@@ -214,21 +225,23 @@ async fn main() -> Result<(), Error> {
     let memsizes = [128, 256, 384, 512, 650, 700, 750, 800, 850, 900];
     let iterations = 4;
     let mut outcomes = vec![vec![0u128; iterations]; memsizes.len()];
-    let mut store_id: String = String::new();
+    //let mut store_id: String = String::new();
+    let mut product_id: String = String::new();
     for m in 0..memsizes.len() {
         client.update_function_configuration()
-            .function_name("register_store_refactor")
+            .function_name("create_plugin_refactor")
             .set_memory_size(Some(memsizes[m] as i32))
             .send()
             .await.unwrap();
         sleep(Duration::from_millis(5000)).await;
 
         for i in 0..iterations {
-            let (inner_payload, signing_key) = generate_register_store_payload();
-            let payload = encrypt_and_sign_payload(inner_payload, signing_key, true, server_keys.clone());
+            let inner_payload = generate_create_product_payload();
+            let payload = encrypt_and_sign_payload(inner_payload, false, server_keys.clone());
             
             let start = Instant::now();
-            let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/register_store_refactor")
+            let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/create_plugin_refactor")
+            //let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/register_store_refactor")
                 .header("X-Signature", payload.signature.to_base64())
                 .body(payload.encrypted)
                 .send()
@@ -236,7 +249,8 @@ async fn main() -> Result<(), Error> {
             let end = Instant::now();
             outcomes[m][i] = end.duration_since(start).as_millis();
 
-            store_id = get_store_id(response, payload.symmetric_key).await;
+            product_id = get_product_id(response, payload.symmetric_key).await;
+            //store_id = get_store_id(response, payload.symmetric_key).await;
 
             sleep(Duration::from_millis(1000)).await;
         }
@@ -244,7 +258,8 @@ async fn main() -> Result<(), Error> {
 
     println!("Register Store Outcomes:");
     let costs_per_memory_allocated = calculate_costs(&memsizes, outcomes);
-    println!("Store ID: {}", store_id);
+    println!("Product ID: {}", product_id);
+    //println!("Store ID: {}", store_id);
     for i in 0..costs_per_memory_allocated.len() {
         println!("With {} MB of RAM\n{} ms average time\n${} average cost", memsizes[i], costs_per_memory_allocated[i].0, costs_per_memory_allocated[i].1)
     }

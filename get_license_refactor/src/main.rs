@@ -165,7 +165,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         return Err(Box::new(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into())))
     };
     let (mut request, req_bytes) = if let Body::Binary(contents) = event.body() {
-        (RestRequest::decode(contents.as_slice())?, contents)
+        (RestRequest::decode_length_delimited(contents.as_slice())?, contents)
     } else {
         return ApiError::InvalidRequest("Body is not binary".into()).respond()
     };

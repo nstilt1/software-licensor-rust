@@ -2,11 +2,11 @@
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use http_private_key_manager::prelude::rand_core::RngCore;
 use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
 use utils::aws_sdk_s3::primitives::Blob;
-use utils::crypto::http_private_key_manager::private_key_generator::elliptic_curve::rand_core::RngCore;
 use utils::crypto::http_private_key_manager::Id;
 use utils::crypto::p384::ecdsa::Signature;
 use utils::crypto::sha2::Sha384;
@@ -381,7 +381,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         return Err(Box::new(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into())))
     };
     let (mut request, req_bytes) = if let Body::Binary(contents) = event.body() {
-        (RestRequest::decode(contents.as_slice())?, contents)
+        (RestRequest::decode_length_delimited(contents.as_slice())?, contents)
     } else {
         return ApiError::InvalidRequest("Body is not binary".into()).respond()
     };

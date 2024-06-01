@@ -571,7 +571,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         return ApiError::InvalidRequest("There should be no query string parameters.".into()).respond();
     }
     let (mut request, req_bytes) = if let Body::Binary(contents) = event.body() {
-        (RestRequest::decode(contents.as_slice())?, contents)
+        (RestRequest::decode_length_delimited(contents.as_slice())?, contents)
     } else {
         return ApiError::InvalidRequest("Body is not binary".into()).respond()
     };

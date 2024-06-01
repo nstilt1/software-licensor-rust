@@ -22,4 +22,5 @@ path = "src/main.rs"
 utils = { path = "../utils" }
 
 [features]
+logging = ["utils/logging"]
 zeroize = ["utils/zeroize"]

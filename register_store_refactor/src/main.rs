@@ -184,21 +184,29 @@ async fn handle_crypto(key_manager: &mut KeyManager, request: &mut RestRequest, 
 /// Write your code inside it.
 /// There are some code example in the following URLs:
 /// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
-async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
+async fn function_handler(event: Request) -> Result<Response<Body>, String> {
     debug_log!("In function_handler()");
     // Extract some useful information from the request
     if event.query_string_parameters_ref().is_some() {
-        return ApiError::InvalidRequest("There should be no query string parameters.".into()).respond();
+        return Err(ApiError::InvalidRequest("There should be no query string parameters.".into()).to_string());
     }
     let signature = if let Some(s) = event.headers().get("X-Signature") {
-        s.as_bytes().from_base64()?
+        match s.as_bytes().from_base64() {
+            Ok(v) => v,
+            Err(e) => return Err(e.to_string())
+        }
     } else {
-        return Err(Box::new(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into())))
+        return Err(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into()).to_string())
     };
     let (mut request, req_bytes) = if let Body::Binary(contents) = event.body() {
-        (RestRequest::decode_length_delimited(contents.as_slice())?, contents)
+        let decoded = match RestRequest::decode_length_delimited(contents.as_slice()) {
+            Ok(v) => v,
+            Err(e) => return Err(e.to_string())
+        };
+
+        (decoded, contents)
     } else {
-        return ApiError::InvalidRequest("Body is not binary".into()).respond()
+        return Err(ApiError::InvalidRequest("Body is not binary".into()).to_string())
     };
 
     debug_log!("About to init key_manager");
@@ -210,7 +218,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     let result = handle_crypto(&mut key_manager, &mut request, req_bytes, true, &chosen_symm_algo, signature).await;
     if result.as_ref().is_err() {
-        return result.unwrap_err().respond()
+        return Err(result.unwrap_err().to_string())
     }
     let (encrypted, signature) = result.unwrap();
     debug_log!("Processed the request");
@@ -226,7 +234,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
         .header("X-Signature", signature.to_bytes().as_slice().to_base64())
         .body(encrypted.encode_length_delimited_to_vec().into())
-        .map_err(Box::new)?;
+        .unwrap();
 
     Ok(resp)
 }

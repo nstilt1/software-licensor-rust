@@ -263,7 +263,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         .header("content-type", "application/x-protobuf")
         .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
         .header("X-Signature", signature.to_bytes().as_slice().to_base64())
-        .body(encrypted.encode_to_vec().into())
+        .body(encrypted.encode_length_delimited_to_vec().into())
         .map_err(Box::new)?;
 
     Ok(resp)

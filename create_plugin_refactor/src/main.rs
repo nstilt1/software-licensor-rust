@@ -1,6 +1,7 @@
 //! A plugin creation API method for a licensing service.
 
 use std::collections::HashMap;
+use proto::protos::store_db_item::ProductInfo;
 use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{PutRequest, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
@@ -136,7 +137,10 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         store_id.binary_id.as_ref(),
         store_item.get_item(STORES_TABLE.protobuf_data)?.as_ref()
     )?;
-    store_proto.product_ids.push(product_id.binary_id.as_ref().to_vec());
+    store_proto.product_ids.insert(product_id.encoded_id.clone(), ProductInfo {
+        is_offline_allowed: request.is_offline_allowed,
+        version: request.version.clone(),
+    });
     debug_log!("Encrypting Stores DB Proto");
     store_item.insert_item(
         STORES_TABLE.protobuf_data,

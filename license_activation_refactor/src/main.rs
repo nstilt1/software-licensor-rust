@@ -10,7 +10,6 @@ use utils::crypto::sha2::Sha384;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
     license_db_item::LicenseDbItem,
-    product_db_item::ProductDbItem,
     license_activation_request::{
         LicenseActivationRequest,
         LicenseActivationResponse,
@@ -23,7 +22,6 @@ use utils::prelude::proto::protos::store_db_item::StoreDbItem;
 use utils::tables::machines::MACHINES_TABLE;
 use utils::{debug_log, now_as_seconds, prelude::*, StringSanitization};
 use utils::tables::licenses::{LICENSES_TABLE, MACHINE};
-use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::prost::Message;
@@ -33,7 +31,9 @@ use utils::aws_config::meta::region::RegionProviderChain;
 /// Checks the validity of the user-provided Offline License code, and returns 
 /// the Customer's first and last name if it is filled out. This allows the name
 /// to be displayed in the application.
-fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: bool, offline_license_code: &str, store_id: &Id<StoreId>, license_item: &AttributeValueHashMap) -> Result<(String, String), ApiError> {
+/// 
+/// Returns customer's (first name, last name, email)
+fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: bool, offline_license_code: &str, store_id: &Id<StoreId>, license_item: &AttributeValueHashMap) -> Result<(String, String, String), ApiError> {
     let decrypted_proto: LicenseDbItem = key_manager.decrypt_db_proto(
         &LICENSES_TABLE.table_name, 
         store_id.binary_id.as_ref(), 
@@ -44,7 +44,13 @@ fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: boo
             return Err(ApiError::InvalidAuthentication)
         }
     }
-    Ok((decrypted_proto.customer_first_name.clone(), decrypted_proto.customer_last_name.clone()))
+    Ok(
+        (
+            decrypted_proto.customer_first_name.clone(), 
+            decrypted_proto.customer_last_name.clone(),
+            decrypted_proto.customer_email.clone()
+        )
+    )
 }
 
 fn update_lists(updated: &mut bool, license_product_item: &mut AttributeValueHashMap, online_list: Option<AttributeValueHashMap>, offline_list: Option<AttributeValueHashMap>) {
@@ -170,11 +176,15 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     } else {
         return Err(ApiError::InvalidAuthentication)
     };
-    let (product_id, _) = if let Ok(p) = key_manager.validate_product_id(&request.product_id, &store_id) {
-        p
-    } else {
-        return Err(ApiError::InvalidAuthentication)
-    };
+
+    let mut product_ids = Vec::new();
+    for prod_id in &request.product_ids {
+        if let Ok(p) = key_manager.validate_product_id(&prod_id, &store_id) {
+            product_ids.push(p.0)
+        } else {
+            return Err(ApiError::InvalidAuthentication)
+        }
+    }
 
     // check for offline license attempt
     let is_offline_attempt = request.license_code.to_lowercase().contains("offline");
@@ -190,7 +200,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     // store_id, product_id, and license_id have been validated
     // now we need to check and validate with the database
     let mut request_items: HashMap<String, KeysAndAttributes> = HashMap::new();
-
 
     let mut store_item = AttributeValueHashMap::new();
     let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
@@ -211,17 +220,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         KeysAndAttributes::builder()
             .set_keys(Some(vec![license_item]))
             .consistent_read(true)
-            .build()?
-    );
-
-    let mut product_item = AttributeValueHashMap::new();
-    let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], &PRODUCT_DB_SALT);
-    product_item.insert_item(PRODUCTS_TABLE.id, Blob::new(hashed_product_id.to_vec()));
-    request_items.insert(
-        PRODUCTS_TABLE.table_name.to_string(), 
-        KeysAndAttributes::builder()
-            .set_keys(Some(vec![product_item]))
-            .consistent_read(false)
             .build()?
     );
 
@@ -270,14 +268,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         return Err(ApiError::InvalidDbSchema("Missing store_configs".into()))
     };
 
-    product_item = if let Some(p) = tables.get(PRODUCTS_TABLE.table_name) {
-        if p.len() != 1 {
-            return Err(ApiError::NotFound)
-        }
-        p[0].clone()
-    } else {
-        return Err(ApiError::NotFound)
-    };
+    let store_product_info_map = &store_item_protobuf_data.product_ids;
 
     license_item = if let Some(l) = tables.get(LICENSES_TABLE.table_name) {
         if l.len() != 1 {
@@ -302,7 +293,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     }?;
 
     // check offline code
-    let (first_name, last_name) = check_licenses_db_proto(key_manager, is_offline_attempt, &offline_license_code, &store_id, &license_item)?;
+    let (first_name, last_name, email) = check_licenses_db_proto(key_manager, is_offline_attempt, &offline_license_code, &store_id, &license_item)?;
 
     let success_message = {
         let custom_message = license_item.get_item(LICENSES_TABLE.custom_success_message)?;
@@ -315,150 +306,160 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     
     // all items are present in the database
     // validate the license
+
     let (mut products_map, mut_products_map) = license_item.get_item_mut(LICENSES_TABLE.products_map_item.key)?;
-
-    let (mut license_product_map, mut_license_product_map) = products_map.get_mut_map_by_str(&product_id.encoded_id)?;
-    let max_machines = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.machines_allowed)?.parse::<usize>()?;
-    let mut offline_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines.key)?.to_owned();
-    let mut online_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.online_machines.key)?.to_owned();
-    let current_machine_count = offline_machines_map.keys().len() + online_machines_map.keys().len();
-    
-    let exists_in_machine_list = offline_machines_map.contains_key(&request.machine_id) || online_machines_map.contains_key(&request.machine_id);
-
-    let product_protobuf_data: ProductDbItem = key_manager.decrypt_db_proto(
-        &PRODUCTS_TABLE.table_name, 
-        &store_id.binary_id.as_ref(), 
-        product_item.get_item(PRODUCTS_TABLE.protobuf_data)?.as_ref()
-    )?;
-
-    let expiry_time = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?;
-    let license_type = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
-
-    let license_is_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_license_active)?;
-    if !license_is_active {
-        return Err(ApiError::LicenseNoLongerActive)
-    }
-
-    let mut key_file = LicenseKeyFile {
-        product_id: product_id.encoded_id.clone(),
-        customer_first_name: "".into(),
-        customer_last_name: "".into(),
-        product_version: product_protobuf_data.version.clone(),
-        license_code: request.license_code.clone(),
-        license_type: license_type.clone(),
-        machine_id: request.machine_id.clone(),
-        timestamp: now_as_seconds(),
-        expiration_timestamp: 0,
-        check_back_timestamp: 0,
-        message: "".into(),
-        message_code: 1,
-        post_expiration_message: "".into(),
-    };
-    
-    // doing an OR operation instead of `.ne(license_types::PERPETUAL)` in case other license types get added
-    let is_expiring = license_type.eq(license_types::TRIAL) || license_type.eq(license_types::SUBSCRIPTION);
-
-    if is_expiring && expiry_time != 0 && expiry_time < SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() {
-        // expiry time has been reached
-        match license_type.as_str() {
-            license_types::TRIAL => return Err(ApiError::TrialEnded),
-            license_types::SUBSCRIPTION => return Err(ApiError::LicenseNoLongerActive),
-            _ => unreachable!()
-        }
-    }
     let mut updated_license = false;
-    let product_allows_offline = *product_item.get_item(PRODUCTS_TABLE.is_offline_allowed)?;
-    
-    // check machine lists
-    if !exists_in_machine_list {
-        if current_machine_count < max_machines {
-            product_item.increase_number(&PRODUCTS_TABLE.num_machines_total, 1)?;
-            // success response, update tables
-            if is_offline_attempt {
-                if !product_allows_offline {
-                    return Err(ApiError::OfflineIsNotAllowed);
+    let mut key_files: HashMap<String, LicenseKeyFile> = HashMap::new();
+    let mut key_file_signatures: HashMap<String, Vec<u8>> = HashMap::new();
+
+    for product_id in product_ids {
+        let (mut license_product_map, mut_license_product_map) = products_map.get_mut_map_by_str(&product_id.encoded_id)?;
+        let max_machines = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.machines_allowed)?.parse::<usize>()?;
+        let mut offline_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines.key)?.to_owned();
+        let mut online_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.online_machines.key)?.to_owned();
+        let current_machine_count = offline_machines_map.keys().len() + online_machines_map.keys().len();
+        
+        let exists_in_machine_list = offline_machines_map.contains_key(&request.machine_id) || online_machines_map.contains_key(&request.machine_id);
+
+        let expiry_time = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?;
+        let license_type = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
+
+        let license_is_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_license_active)?;
+        if !license_is_active {
+            return Err(ApiError::LicenseNoLongerActive)
+        }
+
+        let store_product_info = if let Some(v) = store_product_info_map.get(&product_id.encoded_id) {
+            v
+        } else {
+            unreachable!()
+        };
+
+        let mut key_file = LicenseKeyFile {
+            product_id: product_id.encoded_id.clone(),
+            customer_first_name: "".into(),
+            customer_last_name: "".into(),
+            product_version: store_product_info.version.clone(),
+            license_code: request.license_code.clone(),
+            license_type: license_type.clone(),
+            machine_id: request.machine_id.clone(),
+            timestamp: now_as_seconds(),
+            expiration_timestamp: 0,
+            check_back_timestamp: 0,
+            message: "".into(),
+            message_code: 1,
+            post_expiration_message: "".into(),
+            customer_email: email.clone(),
+        };
+        
+        // doing an OR operation instead of `.ne(license_types::PERPETUAL)` in case other license types get added
+        let is_expiring = license_type.eq(license_types::TRIAL) || license_type.eq(license_types::SUBSCRIPTION);
+
+        if is_expiring && expiry_time != 0 && expiry_time < SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() {
+            // expiry time has been reached
+            match license_type.as_str() {
+                license_types::TRIAL => return Err(ApiError::TrialEnded),
+                license_types::SUBSCRIPTION => return Err(ApiError::LicenseNoLongerActive),
+                _ => unreachable!()
+            }
+        }
+        let product_allows_offline = store_product_info.is_offline_allowed;
+        
+        // check machine lists
+        if !exists_in_machine_list {
+            if current_machine_count < max_machines {
+                // add 1 to total machines?
+                // success response, update tables
+                if is_offline_attempt {
+                    if !product_allows_offline {
+                        return Err(ApiError::OfflineIsNotAllowed);
+                    }
+                    insert_machine_into_machine_map(&mut offline_machines_map, &request);
+                    // add 1 to total offline machines?
+                    update_lists(&mut updated_license, &mut license_product_map, None, Some(offline_machines_map));
+                } else {
+                    insert_machine_into_machine_map(&mut online_machines_map, &request);
+                    update_lists(&mut updated_license, &mut license_product_map, Some(online_machines_map), None);
                 }
-                insert_machine_into_machine_map(&mut offline_machines_map, &request);
-                product_item.increase_number(&PRODUCTS_TABLE.num_offline_machines, 1)?;
-                update_lists(&mut updated_license, &mut license_product_map, None, Some(offline_machines_map));
             } else {
-                insert_machine_into_machine_map(&mut online_machines_map, &request);
-                update_lists(&mut updated_license, &mut license_product_map, Some(online_machines_map), None);
+                // machine limit reached
+                return Err(ApiError::OverMaxMachines)
             }
         } else {
-            // machine limit reached
-            return Err(ApiError::OverMaxMachines)
+            // machine exists in machine lists
+            if is_offline_attempt {
+                if !product_allows_offline {
+                    return Err(ApiError::OfflineIsNotAllowed)
+                }
+                // remove machine from online machines list if it is there, then add it to offline machines list
+                if online_machines_map.contains_key(&request.machine_id) {
+                    online_machines_map.remove(&request.machine_id);
+                    insert_machine_into_machine_map(&mut offline_machines_map, &request);
+                    update_lists(&mut updated_license, &mut license_product_map,
+                    Some(online_machines_map), Some(offline_machines_map));
+                } 
+            }
         }
-    } else {
-        // machine exists in machine lists
+        
+        let now = now_as_seconds();
+        let (local_expire_time, check_up_time) = match license_type.as_str() {
+            license_types::TRIAL => {
+                let expire_time = if expiry_time == 0 {
+                    // trial license is being activated; set the expiry time accordingly
+                    let expire_time = now + (store_configs.trial_license_expiration_days as u64 * 24 * 60 * 60);
+                    license_product_map.insert_item(
+                        LICENSES_TABLE.products_map_item.fields.expiry_time,
+                        expire_time.to_string());
+                    updated_license = true;
+                    expire_time
+                } else {
+                    license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?
+                };
+                let mut check_up_time = now + (store_configs.trial_license_frequency_hours as u64 * 60 * 60);
+                check_up_time = check_up_time.min(expire_time);
+                key_file.post_expiration_message = ApiError::TrialEnded.to_string();
+                (expire_time, check_up_time)
+            },
+            license_types::SUBSCRIPTION => {
+                let is_subscription_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_subscription_active)?;
+                if !is_subscription_active {
+                    return Err(ApiError::LicenseNoLongerActive)
+                }
+                let expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
+                let mut check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
+                check_up_time = check_up_time.min(expire_time);
+                key_file.post_expiration_message = ApiError::LicenseNoLongerActive.to_string();
+                (expire_time, check_up_time)
+            },
+            license_types::PERPETUAL => {
+                let expire_time = now + (store_configs.perpetual_license_expiration_days as u64 * 24 * 60 * 60);
+                let mut check_up_time = now + (store_configs.perpetual_license_frequency_hours as u64 * 60 * 60);
+                check_up_time = check_up_time.min(expire_time);
+                (expire_time, check_up_time)
+            },
+            _ => return Err(ApiError::InvalidDbSchema("Invalid license type".into()))
+        };
+
+        // update the map AttributeValues since we no longer have our get_mut methods
+        *mut_license_product_map = AttributeValue::M(license_product_map);
+        *mut_products_map = AttributeValue::M(products_map.clone());
+
+        // set expire time and check-up time
         if is_offline_attempt {
-            if !product_allows_offline {
-                return Err(ApiError::OfflineIsNotAllowed)
-            }
-            // remove machine from online machines list if it is there, then add it to offline machines list
-            if online_machines_map.contains_key(&request.machine_id) {
-                online_machines_map.remove(&request.machine_id);
-                insert_machine_into_machine_map(&mut offline_machines_map, &request);
-                update_lists(&mut updated_license, &mut license_product_map,
-                Some(online_machines_map), Some(offline_machines_map));
-            } 
+            key_file.expiration_timestamp = u64::MAX
+        } else {
+            key_file.expiration_timestamp = local_expire_time
         }
-    }
-    
-    let now = now_as_seconds();
-    let (local_expire_time, check_up_time) = match license_type.as_str() {
-        license_types::TRIAL => {
-            let expire_time = if expiry_time == 0 {
-                // trial license is being activated; set the expiry time accordingly
-                let expire_time = now + (store_configs.trial_license_expiration_days as u64 * 24 * 60 * 60);
-                license_product_map.insert_item(
-                    LICENSES_TABLE.products_map_item.fields.expiry_time,
-                    expire_time.to_string());
-                updated_license = true;
-                expire_time
-            } else {
-                license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?
-            };
-            let mut check_up_time = now + (store_configs.trial_license_frequency_hours as u64 * 60 * 60);
-            check_up_time = check_up_time.min(expire_time);
-            key_file.post_expiration_message = ApiError::TrialEnded.to_string();
-            (expire_time, check_up_time)
-        },
-        license_types::SUBSCRIPTION => {
-            let is_subscription_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_subscription_active)?;
-            if !is_subscription_active {
-                return Err(ApiError::LicenseNoLongerActive)
-            }
-            let expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
-            let mut check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
-            check_up_time = check_up_time.min(expire_time);
-            key_file.post_expiration_message = ApiError::LicenseNoLongerActive.to_string();
-            (expire_time, check_up_time)
-        },
-        license_types::PERPETUAL => {
-            let expire_time = now + (store_configs.perpetual_license_expiration_days as u64 * 24 * 60 * 60);
-            let mut check_up_time = now + (store_configs.perpetual_license_frequency_hours as u64 * 60 * 60);
-            check_up_time = check_up_time.min(expire_time);
-            (expire_time, check_up_time)
-        },
-        _ => return Err(ApiError::InvalidDbSchema("Invalid license type".into()))
-    };
+        
+        key_file.check_back_timestamp = check_up_time;
+        key_file.customer_first_name = first_name.clone();
+        key_file.customer_last_name = last_name.clone();
+        key_file.message = success_message.clone();
 
-    // update the map AttributeValues since we no longer have our get_mut methods
-    *mut_license_product_map = AttributeValue::M(license_product_map);
-    *mut_products_map = AttributeValue::M(products_map);
-
-    // set expire time and check-up time
-    if is_offline_attempt {
-        key_file.expiration_timestamp = u64::MAX
-    } else {
-        key_file.expiration_timestamp = local_expire_time
+        key_files.insert(product_id.encoded_id.clone(), key_file.clone());
+        let signature = key_manager.sign_key_file(&key_file.encode_length_delimited_to_vec(), &product_id)?;
+        key_file_signatures.insert(product_id.encoded_id.clone(), signature);
     }
-     
-    key_file.check_back_timestamp = check_up_time;
-    key_file.customer_first_name = first_name;
-    key_file.customer_last_name = last_name;
-    key_file.message = success_message;
 
     let mut write_requests: HashMap<String, Vec<WriteRequest>> = HashMap::new();
 
@@ -487,18 +488,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         ]
     );
 
-    product_item.increase_number(&PRODUCTS_TABLE.num_license_auths, 1)?;
-    write_requests.insert(
-        PRODUCTS_TABLE.table_name.to_string(),
-        vec![WriteRequest::builder()
-            .put_request(
-                PutRequest::builder()
-                    .set_item(Some(product_item))
-                    .build()?
-            ).build()
-        ]
-    );
-
     if machine_needs_update {
         write_requests.insert(
             MACHINES_TABLE.table_name.to_string(),
@@ -517,10 +506,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         .send()
         .await?;
 
-    let signature = key_manager.sign_key_file(&key_file.encode_to_vec(), &product_id)?;
     let response = LicenseActivationResponse {
-        key_file: Some(key_file),
-        key_file_signature: signature,
+        key_files,
+        key_file_signatures,
     };
 
     Ok(response)

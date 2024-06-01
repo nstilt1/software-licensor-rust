@@ -9,12 +9,9 @@ message LicenseActivationRequest {
     // 1234-5678-90ab-cdef-1234-offline-abcd
     string license_code = 1;
     string machine_id = 2;
-    // this language_id can be used to have the server send a response in 
-    // a pre-determined language
-    string language_id = 3;
     // hardware/simd statistics
     Stats hardware_stats = 4;
-    string product_id = 5;
+    repeated string product_ids = 5;
 }
 
 message Stats {
@@ -59,7 +56,8 @@ message LicenseKeyFile {
     string product_id = 1;
     string customer_first_name = 2;
     string customer_last_name = 3;
-    string product_version = 4;
+    string customer_email = 4;
+    string product_version = 5;
     string license_code = 10;
     string license_type = 11;
     string machine_id = 20;
@@ -87,6 +85,8 @@ message LicenseKeyFile {
 }
 
 message LicenseActivationResponse {
-    LicenseKeyFile key_file = 1;
-    bytes key_file_signature = 2;
+    // map of product ids to license key files
+    map<string, LicenseKeyFile> key_files = 1;
+    // map of product ids to key file signature
+    map<string, bytes> key_file_signatures = 2;
 }

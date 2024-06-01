@@ -21,9 +21,21 @@ pub struct StoreDbItem {
     pub country: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "30")]
     pub configs: ::core::option::Option<Configs>,
-    /// a list of product_ids that the store is licensing to customers
-    #[prost(bytes = "vec", repeated, tag = "35")]
-    pub product_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// a map of product_ids that the store is licensing to customers
+    #[prost(map = "string, message", tag = "35")]
+    pub product_ids: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ProductInfo,
+    >,
+}
+/// Some data that was previously in the Product table's protobuf data
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ProductInfo {
+    #[prost(bool, tag = "1")]
+    pub is_offline_allowed: bool,
+    #[prost(string, tag = "2")]
+    pub version: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

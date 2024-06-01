@@ -41,6 +41,7 @@ use crate::tables::Item;
 /// ```rust
 /// use utils::dynamodb::maps_mk2::*;
 /// use utils::tables::Item;
+/// use aws_sdk_dynamodb::primitives::Blob;
 /// let mut map = AttributeValueHashMap::new();
 /// 
 /// pub struct ExampleDbTable {
@@ -63,8 +64,8 @@ use crate::tables::Item;
 /// map.insert_item_into(EXAMPLE_TABLE.string_item_example, "test");
 /// assert_eq!(map.get_item(EXAMPLE_TABLE.string_item_example).unwrap(), "test");
 ///
-/// map.insert_item_into(EXAMPLE_TABLE.binary_item_example, b"testing slice".to_vec());
-/// let expected: Bytes = b"testing slice".as_slice().into();
+/// map.insert_item(EXAMPLE_TABLE.binary_item_example, Blob::new(b"testing slice"));
+/// let expected: Blob = Blob::new(b"testing slice");
 /// assert_eq!(map.get_item(EXAMPLE_TABLE.binary_item_example).unwrap(), &expected);
 /// ```
 

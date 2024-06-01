@@ -30,6 +30,7 @@ use sha3::Sha3_512;
 pub use aes_gcm::{Aes128Gcm, Aes256Gcm};
 pub use aes_gcm_siv::{Aes128GcmSiv, Aes256GcmSiv};
 pub use chacha20poly1305::ChaCha20Poly1305;
+use hex::decode;
 #[cfg(feature = "local")]
 use dotenv::dotenv;
 #[cfg(feature = "zeroize")]
@@ -159,11 +160,9 @@ pub fn init_key_manager(kdf_key: Option<&[u8]>, alphabet: Option<&str>) -> KeyMa
     #[cfg(feature = "local")]
     dotenv().ok();
     #[allow(unused_mut)]
-    let mut key = Box::new(
-        std::env::var("KEY_MANAGER_PRIVATE_KEY").expect("KEY_MANAGER_PRIVATE_KEY not set")
-    );
+    let mut key = decode(std::env::var("KEY_MANAGER_PRIVATE_KEY").expect("KEY_MANAGER_PRIVATE_KEY not set")).expect("KEY_MANAGER_PRIVATE_KEY should be hexadecimal");
     let result = KeyManager::from_key_generator(
-        KeyGen::new(kdf_key.unwrap_or(key.as_bytes()), b"software licensor"), 
+        KeyGen::new(kdf_key.unwrap_or(&key), b"software licensor"), 
         Alphabet::new(alphabet.unwrap_or("qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM/_")).unwrap()
     );
     #[cfg(feature = "zeroize")]
@@ -474,28 +473,9 @@ mod tests {
         let verified_plugin_id = key_manager.validate_product_id(&plugin_id.encoded_id, &store_id);
         assert_eq!(verified_plugin_id.is_ok(), true);
 
-        let (_plugin_id, _) = verified_plugin_id.unwrap();
+        let _plugin_id = verified_plugin_id.unwrap();
         let verified_license = key_manager.validate_license_code(&license_code.encoded_id, &store_id);
         assert_eq!(verified_license.is_ok(), true);
-    }
-
-    /// This test shows that private keys generated from Plugin/Product IDs are mostly unique, and that they can be regenerated fairly quickly... probably faster than you can pull one out of your database unless you're caching the database with something like AWS DAX clusters.
-    #[test]
-    fn assert_unique_and_regenerable_keys() {
-        let mut key_manager = init_key_manager(None, None);
-        let store_id = key_manager.generate_store_id("testing").unwrap();
-        let (plugin_id_1, key_1) = key_manager.generate_product_id("", &store_id).unwrap();
-        let (plugin_id_2, key_2) = key_manager.generate_product_id("", &store_id).unwrap();
-
-        // this test has an extremely small chance of failing, even if all the code is correct. Even if it did fail, it would not be as significant as the possibility of a malicious user decompiling the client-side code and swapping out the URL and public key, or even just cracking the client side DRM normally
-        assert_ne!(key_1, key_2);
-
-        // the encoded_ids will be given to developers, and the server will receive them in http requests
-        let (_verified_plugin_id_1, regenned_key_1) = key_manager.validate_product_id(&plugin_id_1.encoded_id, &store_id).unwrap();
-        assert_eq!(regenned_key_1.verifying_key().to_sec1_bytes(), key_1);
-
-        let (_verified_plugin_id_2, regenned_key_2) = key_manager.validate_product_id(&plugin_id_2.encoded_id, &store_id).unwrap();
-        assert_eq!(regenned_key_2.verifying_key().to_sec1_bytes(), key_2);
     }
 
     #[test]

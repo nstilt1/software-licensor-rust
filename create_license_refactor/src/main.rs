@@ -86,7 +86,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let mut pid_hash_to_product_id_hmap: HashMap<Bytes, String> = HashMap::new();
     for k in product_map_keys.iter() {
         let mut product_item = AttributeValueHashMap::new();
-        let (product_id, _) = key_manager.validate_product_id(&k, &store_id)?;
+        let product_id = key_manager.validate_product_id(&k, &store_id)?;
         let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], &PRODUCT_DB_SALT);
         product_item.insert_item(PRODUCTS_TABLE.id, Blob::new(hashed_product_id.to_vec()));
         product_items.insert(k.to_string(), product_item);

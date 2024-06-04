@@ -28,6 +28,11 @@ pub struct MapItem<F> {
     pub fields: F
 }
 
+pub struct GlobalSecondaryIndex<T: AttrValAbstraction> {
+    pub index_name: &'static str,
+    pub item: Item<T>
+}
+
 #[cfg(test)]
 mod generating_ids {
     use super::super::crypto::*;

@@ -168,13 +168,13 @@ impl_attr_val_abstraction!(SS, Vec<String>, Ss, as_ss, false, "The `String Set` 
 
 pub trait ItemIntegration {
     /// Inserts an item into the `AttributeValueHashMap`.
-    fn insert_item<T: AttrValAbstraction, D: DynamoDbItem<T>>(&mut self, item: D, value: T::ArgType);
+    fn insert_item<D: DynamoDbItem>(&mut self, item: D, value: <D::ItemType as AttrValAbstraction>::ArgType);
     /// Inserts an item into the `AttributeValueHashMap`, calling `.into()` on the value.
-    fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>, D: DynamoDbItem<T>>(&mut self, item: D, value: I);
+    fn insert_item_into<I: Into<<D::ItemType as AttrValAbstraction>::ArgType>, D: DynamoDbItem>(&mut self, item: D, value: I);
     /// Gets the value for an item from an `AttributeValueHashMap`.
-    fn get_item<T: AttrValAbstraction, D: DynamoDbItem<T>>(&self, item: D) -> Result<&T::ArgType, ApiError>;
+    fn get_item<D: DynamoDbItem>(&self, item: D) -> Result<&<D::ItemType as AttrValAbstraction>::ArgType, ApiError>;
     /// Gets a mutable reference to an item value from an `AttributeValueHashMap`.
-    fn get_item_mut<T: AttrValAbstraction, D: DynamoDbItem<T>>(&mut self, item: D) -> Result<(T::ArgType, &mut AttributeValue), ApiError>;
+    fn get_item_mut<D: DynamoDbItem>(&mut self, item: D) -> Result<(<D::ItemType as AttrValAbstraction>::ArgType, &mut AttributeValue), ApiError>;
     /// Gets a reference to a hashmap. Useful for dynamically named hashmaps.
     fn get_map_by_str(&self, key: &str) -> Result<&<M as AttrValAbstraction>::ArgType, ApiError>;
     /// Gets a mutable reference to a hashmap. Useful for dynamically named hashmaps.
@@ -183,22 +183,22 @@ pub trait ItemIntegration {
 
 impl ItemIntegration for AttributeValueHashMap {
     #[inline]
-    fn insert_item<T: AttrValAbstraction, D: DynamoDbItem<T>>(&mut self, item: D, value: T::ArgType) {
-        self.insert_attr_val::<T>(item.get_key(), value)
+    fn insert_item<D: DynamoDbItem>(&mut self, item: D, value: <D::ItemType as AttrValAbstraction>::ArgType) {
+        self.insert_attr_val::<D::ItemType>(item.get_key(), value)
     }
     #[inline]
-    fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>, D: DynamoDbItem<T>>(&mut self, item: D, value: I) {
-        self.insert_attr_val_into::<T, I>(item.get_key(), value)
+    fn insert_item_into<I: Into<<D::ItemType as AttrValAbstraction>::ArgType>, D: DynamoDbItem>(&mut self, item: D, value: I) {
+        self.insert_attr_val_into::<D::ItemType, I>(item.get_key(), value)
     }
     #[inline]
-    fn get_item<T: AttrValAbstraction, D: DynamoDbItem<T>>(&self, item: D) -> Result<&T::ArgType, ApiError> {
-        self.get_attr_val::<T>(item.get_key())
+    fn get_item<D: DynamoDbItem>(&self, item: D) -> Result<&<D::ItemType as AttrValAbstraction>::ArgType, ApiError> {
+        self.get_attr_val::<D::ItemType>(item.get_key())
     }
     #[inline]
-    fn get_item_mut<T: AttrValAbstraction, D: DynamoDbItem<T>>(&mut self, item: D) -> Result<(T::ArgType, &mut AttributeValue), ApiError> {
+    fn get_item_mut<D: DynamoDbItem>(&mut self, item: D) -> Result<(<D::ItemType as AttrValAbstraction>::ArgType, &mut AttributeValue), ApiError> {
         Ok((
-            self.get_attr_val::<T>(item.get_key()).cloned()?, 
-            self.get_attr_val_mut::<T>(item.get_key())?
+            self.get_attr_val::<D::ItemType>(item.get_key()).cloned()?, 
+            self.get_attr_val_mut::<D::ItemType>(item.get_key())?
         ))
     }
     #[inline]

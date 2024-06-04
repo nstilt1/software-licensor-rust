@@ -12,9 +12,23 @@ pub mod products;
 pub mod licenses;
 pub mod machines;
 
+/// A trait that allows for different structs to be used in `insert_item` and 
+/// `get_item` operations.
+pub trait DynamoDbItem<T: AttrValAbstraction> {
+    fn get_key(&self) -> &'static str;
+    type ItemType: AttrValAbstraction;
+}
+
 pub struct Item<T: AttrValAbstraction> {
     pub key: &'static str,
     pub ty: PhantomData<T>
+}
+
+impl<T: AttrValAbstraction> DynamoDbItem<T> for Item<T> {
+    fn get_key(&self) -> &'static str {
+        self.key
+    }
+    type ItemType = T;
 }
 
 impl<T: AttrValAbstraction> Item<T> {
@@ -28,9 +42,23 @@ pub struct MapItem<F> {
     pub fields: F
 }
 
+impl<T: AttrValAbstraction, F> DynamoDbItem<T> for MapItem<F> {
+    fn get_key(&self) -> &'static str {
+        self.key.key
+    }
+    type ItemType = T;
+}
+
 pub struct GlobalSecondaryIndex<T: AttrValAbstraction> {
     pub index_name: &'static str,
     pub item: Item<T>
+}
+
+impl<T: AttrValAbstraction> DynamoDbItem<T> for GlobalSecondaryIndex<T> {
+    fn get_key(&self) -> &'static str {
+        self.item.key
+    }
+    type ItemType = T;
 }
 
 #[cfg(test)]

@@ -8,7 +8,9 @@ pub use bytes::Bytes;
 use aws_sdk_dynamodb::types::AttributeValue;
 
 use crate::error::ApiError;
-use crate::tables::Item;
+use crate::tables::{DynamoDbItem, Item};
+
+pub type AttributeValueHashMap = HashMap<String, AttributeValue>;
 
 /// Abstracts the creation and retrieval of `AttributeValue`s from a HashMap.
 /// 
@@ -68,8 +70,6 @@ use crate::tables::Item;
 /// let expected: Blob = Blob::new(b"testing slice");
 /// assert_eq!(map.get_item(EXAMPLE_TABLE.binary_item_example).unwrap(), &expected);
 /// ```
-
-pub type AttributeValueHashMap = HashMap<String, AttributeValue>;
 trait AbstractAttributeValueMaps {
     /// Inserts an attribute value into an AttributeValueHashMap
     fn insert_attr_val<A: AttrValAbstraction>(&mut self, key: &str, data: A::ArgType);
@@ -168,13 +168,13 @@ impl_attr_val_abstraction!(SS, Vec<String>, Ss, as_ss, false, "The `String Set` 
 
 pub trait ItemIntegration {
     /// Inserts an item into the `AttributeValueHashMap`.
-    fn insert_item<T: AttrValAbstraction>(&mut self, item: Item<T>, value: T::ArgType);
+    fn insert_item<T: AttrValAbstraction, D: DynamoDbItem<T>>(&mut self, item: D, value: T::ArgType);
     /// Inserts an item into the `AttributeValueHashMap`, calling `.into()` on the value.
-    fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>>(&mut self, item: Item<T>, value: I);
+    fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>, D: DynamoDbItem<T>>(&mut self, item: D, value: I);
     /// Gets the value for an item from an `AttributeValueHashMap`.
-    fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError>;
+    fn get_item<T: AttrValAbstraction, D: DynamoDbItem<T>>(&self, item: D) -> Result<&T::ArgType, ApiError>;
     /// Gets a mutable reference to an item value from an `AttributeValueHashMap`.
-    fn get_item_mut<T: AttrValAbstraction>(&mut self, item: Item<T>) -> Result<(T::ArgType, &mut AttributeValue), ApiError>;
+    fn get_item_mut<T: AttrValAbstraction, D: DynamoDbItem<T>>(&mut self, item: D) -> Result<(T::ArgType, &mut AttributeValue), ApiError>;
     /// Gets a reference to a hashmap. Useful for dynamically named hashmaps.
     fn get_map_by_str(&self, key: &str) -> Result<&<M as AttrValAbstraction>::ArgType, ApiError>;
     /// Gets a mutable reference to a hashmap. Useful for dynamically named hashmaps.
@@ -183,22 +183,22 @@ pub trait ItemIntegration {
 
 impl ItemIntegration for AttributeValueHashMap {
     #[inline]
-    fn insert_item<T: AttrValAbstraction>(&mut self, item: Item<T>, value: T::ArgType) {
-        self.insert_attr_val::<T>(item.key, value)
+    fn insert_item<T: AttrValAbstraction, D: DynamoDbItem<T>>(&mut self, item: D, value: T::ArgType) {
+        self.insert_attr_val::<T>(item.get_key(), value)
     }
     #[inline]
-    fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>>(&mut self, item: Item<T>, value: I) {
-        self.insert_attr_val_into::<T, I>(item.key, value)
+    fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>, D: DynamoDbItem<T>>(&mut self, item: D, value: I) {
+        self.insert_attr_val_into::<T, I>(item.get_key(), value)
     }
     #[inline]
-    fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError> {
-        self.get_attr_val::<T>(item.key)
+    fn get_item<T: AttrValAbstraction, D: DynamoDbItem<T>>(&self, item: D) -> Result<&T::ArgType, ApiError> {
+        self.get_attr_val::<T>(item.get_key())
     }
     #[inline]
-    fn get_item_mut<T: AttrValAbstraction>(&mut self, item: Item<T>) -> Result<(T::ArgType, &mut AttributeValue), ApiError> {
+    fn get_item_mut<T: AttrValAbstraction, D: DynamoDbItem<T>>(&mut self, item: D) -> Result<(T::ArgType, &mut AttributeValue), ApiError> {
         Ok((
-            self.get_attr_val::<T>(item.key).cloned()?, 
-            self.get_attr_val_mut::<T>(item.key)?
+            self.get_attr_val::<T>(item.get_key()).cloned()?, 
+            self.get_attr_val_mut::<T>(item.get_key())?
         ))
     }
     #[inline]

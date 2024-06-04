@@ -3,6 +3,7 @@ use std::num::{ParseFloatError, ParseIntError};
 use super::ApiError;
 use aws_sdk_dynamodb::error::SdkError;
 use aws_sdk_dynamodb::error::BuildError;
+use aws_sdk_dynamodb::operation::query::QueryError;
 use base64::DecodeError;
 use http_private_key_manager::ProtocolError;
 use http_private_key_manager::private_key_generator::error::{IdCreationError, InvalidId};
@@ -30,14 +31,14 @@ impl From<BatchGetItemError> for ApiError {
             BatchGetItemError::ProvisionedThroughputExceededException(_) => Self::ThroughputError,
             BatchGetItemError::RequestLimitExceeded(_) => Self::ThroughputError,
             BatchGetItemError::ResourceNotFoundException(_) => Self::NotFound,
-            _ => Self::ServerError(value.to_string()),
+            _ => Self::ServerError(value.meta().to_string()),
         }
     }
 }
 
 impl From<SdkError<BatchGetItemError>> for ApiError {
     fn from(value: SdkError<BatchGetItemError>) -> Self {
-        value.into()
+        value.into_service_error().into()
     }
 }
 
@@ -97,14 +98,14 @@ impl From<GetItemError> for ApiError {
             GetItemError::RequestLimitExceeded(_e) => Self::ThroughputError,
             GetItemError::InvalidEndpointException(e) => Self::ServerError(e.to_string()),
             GetItemError::ResourceNotFoundException(_) => Self::NotFound,
-            _ => todo!(),
+            _ => Self::ServerError(value.meta().to_string()),
         }
     }
 }
 
 impl From<SdkError<GetItemError>> for ApiError {
     fn from(value: SdkError<GetItemError>) -> Self {
-        value.into()
+        value.into_service_error().into()
     }
 }
 
@@ -116,7 +117,7 @@ impl From<PutItemError> for ApiError {
 
 impl From<SdkError<PutItemError>> for ApiError {
     fn from(value: SdkError<PutItemError>) -> Self {
-        value.into()
+        value.into_service_error().into()
     }
 }
 
@@ -135,6 +136,28 @@ impl From<BatchWriteItemError> for ApiError {
 
 impl From<SdkError<BatchWriteItemError>> for ApiError {
     fn from(value: SdkError<BatchWriteItemError>) -> Self {
-        value.into()
+        value.into_service_error().into()
+    }
+}
+
+impl From<QueryError> for ApiError {
+    fn from(value: QueryError) -> Self {
+        match value {
+            QueryError::InternalServerError(e) => Self::ServerError(e.to_string()),
+            QueryError::InvalidEndpointException(e) => Self::ServerError(e.to_string()),
+            QueryError::ProvisionedThroughputExceededException(_) => Self::ThroughputError,
+            QueryError::RequestLimitExceeded(_) => Self::ThroughputError,
+            QueryError::ResourceNotFoundException(_) => Self::NotFound,
+            _ => {
+                let code = value.meta();
+                Self::ServerError(code.to_string())
+            }
+        }
+    }
+}
+
+impl From<SdkError<QueryError>> for ApiError {
+    fn from(value: SdkError<QueryError>) -> Self {
+        value.into_service_error().into()
     }
 }

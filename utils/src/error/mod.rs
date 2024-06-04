@@ -1,5 +1,5 @@
 use http_private_key_manager::ProtocolError;
-use lambda_http::{Response, Body, Error};
+use lambda_http::{http::StatusCode, Body, Error, Response};
 
 pub mod into;
 
@@ -27,8 +27,8 @@ pub enum ApiError {
 }
 
 impl ApiError {
-    fn get_status_code(&self) -> u16 {
-        match self {
+    fn get_status_code(&self) -> StatusCode {
+        let status = match self {
             Self::IdExpired => 403,
             Self::InvalidAuthentication => 401,
             Self::ProtocolError(_) => 403,
@@ -48,7 +48,8 @@ impl ApiError {
             Self::TrialEnded => 403,
             Self::InvalidLicenseCode => 403,
             Self::OfflineIsNotAllowed => 403,
-        }
+        };
+        StatusCode::from_u16(status).expect("Invalid status code")
     }
 }
 
@@ -90,6 +91,10 @@ impl std::fmt::Display for ApiError {
                 Self::IdExpired => f.write_str("The token has expired"),
                 Self::RequestWentThrough => f.write_str("There was an error, but your request went through"),
                 Self::DynamoDbError(_) => f.write_str("There was an internal server error"),
+                Self::DynamoDbResourceNotFound(e) => f.write_str(e),
+                Self::InvalidDbSchema(e) => f.write_str(e),
+                Self::ProtocolError(e) => f.write_str(&e.to_string()),
+                Self::InvalidAuthentication => f.write_str("Forbidden"),
                 Self::ServerError(x) => write_fmt!(f, "There was an internal server error: {}", x),
                 Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
                 Self::NotFound => f.write_str("Not Found"),
@@ -102,7 +107,6 @@ impl std::fmt::Display for ApiError {
                 Self::TrialEnded => f.write_str("8"),
                 Self::InvalidLicenseCode => f.write_str("2"),
                 Self::OfflineIsNotAllowed => f.write_str("64"),
-                _ => f.write_str("Forbidden")
             }
         }
     }
@@ -121,15 +125,10 @@ impl ApiError {
     /// TODO: consider encrypting the error message along with a timestamp and 
     /// other metadata; maybe generate a request ID
     pub fn respond(&self) -> Result<lambda_http::Response<Body>, Error> {
-        return Self::error_resp(self.get_status_code(), &self.to_string());
-    }
-
-    /// Creates an error response
-    fn error_resp(code: u16, message: &str) -> Result<Response<Body>, Error> {
-        return Ok(Response::builder()
-            .status(code)
+        Ok(Response::builder()
+            .status(self.get_status_code())
             .header("content-type", "text/html")
-            .body(message.into())
-            .map_err(Box::new)?);
+            .body(self.to_string().into())
+            .expect("Unable to build http::Response")) 
     }
 }

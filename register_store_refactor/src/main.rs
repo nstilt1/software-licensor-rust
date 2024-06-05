@@ -151,12 +151,7 @@ async fn handle_crypto(key_manager: &mut KeyManager, request: &mut RestRequest, 
     type Resp = RegisterStoreResponse;
     match chosen_symmetric_algorithm {
         "chacha20poly1305" => {
-            let (mut decrypted, hash) = {
-                debug_log!("In chacha20poly1305 segment");
-                let result = key_manager.decrypt_and_hash_request::<ChaCha20Poly1305, Sha384, Req>(request, req_bytes, is_handshake);
-                debug_log!("Got result in chacha20poly1305 segment");
-                result.unwrap()
-            };
+            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<ChaCha20Poly1305, Sha384, Req>(request, req_bytes, is_handshake)?;
             debug_log!("Sending result to process_request()");
             let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
             debug_log!("Encrypting and signing the response");

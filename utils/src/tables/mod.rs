@@ -5,11 +5,16 @@
 
 use std::marker::PhantomData;
 
+#[cfg(feature = "dynamodb")]
 use crate::prelude::{AttrValAbstraction, M};
 
+#[cfg(feature = "dynamodb")]
 pub mod stores;
+#[cfg(feature = "dynamodb")]
 pub mod products;
+#[cfg(feature = "dynamodb")]
 pub mod licenses;
+#[cfg(feature = "dynamodb")]
 pub mod machines;
 
 /// A trait that allows for different structs to be used in `insert_item` and 

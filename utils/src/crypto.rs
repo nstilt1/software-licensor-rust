@@ -28,7 +28,6 @@ use proto::prost::Message;
 pub use sha2;
 use sha3::Sha3_512;
 pub use aes_gcm::{Aes128Gcm, Aes256Gcm};
-pub use aes_gcm_siv::{Aes128GcmSiv, Aes256GcmSiv};
 pub use chacha20poly1305::ChaCha20Poly1305;
 use hex::decode;
 #[cfg(feature = "local")]

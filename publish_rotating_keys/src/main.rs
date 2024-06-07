@@ -2,12 +2,24 @@ use aws_lambda_events::event::eventbridge::EventBridgeEvent;
 use utils::{
     aws_config::{
         self, meta::region::RegionProviderChain
-    }, aws_sdk_s3::{primitives::ByteStream, Client}, prelude::*, serde_json::{json, Value}
+    }, 
+    aws_sdk_s3::{
+        primitives::ByteStream, 
+        Client
+    }, 
+    prelude::*, 
+    serde_json::{
+        json, 
+        Value
+    }
 };
 use utils::lambda_runtime;
 use lambda_runtime::{service_fn, Error, LambdaEvent};
 use utils::{
-    crypto::http_private_key_manager::prelude::{months_to_seconds, years_to_seconds}, 
+    crypto::http_private_key_manager::prelude::{
+        months_to_seconds, 
+        years_to_seconds
+    }, 
     now_as_seconds, 
 };
 use proto::protos::pubkeys::{ExpiringEcdhKey, ExpiringEcdsaKey, PubkeyRepo};

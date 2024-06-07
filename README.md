@@ -33,6 +33,10 @@ Currently, subscription licenses can only have the base amount of machines using
 
 # Building
 
+There are at least 2 ways that this code can be built. There are `build.sh` files that require `docker` and `cross`, and there are `build-zig.sh` files that require `cargo-lambda` and `zig`. `cross` seems to output slightly smaller files, but the `build-zig.sh` with `cargo-lambda` builds about twice as fast. 
+
+It is possible to configure `cross` to build Rust code with `zig`.
+
 Install rust on Ubuntu:
 
 ```bash
@@ -53,7 +57,7 @@ rustup update
 cargo install cargo-lambda
 ```
 
-Install Docker Desktop on your Host OS and enable its use on WSL if you are using WSL (highly recommended if you're on Windows).
+Install Docker Desktop on your Host OS and enable its use in WSL if you are using WSL (highly recommended if you're on Windows). Or you can install `zig` using Homebrew on Linux/WSL.
 
 Install cross
 

@@ -2,16 +2,6 @@ export RUSTFLAGS="--cfg chacha20_force_neon -Ctarget-cpu=neoverse-n1 -Ctarget-fe
 
 echo "COMPILING!!! Your compiled code will be ready in a moment"
 
-# start docker if not started
-if ! pgrep -x "docker" > /dev/null; then
-    sudo service docker start
-fi
-
-# systemctl version
-#if ! systemctl is-active --quiet docker; then
-#    sudo systemctl start docker
-#fi
-
 # build
 
 # GNU does not work at the moment
@@ -25,14 +15,12 @@ else
     features_flag="--features $1"
 fi
 
-cross build --release ${features_flag} --target aarch64-unknown-linux-musl     && {
+cargo lambda build --release --arm64 ${features_flag}     && {
     timestamp=$(date '+%y-%m-%d-%H-%M-%S')
-    filename="${timestamp}_$1_create_plugin_refactor.zip"
+    filename="${timestamp}_$1_register_store_refactor.zip"
     cd builds
     echo "creating $filename..."
-    mv ../../target/aarch64-unknown-linux-musl/release/create_plugin_refactor "bootstrap"
-    zip -j "$filename" ./"bootstrap"
-    rm bootstrap
+    zip -j "$filename" ../../target/lambda/register_store_refactor/bootstrap
 } || {
     echo "Build failed"
 }

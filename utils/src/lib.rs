@@ -2,8 +2,10 @@
 
 pub mod base64;
 pub mod crypto;
+#[cfg(feature = "dynamodb")]
 pub mod dynamodb;
 pub mod error;
+#[cfg(feature = "dynamodb")]
 pub mod tables;
 
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -13,10 +15,15 @@ use lambda_http::{Response, Body, Error as LambdaError};
 use substring::Substring;
 pub use http_private_key_manager::utils::StringSanitization;
 pub use aws_config;
+
+#[cfg(feature = "dynamodb")]
 pub use aws_sdk_dynamodb;
+
+#[cfg(feature = "s3")]
 pub use aws_sdk_s3;
 pub use lambda_runtime;
 pub use serde_json;
+#[cfg(feature = "lambda")]
 pub use aws_sdk_lambda;
 pub use http_private_key_manager::{debug_log, error_log};
 
@@ -29,7 +36,10 @@ pub mod prelude {
     pub use crate::base64::Base64Vec;
     pub use tokio;
     pub use proto;
+    #[cfg(feature = "dynamodb")]
     pub use crate::dynamodb::maps_mk2::*;
+    #[cfg(feature = "dynamodb")]
+    pub use aws_sdk_dynamodb::primitives::Blob;
     pub use tracing_subscriber;
     pub use tracing;
     pub use log;

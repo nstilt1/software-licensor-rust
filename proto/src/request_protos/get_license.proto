@@ -14,9 +14,10 @@ message GetLicenseResponse {
 }
 
 message LicenseInfo {
-    repeated Machine offline_machines = 1;
-    repeated Machine online_machines = 2;
-    uint32 machine_limit = 3;
+    string license_type = 1;
+    repeated Machine offline_machines = 5;
+    repeated Machine online_machines = 10;
+    uint32 machine_limit = 15;
 }
 
 message Machine {

@@ -87,6 +87,8 @@ message LicenseKeyFile {
 message LicenseActivationResponse {
     // map of product ids to license key files
     map<string, LicenseKeyFile> key_files = 1;
+    // map of product ids to licensing errors
+    map<string, string> licensing_errors = 2;
     // map of product ids to key file signature
-    map<string, bytes> key_file_signatures = 2;
+    map<string, bytes> key_file_signatures = 5;
 }

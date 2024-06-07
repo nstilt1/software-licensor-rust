@@ -1,18 +1,21 @@
 use std::num::{ParseFloatError, ParseIntError};
 
 use super::ApiError;
-use aws_sdk_dynamodb::error::SdkError;
-use aws_sdk_dynamodb::error::BuildError;
-use aws_sdk_dynamodb::operation::query::QueryError;
+#[cfg(feature = "dynamodb")]
+use aws_sdk_dynamodb::{
+    error::{BuildError, SdkError},
+    operation::{
+        get_item::GetItemError,
+        batch_get_item::BatchGetItemError,
+        batch_write_item::BatchWriteItemError,
+        put_item::PutItemError,
+        query::QueryError
+    }
+};
 use base64::DecodeError;
 use http_private_key_manager::ProtocolError;
 use http_private_key_manager::private_key_generator::error::{IdCreationError, InvalidId};
-use aws_sdk_dynamodb::operation::{
-    get_item::GetItemError,
-    batch_get_item::BatchGetItemError,
-    batch_write_item::BatchWriteItemError,
-    put_item::PutItemError,
-};
+
 impl From<ProtocolError> for ApiError {
     fn from(err: ProtocolError) -> Self {
         match err {
@@ -23,6 +26,7 @@ impl From<ProtocolError> for ApiError {
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<BatchGetItemError> for ApiError {
     fn from(value: BatchGetItemError) -> Self {
         match value {
@@ -36,12 +40,14 @@ impl From<BatchGetItemError> for ApiError {
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<SdkError<BatchGetItemError>> for ApiError {
     fn from(value: SdkError<BatchGetItemError>) -> Self {
         value.into_service_error().into()
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<BuildError> for ApiError {
     fn from(value: BuildError) -> Self {
         Self::ServerError(value.to_string())
@@ -90,6 +96,7 @@ impl From<p384::elliptic_curve::Error> for ApiError {
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<GetItemError> for ApiError {
     fn from(value: GetItemError) -> Self {
         match value {
@@ -103,24 +110,28 @@ impl From<GetItemError> for ApiError {
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<SdkError<GetItemError>> for ApiError {
     fn from(value: SdkError<GetItemError>) -> Self {
         value.into_service_error().into()
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<PutItemError> for ApiError {
     fn from(value: PutItemError) -> Self {
         ApiError::DynamoDbError(value.to_string())
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<SdkError<PutItemError>> for ApiError {
     fn from(value: SdkError<PutItemError>) -> Self {
         value.into_service_error().into()
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<BatchWriteItemError> for ApiError {
     fn from(value: BatchWriteItemError) -> Self {
         match value {
@@ -134,12 +145,14 @@ impl From<BatchWriteItemError> for ApiError {
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<SdkError<BatchWriteItemError>> for ApiError {
     fn from(value: SdkError<BatchWriteItemError>) -> Self {
         value.into_service_error().into()
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<QueryError> for ApiError {
     fn from(value: QueryError) -> Self {
         match value {
@@ -156,8 +169,15 @@ impl From<QueryError> for ApiError {
     }
 }
 
+#[cfg(feature = "dynamodb")]
 impl From<SdkError<QueryError>> for ApiError {
     fn from(value: SdkError<QueryError>) -> Self {
         value.into_service_error().into()
+    }
+}
+
+impl From<proto::prost::DecodeError> for ApiError {
+    fn from(value: proto::prost::DecodeError) -> Self {
+        Self::InvalidRequest(format!("Unable to decode protobuf message: {}", value.to_string()))
     }
 }

@@ -1,53 +1,33 @@
-use std::collections::HashMap;
 use std::time::Duration;
 use std::time::Instant;
-
-
+use create_license::generate_create_license_payload;
+use create_license::get_license_code;
 use create_product::generate_create_product_payload;
+use create_product::get_product_id;
+use get_license::generate_get_license_payload;
+use get_license::get_license_data;
+use license_activation::generate_license_activation_payload;
+use license_activation::get_license_key_files;
 use proto::protos::pubkeys::ExpiringEcdhKey;
 use proto::protos::pubkeys::ExpiringEcdsaKey;
 use register_store::generate_register_store_payload;
 use register_store::get_store_id;
-use reqwest::Response;
-use server_requests_and_responses::decrypt_response;
 use server_requests_and_responses::encrypt_and_sign_payload;
 use server_requests_and_responses::get_server_pubkeys;
 use utils::aws_sdk_lambda;
 use utils::aws_config;
 use aws_sdk_lambda::{Client, Error};
 use aws_config::meta::region::RegionProviderChain;
-use utils::crypto::chacha20poly1305::Key;
-use utils::prelude::proto::{protos, prost::Message};
 use utils::prelude::tokio::time::sleep;
 use utils::prelude::*;
 
+mod create_license;
 mod create_product;
+mod get_license;
+mod license_activation;
 mod register_store;
 mod server_requests_and_responses;
 
-#[allow(unused)]
-fn generate_create_license_payload() -> Vec<u8> {
-    use protos::create_license_request::{CreateLicenseRequest, ProductInfo};
-    let product_info: HashMap<String, ProductInfo> = HashMap::new();
-    //product_info.insert()
-    let req = CreateLicenseRequest {
-        customer_first_name: "Test".into(),
-        customer_last_name: "TestLastName".into(),
-        customer_email: "test@m.com".into(),
-        order_id: "Test Order ID".into(),
-        user_id: "Test User ID".into(),
-        custom_success_message: "".into(),
-        product_info,
-    };
-    req.encode_length_delimited_to_vec()
-}
-
-async fn get_product_id(response: Response, symmetric_key: Key) -> String {
-    let decrypted = decrypt_response(response, symmetric_key).await;
-    use protos::create_product_request::CreateProductResponse;
-    let r = CreateProductResponse::decode_length_delimited(decrypted.as_slice()).unwrap();
-    r.product_id.clone()
-}
 const GB_PER_MB: f64 = 0.0009765625;
 const GB_S_BASE_COST: f64 = 0.0000133334;
 
@@ -76,7 +56,7 @@ fn calculate_costs(memsizes: &[usize], outcomes: Vec<Vec<u128>>) -> Vec<(u128, f
 async fn main() -> Result<(), Error> {
     let req_client = reqwest::Client::new();
     let server_keys = get_server_pubkeys(&req_client).await;
-    test_create_product(&req_client, server_keys).await?;
+    test_license_activation(&req_client, server_keys).await?;
     Ok(())
 }
 
@@ -107,6 +87,48 @@ async fn test_create_product(req_client: &reqwest::Client, server_keys: (Expirin
 
     let product_id = get_product_id(response, payload.symmetric_key).await;
     println!("Product ID: {}", product_id);
+    Ok(())
+}
+
+#[allow(unused)]
+async fn test_create_license(req_client: &reqwest::Client, server_keys: (ExpiringEcdhKey, ExpiringEcdsaKey)) -> Result<(), Error> {
+    let inner_payload = generate_create_license_payload();
+    let payload = encrypt_and_sign_payload(inner_payload, false, server_keys);
+    let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/create_license_refactor")
+        .header("X-Signature", payload.signature.to_base64())
+        .body(payload.encrypted)
+        .send()
+        .await.unwrap();
+
+    let license_code = get_license_code(response, payload.symmetric_key).await;
+    println!("License code: {}", license_code);
+    Ok(())
+}
+
+#[allow(unused)]
+async fn test_get_license(req_client: &reqwest::Client, server_keys: (ExpiringEcdhKey, ExpiringEcdsaKey)) -> Result<(), Error> {
+    let inner_payload = generate_get_license_payload();
+    let payload = encrypt_and_sign_payload(inner_payload, false, server_keys);
+    let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/get_license_refactor")
+        .header("X-Signature", payload.signature.to_base64())
+        .body(payload.encrypted)
+        .send()
+        .await.unwrap();
+    let license_data = get_license_data(response, payload.symmetric_key).await;
+    println!("License data:\n{}", license_data);
+    Ok(())
+}
+
+#[allow(unused)]
+async fn test_license_activation(req_client: &reqwest::Client, server_keys: (ExpiringEcdhKey, ExpiringEcdsaKey)) -> Result<(), Error> {
+    let inner_payload = generate_license_activation_payload();
+    let payload = encrypt_and_sign_payload(inner_payload, false, server_keys);
+    let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/license_activation_refactor")
+        .body(payload.encrypted)
+        .send()
+        .await.unwrap();
+    let license_key_files = get_license_key_files(response, payload.symmetric_key).await;
+    println!("License key files:\n{}", license_key_files);
     Ok(())
 }
 

@@ -9,7 +9,7 @@ Unfortunately, it would not have been possible to use the official Lambda Power 
 Here are some results for the `register_store_refactor` function:
 
 Store ID: 
-TESThPFV-DpSuh36imnMPQttBfdzWi8d4U66XUJiFEmJIvxiqbxLUmn1ex1x04g_e
+`TEST6smY-/iIpO2AaB0OvoOYxkcnh1LVyetzUq9JTKYqSNKXe9Zqh6Ch7DnS2vvQ1`
 
 ```
 With 128 MB of RAM - 258 ms average time
@@ -41,3 +41,40 @@ Upon inspecting the CloudWatch logs, I found these in the reports under billedDu
 ```
 
 The first column is larger due to the cold boot times, and after crunching some numbers in Libre Office Calc, I found 384 MB to be the cheapest amount of RAM for non-cold starts, and 128-256 MB including cold starts in the average time.
+
+# Create Product
+
+Product IDs: 
+* `TestfxcJ-uldVDjRWqIPhjc1BXqaijHN1`
+* `TestKvXk-scAX/xccsTlqCGFHnfI9_deo`
+* `TestlyjE-1nGk9VrQ/eYzy185BB2icpas`
+
+# Create License
+License code:
+
+`7E32-F88B-4235-3198-EEB1`
+
+# Get License
+
+License Info: 
+
+```
+{
+"TestfxcJ-uldVDjRWqIPhjc1BXqaijHN1": 
+    LicenseInfo { 
+        license_type: "perpetual", 
+        offline_machines: [], 
+        online_machines: [], 
+        machine_limit: 6 
+    }, 
+"TestKvXk-scAX/xccsTlqCGFHnfI9_deo": 
+    LicenseInfo { 
+        license_type: "trial", 
+        offline_machines: [], 
+        online_machines: [], 
+        machine_limit: 3 
+    }
+}
+```
+# License Activation
+

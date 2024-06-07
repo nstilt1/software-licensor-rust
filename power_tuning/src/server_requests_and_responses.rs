@@ -29,7 +29,7 @@ pub fn encrypt_and_sign_payload(inner_payload: Vec<u8>, is_handshake: bool, serv
     let signing_key = p384::ecdsa::SigningKey::random(&mut rng);
     let client_id: String = match is_handshake {
         true => "TEST".into(),
-        false => "TESTdOAx-0rIHAlH_Xi20EqglHZUAVwdo5nEDDTtj1IZbM9mr6Slb8cmPBXJ38QZJ".into()
+        false => "TEST6smY-/iIpO2AaB0OvoOYxkcnh1LVyetzUq9JTKYqSNKXe9Zqh6Ch7DnS2vvQ1".into()
     };
     let (server_ecdh_key_id, ecdh_pubkey) = (server_keys.0.ecdh_key_id, server_keys.0.ecdh_public_key);
     

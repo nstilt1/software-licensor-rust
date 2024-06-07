@@ -4,9 +4,8 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use http_private_key_manager::prelude::rand_core::RngCore;
 use utils::aws_config::meta::region::RegionProviderChain;
-use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, WriteRequest};
+use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, Select, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
-use utils::aws_sdk_s3::primitives::Blob;
 use utils::crypto::http_private_key_manager::Id;
 use utils::crypto::p384::ecdsa::Signature;
 use utils::crypto::sha2::Sha384;
@@ -16,21 +15,43 @@ use proto::protos::{
     store_db_item::StoreDbItem,
     license_db_item::LicenseDbItem,
 };
-use utils::{debug_log, prelude::*};
+use utils::{debug_log, error_log, prelude::*};
 use utils::tables::licenses::LICENSES_TABLE;
 use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::prost::Message;
-use http_private_key_manager::{Request as RestRequest, Response as RestResponse};
+use http_private_key_manager::impl_handle_crypto;
 
-fn init_license(key_manager: &mut KeyManager, request: &CreateLicenseRequest, license_item: &mut AttributeValueHashMap, store_id: &Id<StoreId>) -> Result<(String, String), ApiError> {
-    let license_code = key_manager.generate_license_code(&store_id)?;
-    let primary_index = salty_hash(&[store_id.binary_id.as_ref(), license_code.binary_id.as_ref()], &LICENSE_DB_SALT);
+async fn init_license(
+    client: &Client, 
+    key_manager: &mut KeyManager, 
+    request: &CreateLicenseRequest, 
+    license_item: &mut AttributeValueHashMap, 
+    store_id: &Id<StoreId>,
+    hashed_user_id: &[u8]
+) -> Result<(String, String), ApiError> {
+    let (license_code, primary_index) = loop {
+        let mut license_check_item = AttributeValueHashMap::new();
+        let license_code = key_manager.generate_license_code(&store_id)?;
+        let primary_index = salty_hash(&[store_id.binary_id.as_ref(), license_code.binary_id.as_ref()], &LICENSE_DB_SALT);
+        license_check_item.insert_item(LICENSES_TABLE.id, Blob::new(primary_index.to_vec()));
+        
+        let get_item = client.get_item()
+            .consistent_read(false)
+            .table_name(LICENSES_TABLE.table_name)
+            .set_key(Some(license_check_item.clone()))
+            .send()
+            .await?;
+        if get_item.item.is_none() {
+            break (license_code, primary_index);
+        }
+    };
+    license_item.insert_item(LICENSES_TABLE.hashed_store_id_and_user_id, Blob::new(hashed_user_id));
     license_item.insert_item(LICENSES_TABLE.id, Blob::new(primary_index.to_vec()));
     license_item.insert_item_into(LICENSES_TABLE.custom_success_message, request.custom_success_message.clone());
     license_item.insert_item(LICENSES_TABLE.email_hash, Blob::new(salty_hash(&[request.customer_email.as_bytes()], &LICENSE_DB_SALT).to_vec()));
-    license_item.insert_item(LICENSES_TABLE.products_map_item.key, AttributeValueHashMap::new());
+    license_item.insert_item(LICENSES_TABLE.products_map_item, AttributeValueHashMap::new());
     
     let offline_secret_u16 = key_manager.rng.next_u32() as u16;
     let offline_secret = format!("{:x}", offline_secret_u16);
@@ -41,12 +62,23 @@ fn init_license(key_manager: &mut KeyManager, request: &CreateLicenseRequest, li
         customer_email: request.customer_email.clone(),
         offline_secret: offline_secret.clone(),
     };
-    let encrypted = key_manager.encrypt_db_proto(LICENSES_TABLE.table_name, &license_code.binary_id.as_ref(), &protobuf_data)?;
+    let encrypted = key_manager.encrypt_db_proto(LICENSES_TABLE.table_name, &primary_index.as_ref(), &protobuf_data)?;
     license_item.insert_item(LICENSES_TABLE.protobuf_data, Blob::new(encrypted));
     Ok((license_code.encoded_id, offline_secret))
 }
 
+impl_handle_crypto!(
+    CreateLicenseRequest, 
+    CreateLicenseResponse, 
+    ApiError, 
+    Sha384, 
+    ("chacha20poly1305", ChaCha20Poly1305), 
+    ("aes-gcm-128", Aes128Gcm),
+    ("aes-gcm-256", Aes256Gcm)
+);
+
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut CreateLicenseRequest, hasher: D, signature: Vec<u8>) -> Result<CreateLicenseResponse, ApiError> {
+    debug_log!("In process_request");
     if request.custom_success_message.len() > 140 {
         return Err(ApiError::InvalidRequest("The custom success message must be less than 140 chars".into()))
     }
@@ -59,14 +91,17 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     if request.user_id.len() > 48 {
         return Err(ApiError::InvalidRequest("User ID is too long".into()))
     }
+    debug_log!("Passed basic validation");
 
     let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
     let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
     let client = Client::new(&aws_config);
+    debug_log!("Set up db client");
 
     let mut request_items: HashMap<String, KeysAndAttributes> = HashMap::new();
 
     let store_id = key_manager.get_store_id()?;
+    debug_log!("Got the store id");
 
     let mut store_item = AttributeValueHashMap::new();
     let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
@@ -78,25 +113,29 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         .consistent_read(false)
         .build()?
     );
+    debug_log!("Inserted store table into request_items");
 
     // insert product ids into request_items
     let product_map_keys: Vec<&String> = request.product_info.keys().collect();
     let mut product_items: HashMap<String, AttributeValueHashMap> = HashMap::new();
     // for finding the product-tablehash of a product id
-    let mut pid_hash_to_product_id_hmap: HashMap<Bytes, String> = HashMap::new();
+    let mut pid_hash_to_product_id_hmap: HashMap<Blob, String> = HashMap::new();
     for k in product_map_keys.iter() {
         let mut product_item = AttributeValueHashMap::new();
         let product_id = key_manager.validate_product_id(&k, &store_id)?;
         let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], &PRODUCT_DB_SALT);
         product_item.insert_item(PRODUCTS_TABLE.id, Blob::new(hashed_product_id.to_vec()));
         product_items.insert(k.to_string(), product_item);
-        pid_hash_to_product_id_hmap.insert(hashed_product_id.to_vec().into(), k.to_string());
+        pid_hash_to_product_id_hmap.insert(Blob::new(hashed_product_id.to_vec()), k.to_string());
     }
+    debug_log!("Inserted product items into hashmap");
+
     request_items.insert(PRODUCTS_TABLE.table_name.to_string(), KeysAndAttributes::builder()
         .set_keys(Some(product_items.values().cloned().collect()))
         .consistent_read(false)
         .build()?
     );
+    debug_log!("Inserted product_items into request_items");
 
     // check for pre-existing license
     let mut license_item = AttributeValueHashMap::new();
@@ -105,17 +144,58 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         &[store_id.binary_id.as_ref(), request.user_id.as_bytes()],
         &LICENSE_DB_SALT
     );
-    license_item.insert_item(LICENSES_TABLE.hashed_store_id_and_user_id, Blob::new(secondary_index.to_vec()));
-    request_items.insert(LICENSES_TABLE.table_name.to_string(), KeysAndAttributes::builder()
-        .set_keys(Some(vec![license_item.clone()]))
-        .consistent_read(true)
-        .build()?
+
+    // user_id_hash-index is a global secondary index in dynamoDB, which only
+    // copies the keys so that there won't be 2x the data for the Licenses 
+    // table
+    let query = client.query()
+        .table_name(LICENSES_TABLE.table_name)
+        .index_name(LICENSES_TABLE.hashed_store_id_and_user_id.index_name)
+        .consistent_read(false)
+        .key_condition_expression("#user_id_hash = :key_value")
+        .expression_attribute_names("#user_id_hash", LICENSES_TABLE.hashed_store_id_and_user_id.item.key)
+        .expression_attribute_values(":key_value", AttributeValue::B(Blob::new(secondary_index.to_vec())))
+        .select(Select::AllProjectedAttributes)
+        .send()
+        .await;
+    debug_log!("queried for existing licenses");
+
+    let query = match query {
+        Ok(v) => v,
+        Err(e) => {
+            let err = e.into_service_error();
+            error_log!("Query Error: {}", err.to_string());
+            return Err(err.into())
+        }
+    };
+
+    let does_license_exist = if let Some(q) = query.items {
+        if q.len() == 0 {
+            false
+        } else {
+            license_item = q[0].clone();
+            // remove the secondary index so we can get the full item
+            license_item.remove(LICENSES_TABLE.hashed_store_id_and_user_id.item.key);
+            true
+        }
+    } else {
+        false
+    };
+
+    if does_license_exist {
+        request_items.insert(LICENSES_TABLE.table_name.to_string(), KeysAndAttributes::builder()
+            .set_keys(Some(vec![license_item.clone()]))
+            .consistent_read(true)
+            .build()?
     );
+    }
 
     let batch_get = client.batch_get_item()
         .set_request_items(Some(request_items))
         .send()
         .await?;
+
+    debug_log!("Received batch_get items");
 
     let tables = if let Some(r) = batch_get.responses {
         r
@@ -131,17 +211,21 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     } else {
         return Err(ApiError::NotFound)
     };
+    debug_log!("Set the store_item");
 
     let store_item_protobuf: StoreDbItem = key_manager.decrypt_db_proto(
         &STORES_TABLE.table_name,
         store_id.binary_id.as_ref(),
         store_item.get_item(STORES_TABLE.protobuf_data)?.as_ref()
     )?;
+    debug_log!("Decrypted the StoreDbItem");
+
     let store_config = if let Some(c) = &store_item_protobuf.configs {
         c
     } else {
         return Err(ApiError::InvalidDbSchema("Missing store config".into()))
     };
+    debug_log!("Set the store_config");
 
     // verify signature
     let public_key = store_item.get_item(STORES_TABLE.public_key)?;
@@ -149,6 +233,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let verifier = VerifyingKey::from(pubkey);
     let signature: Signature = Signature::from_bytes(signature.as_slice().try_into().unwrap())?;
     verifier.verify_digest(hasher, &signature)?;
+    debug_log!("Verified the signature");
 
     // make sure all products are present in the database
     if let Some(ref p) = tables.get(PRODUCTS_TABLE.table_name) {
@@ -157,7 +242,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         }
         // ensure that product items are pointing to the responses from the db
         for prod in p.iter() {
-            let id = prod.get_item(PRODUCTS_TABLE.id)?.as_ref();
+            let id = prod.get_item(PRODUCTS_TABLE.id)?;
             
             let map = product_items.get_mut(
                 pid_hash_to_product_id_hmap.get(id).expect("hmap should contain the value")
@@ -167,17 +252,19 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     } else {
         return Err(ApiError::NotFound)
     };
+    debug_log!("All items are present in the PRODUCTS_TABLE");
 
     // check for pre-existing license
     let (license_code, offline_code) = if let Some(l) = tables.get(LICENSES_TABLE.table_name) {
         if l.len() == 0 {
-            init_license(key_manager, request, &mut license_item, &store_id)?
+            init_license(&client, key_manager, request, &mut license_item, &store_id, &secondary_index).await?
         } else {
             // update license as necessary and return info
             license_item = l[0].clone();
+            let primary_key = license_item.get_item(LICENSES_TABLE.id)?;
             let protobuf: LicenseDbItem = key_manager.decrypt_db_proto(
                 LICENSES_TABLE.table_name, 
-                &store_id.binary_id.as_ref(), 
+                &primary_key.as_ref(), 
                 license_item.get_item(LICENSES_TABLE.protobuf_data)?.as_ref()
             )?;
             let license_code = bytes_to_license(&protobuf.license_id);
@@ -186,16 +273,20 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         }
     } else {
         // init new license with request data
-        init_license(key_manager, request, &mut license_item, &store_id)?
+        init_license(&client, key_manager, request, &mut license_item, &store_id, &secondary_index).await?
     };
+    debug_log!("Initialized or set license_code");
 
     let mut machine_limits: HashMap<String, u64> = HashMap::new();
     // update products in license map
-    let (mut products_map, mut_products_map) = license_item.get_item_mut(LICENSES_TABLE.products_map_item.key)?;
+    let (mut products_map, mut_products_map) = license_item.get_item_mut(LICENSES_TABLE.products_map_item)?;
+    debug_log!("Got mut products_map");
+
     // some updates might fail, such as if the user is trying to obtain a trial 
     // for the same product again
     let mut issues: HashMap<String, String> = HashMap::new();
     for product_id_string in product_map_keys.iter() {
+        debug_log!("In product_map_keys loop");
         let product_item = product_items.get(product_id_string.as_str()).expect("key should exist");
         let machines_per_license = product_item.get_item(PRODUCTS_TABLE.max_machines_per_license)?.parse::<u64>()?;
         let product_info = request.product_info.get(product_id_string.as_str()).expect("valid key");
@@ -284,8 +375,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 }
             }
             new_license_info.insert_item_into(LICENSES_TABLE.products_map_item.fields.license_type, purchased_license_type);
-            new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines.key, HashMap::new());
-            new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines.key, HashMap::new());
+            new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines, HashMap::new());
+            new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines, HashMap::new());
             
             (new_license_info, mut_new_license_info)
         };
@@ -293,11 +384,13 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         license_info.insert_item(LICENSES_TABLE.products_map_item.fields.is_license_active, true);
         *mut_license_info = AttributeValue::M(license_info);
     }
+    debug_log!("Out of product_map_keys loop");
 
     *mut_products_map = AttributeValue::M(products_map);
 
     // update store table
     store_item.increase_number(&STORES_TABLE.num_licenses, 1)?;
+    debug_log!("Increased num_licenses");
 
     // write to database
     let mut write_request_map: HashMap<String, Vec<WriteRequest>> = HashMap::new();
@@ -307,6 +400,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             .build()?
         ).build()
     ]);
+    debug_log!("Inserted store_item into write_requests_map");
 
     write_request_map.insert(LICENSES_TABLE.table_name.into(), vec![WriteRequest::builder()
         .put_request(PutRequest::builder()
@@ -314,11 +408,13 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             .build()?
         ).build()
     ]);
+    debug_log!("Inserted license_item into write_requests_map");
 
     client.batch_write_item()
         .set_request_items(Some(write_request_map))
         .send()
         .await?;
+    debug_log!("Sent batch_write_item");
 
     // respond to request
     let response = CreateLicenseResponse {
@@ -329,41 +425,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
 
     Ok(response)
-}
-
-async fn handle_crypto(key_manager: &mut KeyManager, request: &mut RestRequest, req_bytes: &[u8], is_handshake: bool, chosen_symmetric_algorithm: &str, signature: Vec<u8>) -> Result<(RestResponse, Signature), ApiError> {
-    type Req = CreateLicenseRequest;
-    type Resp = CreateLicenseResponse;
-    match chosen_symmetric_algorithm {
-        "chacha20poly1305" => {
-            let (mut decrypted, hash) = {
-                debug_log!("In chacha20poly1305 segment");
-                let result = key_manager.decrypt_and_hash_request::<ChaCha20Poly1305, Sha384, Req>(request, req_bytes, is_handshake);
-                debug_log!("Got result in chacha20poly1305 segment");
-                result.unwrap()
-            };
-            debug_log!("Sending result to process_request()");
-            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
-            debug_log!("Encrypting and signing the response");
-            Ok(key_manager.encrypt_and_sign_response::<ChaCha20Poly1305, Resp>(&mut response)?)
-        },
-        "aes-gcm-128" => {
-            debug_log!("In aes-gcm-128 segment");
-            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes128Gcm, Sha384, Req>(request, req_bytes, is_handshake)?;
-            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
-            Ok(key_manager.encrypt_and_sign_response::<Aes128Gcm, Resp>(&mut response)?)
-        },
-        "aes-gcm-256" => {
-            debug_log!("In aes-gcm-256 segment");
-            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes256Gcm, Sha384, Req>(request, req_bytes, is_handshake)?;
-            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
-            Ok(key_manager.encrypt_and_sign_response::<Aes256Gcm, Resp>(&mut response)?)
-        }
-        _ => {
-            debug_log!("Invalid symmetric encryption algorithm error");
-            return Err(ApiError::InvalidRequest("Invalid symmetric encryption algorithm".into()))
-        }
-    }
 }
 
 /// This is the main body for the function.
@@ -378,18 +439,17 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     let signature = if let Some(s) = event.headers().get("X-Signature") {
         s.as_bytes().from_base64()?
     } else {
-        return Err(Box::new(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into())))
+        return ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into()).respond()
     };
-    let (mut request, req_bytes) = if let Body::Binary(contents) = event.body() {
-        (RestRequest::decode_length_delimited(contents.as_slice())?, contents)
+    let req_bytes = if let Body::Binary(contents) = event.body() {
+        contents
     } else {
         return ApiError::InvalidRequest("Body is not binary".into()).respond()
     };
 
     let mut key_manager = init_key_manager(None, None);
 
-    let chosen_symmetric_algorithm = request.symmetric_algorithm.to_lowercase();
-    let crypto_result = handle_crypto(&mut key_manager, &mut request, req_bytes, false, &chosen_symmetric_algorithm, signature).await;
+    let crypto_result = handle_crypto(&mut key_manager, req_bytes, false, signature).await;
 
     let (encrypted, signature) = if let Ok(v) = crypto_result {
         v
@@ -406,9 +466,9 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         .status(200)
         .header("content-type", "application/x-protobuf")
         .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
-        .header("X-Signature", signature.to_bytes().as_slice().to_base64())
+        .header("X-Signature", signature.as_slice().to_base64())
         .body(encrypted.encode_length_delimited_to_vec().into())
-        .map_err(Box::new)?;
+        .unwrap();
 
     Ok(resp)
 }

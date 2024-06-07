@@ -3,9 +3,6 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, WriteRequest};
-use utils::aws_sdk_s3::primitives::Blob;
-use utils::crypto::http_private_key_manager::Id;
-use utils::crypto::p384::ecdsa::Signature;
 use utils::crypto::sha2::Sha384;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
@@ -17,7 +14,7 @@ use proto::protos::{
         Stats,
     },
 };
-use http_private_key_manager::{Request as RestRequest, Response as RestResponse};
+use http_private_key_manager::impl_handle_crypto;
 use utils::prelude::proto::protos::store_db_item::StoreDbItem;
 use utils::tables::machines::MACHINES_TABLE;
 use utils::{debug_log, now_as_seconds, prelude::*, StringSanitization};
@@ -33,10 +30,10 @@ use utils::aws_config::meta::region::RegionProviderChain;
 /// to be displayed in the application.
 /// 
 /// Returns customer's (first name, last name, email)
-fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: bool, offline_license_code: &str, store_id: &Id<StoreId>, license_item: &AttributeValueHashMap) -> Result<(String, String, String), ApiError> {
+fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: bool, offline_license_code: &str, license_item: &AttributeValueHashMap) -> Result<(String, String, String), ApiError> {
     let decrypted_proto: LicenseDbItem = key_manager.decrypt_db_proto(
         &LICENSES_TABLE.table_name, 
-        store_id.binary_id.as_ref(), 
+        license_item.get_item(LICENSES_TABLE.id)?.as_ref(), 
         license_item.get_item(LICENSES_TABLE.protobuf_data)?.as_ref()
     )?;
     if is_offline_attempt {
@@ -56,11 +53,11 @@ fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: boo
 fn update_lists(updated: &mut bool, license_product_item: &mut AttributeValueHashMap, online_list: Option<AttributeValueHashMap>, offline_list: Option<AttributeValueHashMap>) {
     //let mut product_map = license_product_map.to_owned();
     if let Some(online_machines) = online_list {
-        license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines.key, online_machines);
+        license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines, online_machines);
         *updated = true;
     }
     if let Some(offline_machines) = offline_list {
-        license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines.key, offline_machines);
+        license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines, offline_machines);
         *updated = true;
     }
 }
@@ -128,11 +125,11 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
                     // info needs to be entered
                     let mut stats_map = AttributeValueHashMap::new();
                     insert_stats(&mut stats_map, s);
-                    machine_item.insert_item_into(MACHINES_TABLE.stats.key, stats_map);
+                    machine_item.insert_item_into(MACHINES_TABLE.stats, stats_map);
                     Ok(true)
                 } else {
                     // stats have already been set; check if they are equal
-                    let (mut existing_stats_map, mut_attribute_value) = machine_item.get_item_mut(MACHINES_TABLE.stats.key)?;
+                    let (mut existing_stats_map, mut_attribute_value) = machine_item.get_item_mut(MACHINES_TABLE.stats)?;
                     let cpu = existing_stats_map.get_item(MACHINES_TABLE.stats.fields.cpu_model)?;
                     let ram = existing_stats_map.get_item(MACHINES_TABLE.stats.fields.ram_mb)?;
                     if cpu.ne(&s.cpu_model) || ram.ne(&s.ram_mb.to_string()) {
@@ -144,8 +141,8 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
             } else {
                 // stats have not been provided; erase stats and computer 
                 // name
-                if !machine_item.is_null(MACHINES_TABLE.stats.key)? {
-                    machine_item.insert_null(MACHINES_TABLE.stats.key);
+                if !machine_item.is_null(MACHINES_TABLE.stats)? {
+                    machine_item.insert_null(MACHINES_TABLE.stats);
                     machine_item.insert_null(MACHINES_TABLE.protobuf_data);
                     return Ok(true)
                 }
@@ -158,10 +155,10 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
                 // stats were provided by the user
                 let mut stats_map = AttributeValueHashMap::new();
                 insert_stats(&mut stats_map, &s);
-                machine_item.insert_item(MACHINES_TABLE.stats.key, stats_map);
+                machine_item.insert_item(MACHINES_TABLE.stats, stats_map);
             } else {
                 // stats were not provided by the user
-                machine_item.insert_null(MACHINES_TABLE.stats.key);
+                machine_item.insert_null(MACHINES_TABLE.stats);
                 machine_item.insert_null(MACHINES_TABLE.protobuf_data);
             }
             Ok(true)
@@ -169,7 +166,18 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
     }
 }
 
-async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut LicenseActivationRequest, _hasher: D, _signature: ()) -> Result<LicenseActivationResponse, ApiError> {
+impl_handle_crypto!(
+    LicenseActivationRequest, 
+    LicenseActivationResponse, 
+    ApiError, 
+    Sha384, 
+    ("chacha20poly1305", ChaCha20Poly1305), 
+    ("aes-gcm-128", Aes128Gcm),
+    ("aes-gcm-256", Aes256Gcm)
+);
+
+async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut LicenseActivationRequest, _hasher: D, _signature: Vec<u8>) -> Result<LicenseActivationResponse, ApiError> {
+    debug_log!("Inside process_request");
     // there is no signature on this request
     let store_id = if let Ok(s) = key_manager.get_store_id() {
         s
@@ -224,7 +232,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     );
 
     let mut machine_item = AttributeValueHashMap::new();
-    machine_item.insert_item_into(MACHINES_TABLE.id, request.machine_id.clone());
+    machine_item.insert_item(MACHINES_TABLE.id, request.machine_id.clone());
     request_items.insert(
         MACHINES_TABLE.table_name.to_string(), 
         KeysAndAttributes::builder()
@@ -237,24 +245,27 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
     let client = Client::new(&aws_config);
 
+    debug_log!("DynamoDB client is initialized");
+
     let batch_get = client.batch_get_item()
         .set_request_items(Some(request_items))
         .send()
         .await?;
+    debug_log!("Performed batch_get_item");
 
     let tables = if let Some(r) = batch_get.responses {
         r
     } else{
-        return Err(ApiError::NotFound.into());
+        return Err(ApiError::NotFound);
     };
 
     store_item = if let Some(s) = tables.get(STORES_TABLE.table_name) {
         if s.len() != 1 {
-            return Err(ApiError::NotFound.into())
+            return Err(ApiError::NotFound)
         }
         s[0].clone()
     } else {
-        return Err(ApiError::NotFound.into())
+        return Err(ApiError::NotFound)
     };
 
     let store_item_protobuf_data: StoreDbItem = key_manager.decrypt_db_proto(
@@ -293,7 +304,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     }?;
 
     // check offline code
-    let (first_name, last_name, email) = check_licenses_db_proto(key_manager, is_offline_attempt, &offline_license_code, &store_id, &license_item)?;
+    let (first_name, last_name, email) = check_licenses_db_proto(key_manager, is_offline_attempt, &offline_license_code, &license_item)?;
 
     let success_message = {
         let custom_message = license_item.get_item(LICENSES_TABLE.custom_success_message)?;
@@ -307,16 +318,17 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     // all items are present in the database
     // validate the license
 
-    let (mut products_map, mut_products_map) = license_item.get_item_mut(LICENSES_TABLE.products_map_item.key)?;
+    let (mut products_map, mut_products_map) = license_item.get_item_mut(LICENSES_TABLE.products_map_item)?;
     let mut updated_license = false;
     let mut key_files: HashMap<String, LicenseKeyFile> = HashMap::new();
     let mut key_file_signatures: HashMap<String, Vec<u8>> = HashMap::new();
+    let mut licensing_errors: HashMap<String, String> = HashMap::new();
 
     for product_id in product_ids {
         let (mut license_product_map, mut_license_product_map) = products_map.get_mut_map_by_str(&product_id.encoded_id)?;
         let max_machines = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.machines_allowed)?.parse::<usize>()?;
-        let mut offline_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines.key)?.to_owned();
-        let mut online_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.online_machines.key)?.to_owned();
+        let mut offline_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines)?.to_owned();
+        let mut online_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.online_machines)?.to_owned();
         let current_machine_count = offline_machines_map.keys().len() + online_machines_map.keys().len();
         
         let exists_in_machine_list = offline_machines_map.contains_key(&request.machine_id) || online_machines_map.contains_key(&request.machine_id);
@@ -326,14 +338,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
         let license_is_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_license_active)?;
         if !license_is_active {
-            return Err(ApiError::LicenseNoLongerActive)
+            licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.to_string());
+            continue;
         }
 
-        let store_product_info = if let Some(v) = store_product_info_map.get(&product_id.encoded_id) {
-            v
-        } else {
-            unreachable!()
-        };
+        let store_product_info = store_product_info_map.get(&product_id.encoded_id).expect("A validated store should be able to provide valid product IDs.");
 
         let mut key_file = LicenseKeyFile {
             product_id: product_id.encoded_id.clone(),
@@ -358,8 +367,14 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         if is_expiring && expiry_time != 0 && expiry_time < SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() {
             // expiry time has been reached
             match license_type.as_str() {
-                license_types::TRIAL => return Err(ApiError::TrialEnded),
-                license_types::SUBSCRIPTION => return Err(ApiError::LicenseNoLongerActive),
+                license_types::TRIAL => {
+                    licensing_errors.insert(product_id.encoded_id, ApiError::TrialEnded.to_string());
+                    continue;
+                },
+                license_types::SUBSCRIPTION => {
+                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.to_string());
+                    continue;
+                },
                 _ => unreachable!()
             }
         }
@@ -372,7 +387,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 // success response, update tables
                 if is_offline_attempt {
                     if !product_allows_offline {
-                        return Err(ApiError::OfflineIsNotAllowed);
+                        licensing_errors.insert(product_id.encoded_id, ApiError::OfflineIsNotAllowed.to_string());
+                        continue;
                     }
                     insert_machine_into_machine_map(&mut offline_machines_map, &request);
                     // add 1 to total offline machines?
@@ -383,13 +399,15 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 }
             } else {
                 // machine limit reached
-                return Err(ApiError::OverMaxMachines)
+                licensing_errors.insert(product_id.encoded_id, ApiError::OverMaxMachines.to_string());
+                continue;
             }
         } else {
             // machine exists in machine lists
             if is_offline_attempt {
                 if !product_allows_offline {
-                    return Err(ApiError::OfflineIsNotAllowed)
+                    licensing_errors.insert(product_id.encoded_id, ApiError::OfflineIsNotAllowed.to_string());
+                    continue;
                 }
                 // remove machine from online machines list if it is there, then add it to offline machines list
                 if online_machines_map.contains_key(&request.machine_id) {
@@ -423,7 +441,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             license_types::SUBSCRIPTION => {
                 let is_subscription_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_subscription_active)?;
                 if !is_subscription_active {
-                    return Err(ApiError::LicenseNoLongerActive)
+                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.to_string());
+                    continue;
                 }
                 let expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
                 let mut check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
@@ -437,7 +456,10 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 check_up_time = check_up_time.min(expire_time);
                 (expire_time, check_up_time)
             },
-            _ => return Err(ApiError::InvalidDbSchema("Invalid license type".into()))
+            _ => {
+                licensing_errors.insert(product_id.encoded_id, ApiError::InvalidDbSchema("Invalid license type".into()).to_string());
+                continue;
+            }
         };
 
         // update the map AttributeValues since we no longer have our get_mut methods
@@ -509,44 +531,10 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let response = LicenseActivationResponse {
         key_files,
         key_file_signatures,
+        licensing_errors,
     };
 
     Ok(response)
-}
-
-async fn handle_crypto(key_manager: &mut KeyManager, request: &mut RestRequest, req_bytes: &[u8], is_handshake: bool, chosen_symmetric_algorithm: &str, _signature: ()) -> Result<(RestResponse, Signature), ApiError> {
-    type Req = LicenseActivationRequest;
-    type Resp = LicenseActivationResponse;
-    match chosen_symmetric_algorithm {
-        "chacha20poly1305" => {
-            let (mut decrypted, hash) = {
-                debug_log!("In chacha20poly1305 segment");
-                let result = key_manager.decrypt_and_hash_request::<ChaCha20Poly1305, Sha384, Req>(request, req_bytes, is_handshake);
-                debug_log!("Got result in chacha20poly1305 segment");
-                result.unwrap()
-            };
-            debug_log!("Sending result to process_request()");
-            let mut response = process_request(key_manager, &mut decrypted, hash, ()).await?;
-            debug_log!("Encrypting and signing the response");
-            Ok(key_manager.encrypt_and_sign_response::<ChaCha20Poly1305, Resp>(&mut response)?)
-        },
-        "aes-gcm-128" => {
-            debug_log!("In aes-gcm-128 segment");
-            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes128Gcm, Sha384, Req>(request, req_bytes, is_handshake)?;
-            let mut response = process_request(key_manager, &mut decrypted, hash, ()).await?;
-            Ok(key_manager.encrypt_and_sign_response::<Aes128Gcm, Resp>(&mut response)?)
-        },
-        "aes-gcm-256" => {
-            debug_log!("In aes-gcm-256 segment");
-            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes256Gcm, Sha384, Req>(request, req_bytes, is_handshake)?;
-            let mut response = process_request(key_manager, &mut decrypted, hash, ()).await?;
-            Ok(key_manager.encrypt_and_sign_response::<Aes256Gcm, Resp>(&mut response)?)
-        }
-        _ => {
-            debug_log!("Invalid symmetric encryption algorithm error");
-            return Err(ApiError::InvalidRequest("Invalid symmetric encryption algorithm".into()))
-        }
-    }
 }
 
 /// This is the main body for the function.
@@ -558,17 +546,15 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     if event.query_string_parameters_ref().is_some() {
         return ApiError::InvalidRequest("There should be no query string parameters.".into()).respond();
     }
-    let (mut request, req_bytes) = if let Body::Binary(contents) = event.body() {
-        (RestRequest::decode_length_delimited(contents.as_slice())?, contents)
+    let req_bytes = if let Body::Binary(contents) = event.body() {
+        contents
     } else {
         return ApiError::InvalidRequest("Body is not binary".into()).respond()
     };
 
     let mut key_manager = init_key_manager(None, None);
 
-    let chosen_symm_algo = request.symmetric_algorithm.to_lowercase();
-
-    let crypto_result = handle_crypto(&mut key_manager, &mut request, req_bytes, false, chosen_symm_algo.as_str(), ()).await;
+    let crypto_result = handle_crypto(&mut key_manager, req_bytes, false, Vec::new()).await;
 
     let (encrypted, signature) = if let Ok(v) = crypto_result {
         v
@@ -585,7 +571,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         .status(200)
         .header("content-type", "application/x-protobuf")
         .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
-        .header("X-Signature", signature.to_bytes().as_slice().to_base64())
+        .header("X-Signature", signature.as_slice().to_base64())
         .body(encrypted.encode_length_delimited_to_vec().into())
         .map_err(Box::new)?;
 

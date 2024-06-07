@@ -2,13 +2,11 @@
 //! with some boilerplate code.
 
 use std::collections::HashMap;
-use aws_sdk_s3::primitives::Blob;
-//pub use proto::prost::bytes::Bytes;
-pub use bytes::Bytes;
+use aws_sdk_dynamodb::primitives::Blob;
 use aws_sdk_dynamodb::types::AttributeValue;
 
 use crate::error::ApiError;
-use crate::tables::{DynamoDbItem, Item};
+use crate::tables::DynamoDbItem;
 
 pub type AttributeValueHashMap = HashMap<String, AttributeValue>;
 
@@ -217,7 +215,7 @@ impl ItemIntegration for AttributeValueHashMap {
 /// Allows the insertion and retrieval of null values into an AttributeValueHashMap
 pub trait NullableFields {
     /// Inserts a null value in place of an Item's value.
-    fn insert_null<T: AttrValAbstraction>(&mut self, key: Item<T>);
+    fn insert_null<D: DynamoDbItem>(&mut self, key: D);
     /// Gets a potentially null value.
     /// 
     /// These valid types return a string representing the value:
@@ -231,37 +229,37 @@ pub trait NullableFields {
     /// * M (Map)
     /// * NS (Number Set)
     /// * SS (String Set)
-    fn get_potential_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<String, ApiError>;
+    fn get_potential_null<D: DynamoDbItem>(&self, key: D) -> Result<String, ApiError>;
     /// Returns true if the item is null
-    fn is_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<bool, ApiError>;
+    fn is_null<D: DynamoDbItem>(&self, key: D) -> Result<bool, ApiError>;
 }
 
 impl NullableFields for AttributeValueHashMap {
     #[inline]
-    fn insert_null<T: AttrValAbstraction>(&mut self, key: Item<T>) {
-        self.insert(key.key.into(), AttributeValue::Null(true) );
+    fn insert_null<D: DynamoDbItem>(&mut self, key: D) {
+        self.insert(key.get_key().into(), AttributeValue::Null(true) );
     }
     #[inline]
-    fn get_potential_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<String, ApiError> {
-        let attr_val = match self.get(key.key) {
+    fn get_potential_null<D: DynamoDbItem>(&self, key: D) -> Result<String, ApiError> {
+        let attr_val = match self.get(key.get_key()) {
             Some(x) => x,
-            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.key)))
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.get_key())))
         };
         match attr_val.is_null() {
             true => Ok("Not provided.".into()),
             false => {
-                match T::get_val(attr_val) {
-                    Ok(v) => Ok(T::get_str_val(v)),
-                    Err(_) => Err(ApiError::InvalidDbSchema(format!("Key `{}` had a type issue", key.key)))
+                match D::ItemType::get_val(attr_val) {
+                    Ok(v) => Ok(D::ItemType::get_str_val(v)),
+                    Err(_) => Err(ApiError::InvalidDbSchema(format!("Key `{}` had a type issue", key.get_key())))
                 }
             }
         }
     }
     #[inline]
-    fn is_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<bool, ApiError> {
-        let attr_val = match self.get(key.key) {
+    fn is_null<D: DynamoDbItem>(&self, key: D) -> Result<bool, ApiError> {
+        let attr_val = match self.get(key.get_key()) {
             Some(x) => x,
-            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.key)))
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.get_key())))
         };
         Ok(attr_val.is_null())
     }

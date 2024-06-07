@@ -146,8 +146,14 @@ pub struct LicenseActivationResponse {
         ::prost::alloc::string::String,
         LicenseKeyFile,
     >,
+    /// map of product ids to licensing errors
+    #[prost(map = "string, string", tag = "2")]
+    pub licensing_errors: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
     /// map of product ids to key file signature
-    #[prost(map = "string, bytes", tag = "2")]
+    #[prost(map = "string, bytes", tag = "5")]
     pub key_file_signatures: ::std::collections::HashMap<
         ::prost::alloc::string::String,
         ::prost::alloc::vec::Vec<u8>,

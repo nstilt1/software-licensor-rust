@@ -5,16 +5,25 @@ use utils::crypto::p384::ecdsa::Signature;
 use utils::crypto::sha2::Sha384;
 use utils::{debug_log, now_as_seconds};
 use proto::protos::store_db_item::StoreDbItem;
-use utils::aws_sdk_s3::primitives::Blob;
 use utils::prelude::proto::protos::store_db_item;
 use utils::prelude::*;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::protos::register_store_request::{RegisterStoreRequest, RegisterStoreResponse};
 use proto::prost::Message;
-use http_private_key_manager::{Request as RestRequest, Response as RestResponse};
+use http_private_key_manager::impl_handle_crypto;
 use utils::aws_sdk_dynamodb::Client;
 use utils::aws_config::meta::region::RegionProviderChain;
+
+impl_handle_crypto!(
+    RegisterStoreRequest, 
+    RegisterStoreResponse, 
+    ApiError, 
+    Sha384, 
+    ("chacha20poly1305", ChaCha20Poly1305), 
+    ("aes-gcm-128", Aes128Gcm),
+    ("aes-gcm-256", Aes256Gcm)
+);
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut RegisterStoreRequest, hasher: D, signature: Vec<u8>) -> Result<RegisterStoreResponse, ApiError> {
     debug_log!("In process_request");
@@ -146,35 +155,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     Ok(response)
 }
 
-async fn handle_crypto(key_manager: &mut KeyManager, request: &mut RestRequest, req_bytes: &[u8], is_handshake: bool, chosen_symmetric_algorithm: &str, signature: Vec<u8>) -> Result<(RestResponse, Signature), ApiError> {
-    type Req = RegisterStoreRequest;
-    type Resp = RegisterStoreResponse;
-    match chosen_symmetric_algorithm {
-        "chacha20poly1305" => {
-            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<ChaCha20Poly1305, Sha384, Req>(request, req_bytes, is_handshake)?;
-            debug_log!("Sending result to process_request()");
-            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
-            debug_log!("Encrypting and signing the response");
-            Ok(key_manager.encrypt_and_sign_response::<ChaCha20Poly1305, Resp>(&mut response)?)
-        },
-        "aes-gcm-128" => {
-            debug_log!("In aes-gcm-128 segment");
-            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes128Gcm, Sha384, Req>(request, req_bytes, is_handshake)?;
-            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
-            Ok(key_manager.encrypt_and_sign_response::<Aes128Gcm, Resp>(&mut response)?)
-        },
-        "aes-gcm-256" => {
-            debug_log!("In aes-gcm-256 segment");
-            let (mut decrypted, hash) = key_manager.decrypt_and_hash_request::<Aes256Gcm, Sha384, Req>(request, req_bytes, is_handshake)?;
-            let mut response = process_request(key_manager, &mut decrypted, hash, signature).await?;
-            Ok(key_manager.encrypt_and_sign_response::<Aes256Gcm, Resp>(&mut response)?)
-        }
-        _ => {
-            debug_log!("Invalid symmetric encryption algorithm error");
-            return Err(ApiError::InvalidRequest("Invalid symmetric encryption algorithm".into()))
-        }
-    }
-}
 /// This is the main body for the function.
 /// Write your code inside it.
 /// There are some code example in the following URLs:
@@ -193,13 +173,8 @@ async fn function_handler(event: Request) -> Result<Response<Body>, String> {
     } else {
         return Err(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into()).to_string())
     };
-    let (mut request, req_bytes) = if let Body::Binary(contents) = event.body() {
-        let decoded = match RestRequest::decode_length_delimited(contents.as_slice()) {
-            Ok(v) => v,
-            Err(e) => return Err(e.to_string())
-        };
-
-        (decoded, contents)
+    let req_bytes = if let Body::Binary(contents) = event.body() {
+        contents
     } else {
         return Err(ApiError::InvalidRequest("Body is not binary".into()).to_string())
     };
@@ -209,9 +184,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, String> {
     let mut key_manager = init_key_manager(None, None);
     debug_log!("Initialized key_manager");
 
-    let chosen_symm_algo = request.symmetric_algorithm.to_lowercase();
-
-    let result = handle_crypto(&mut key_manager, &mut request, req_bytes, true, &chosen_symm_algo, signature).await;
+    let result = handle_crypto(&mut key_manager, req_bytes, true, signature).await;
     if result.as_ref().is_err() {
         return Err(result.unwrap_err().to_string())
     }
@@ -227,7 +200,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, String> {
         .status(200)
         .header("content-type", "application/x-protobuf")
         .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
-        .header("X-Signature", signature.to_bytes().as_slice().to_base64())
+        .header("X-Signature", signature.as_slice().to_base64())
         .body(encrypted.encode_length_delimited_to_vec().into())
         .unwrap();
 

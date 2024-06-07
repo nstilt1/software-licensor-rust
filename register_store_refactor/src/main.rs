@@ -1,8 +1,6 @@
 //! A store registration API method for a licensing service.
 use std::collections::HashMap;
-
 use utils::crypto::p384::ecdsa::Signature;
-use utils::crypto::sha2::Sha384;
 use utils::{debug_log, now_as_seconds};
 use proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::proto::protos::store_db_item;
@@ -19,7 +17,7 @@ impl_handle_crypto!(
     RegisterStoreRequest, 
     RegisterStoreResponse, 
     ApiError, 
-    Sha384, 
+    EcdsaDigest, 
     ("chacha20poly1305", ChaCha20Poly1305), 
     ("aes-gcm-128", Aes128Gcm),
     ("aes-gcm-256", Aes256Gcm)

@@ -138,7 +138,7 @@ type KeyGen = KeyGenerator<
 pub type EcdsaAlg = NistP384;
 type EcdhAlg = NistP384;
 type EcdhDigest = sha2::Sha384;
-type EcdsaDigest = sha2::Sha384;
+pub type EcdsaDigest = sha2::Sha384;
 
 pub type KeyManager = HttpPrivateKeyManager<
     KeyGen, // key generator

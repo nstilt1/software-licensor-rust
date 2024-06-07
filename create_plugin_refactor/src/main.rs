@@ -6,7 +6,6 @@ use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{PutRequest, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
 use utils::crypto::p384::ecdsa::Signature;
-use utils::crypto::sha2::Sha384;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
     product_db_item::ProductDbItem,
@@ -24,7 +23,7 @@ impl_handle_crypto!(
     CreateProductRequest, 
     CreateProductResponse, 
     ApiError, 
-    Sha384, 
+    EcdsaDigest, 
     ("chacha20poly1305", ChaCha20Poly1305), 
     ("aes-gcm-128", Aes128Gcm),
     ("aes-gcm-256", Aes256Gcm)

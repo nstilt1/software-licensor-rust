@@ -8,7 +8,6 @@ use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutReque
 use utils::aws_sdk_dynamodb::Client;
 use utils::crypto::http_private_key_manager::Id;
 use utils::crypto::p384::ecdsa::Signature;
-use utils::crypto::sha2::Sha384;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
     create_license_request::{CreateLicenseRequest, CreateLicenseResponse},
@@ -71,7 +70,7 @@ impl_handle_crypto!(
     CreateLicenseRequest, 
     CreateLicenseResponse, 
     ApiError, 
-    Sha384, 
+    EcdsaDigest, 
     ("chacha20poly1305", ChaCha20Poly1305), 
     ("aes-gcm-128", Aes128Gcm),
     ("aes-gcm-256", Aes256Gcm)

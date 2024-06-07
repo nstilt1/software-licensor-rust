@@ -5,7 +5,6 @@ use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{AttributeValue, Select};
 use utils::aws_sdk_dynamodb::Client;
 use utils::crypto::p384::ecdsa::Signature;
-use utils::crypto::sha2::Sha384;
 use utils::prelude::proto::protos::license_db_item::LicenseDbItem;
 use utils::prelude::proto::protos::get_license_request::{GetLicenseRequest, GetLicenseResponse, LicenseInfo, Machine};
 use utils::{debug_log, prelude::*};
@@ -19,7 +18,7 @@ impl_handle_crypto!(
     GetLicenseRequest, 
     GetLicenseResponse, 
     ApiError, 
-    Sha384, 
+    EcdsaDigest, 
     ("chacha20poly1305", ChaCha20Poly1305), 
     ("aes-gcm-128", Aes128Gcm),
     ("aes-gcm-256", Aes256Gcm)

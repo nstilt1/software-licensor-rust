@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, WriteRequest};
-use utils::crypto::sha2::Sha384;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
     license_db_item::LicenseDbItem,
@@ -170,7 +169,7 @@ impl_handle_crypto!(
     LicenseActivationRequest, 
     LicenseActivationResponse, 
     ApiError, 
-    Sha384, 
+    EcdsaDigest, 
     ("chacha20poly1305", ChaCha20Poly1305), 
     ("aes-gcm-128", Aes128Gcm),
     ("aes-gcm-256", Aes256Gcm)

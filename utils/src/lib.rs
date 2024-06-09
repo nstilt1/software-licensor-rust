@@ -8,6 +8,8 @@ pub mod error;
 #[cfg(feature = "dynamodb")]
 pub mod tables;
 
+pub mod function_handler_macro;
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use error::ApiError;
@@ -33,6 +35,8 @@ pub mod prelude {
     pub use lambda_http;
     pub use crate::crypto::*;
     pub use crate::error::*;
+    pub use http_private_key_manager::{debug_log, error_log, Id, impl_handle_crypto};
+    pub use proto::prost::Message;
     pub use crate::base64::Base64Vec;
     pub use tokio;
     pub use proto;
@@ -43,6 +47,7 @@ pub mod prelude {
     pub use tracing_subscriber;
     pub use tracing;
     pub use log;
+    pub use crate::impl_function_handler;
 }
 
 pub trait OptionHandler<T> {

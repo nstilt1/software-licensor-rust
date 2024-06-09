@@ -267,8 +267,6 @@ impl NullableFields for AttributeValueHashMap {
 
 #[cfg(test)]
 mod tests {
-    use crate::tables::stores::STORES_TABLE;
-
     use super::*;
 
     #[test]

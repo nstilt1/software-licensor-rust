@@ -16,6 +16,8 @@ pub mod products;
 pub mod licenses;
 #[cfg(feature = "dynamodb")]
 pub mod machines;
+#[cfg(feature = "dynamodb")]
+pub mod metrics;
 
 /// A trait that allows for different structs to be used in `insert_item` and 
 /// `get_item` operations.

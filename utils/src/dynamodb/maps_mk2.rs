@@ -289,8 +289,6 @@ mod tests {
 
         map.insert_attr_val::<N>("test_2", "5".into());
         assert_eq!(map.get_attr_val::<N>("test_2").unwrap(), "5");
-
-        map.insert_item_into(STORES_TABLE.num_auths, "4");
     }
 }
 

@@ -1,12 +1,12 @@
 //! Some constants for the Plugins/Products Table
 
-use super::Item;
+use super::{Item, PrimaryHashKey};
 use crate::dynamodb::maps_mk2::*;
 
 pub struct ProductsTable {
     pub table_name: &'static str,
     /// primary index
-    pub id: Item<B>,
+    pub id: PrimaryHashKey<B>,
     /// this hashed store ID will be a secondary index
     pub hashed_store_id: Item<B>,
     pub num_machines_total: Item<N>,
@@ -48,7 +48,7 @@ pub struct ProductsTable {
 
 pub const PRODUCTS_TABLE: ProductsTable = ProductsTable {
     table_name: "PRODUCTS-BMEvbp9AszCuk5pZg_yt6f_rinRsdIycprMMcNzMYkljl94EPpstEfjr",
-    id: Item::new("id"),
+    id: PrimaryHashKey { item: Item::new("id") },
     protobuf_data: Item::new("data"),
     hashed_store_id: Item::new("store_id_hash"),
     num_machines_total: Item::new("total_machines"),

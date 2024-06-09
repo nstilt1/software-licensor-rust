@@ -1,4 +1,4 @@
-use super::{GlobalSecondaryIndex, Item, MapItem};
+use super::{GlobalSecondaryIndex, Item, MapItem, PrimaryHashKey};
 use crate::dynamodb::maps_mk2::*;
 
 pub struct LicensesTable {
@@ -6,7 +6,7 @@ pub struct LicensesTable {
     /// primary index
     /// 
     /// created with hash(store_id + license_code)
-    pub id: Item<B>,
+    pub id: PrimaryHashKey<B>,
     /// The secondary index consists of a hash of the store ID and user id
     /// 
     /// created with hash(store_id + user_id)
@@ -48,7 +48,7 @@ pub const MACHINE: MachineMap = MachineMap {
 
 pub const LICENSES_TABLE: LicensesTable = LicensesTable {
     table_name: "LICENSES-AgKSHjwfYk0lu-s-a2nvizD-DgUP5ORzOO_ZQRajJ12z2nxBs1kvMTse",
-    id: Item::new("id"),
+    id: PrimaryHashKey { item: Item::new("id") },
     protobuf_data: Item::new("data"),
 
     hashed_store_id_and_user_id: GlobalSecondaryIndex {

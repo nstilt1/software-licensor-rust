@@ -6,7 +6,7 @@ use aws_sdk_dynamodb::primitives::Blob;
 use aws_sdk_dynamodb::types::AttributeValue;
 
 use crate::error::ApiError;
-use crate::tables::DynamoDbItem;
+use crate::tables::DynamoDBAttributeValue;
 
 pub type AttributeValueHashMap = HashMap<String, AttributeValue>;
 
@@ -166,13 +166,13 @@ impl_attr_val_abstraction!(SS, Vec<String>, Ss, as_ss, false, "The `String Set` 
 
 pub trait ItemIntegration {
     /// Inserts an item into the `AttributeValueHashMap`.
-    fn insert_item<D: DynamoDbItem>(&mut self, item: D, value: <D::ItemType as AttrValAbstraction>::ArgType);
+    fn insert_item<D: DynamoDBAttributeValue>(&mut self, item: D, value: <D::ItemType as AttrValAbstraction>::ArgType);
     /// Inserts an item into the `AttributeValueHashMap`, calling `.into()` on the value.
-    fn insert_item_into<I: Into<<D::ItemType as AttrValAbstraction>::ArgType>, D: DynamoDbItem>(&mut self, item: D, value: I);
+    fn insert_item_into<I: Into<<D::ItemType as AttrValAbstraction>::ArgType>, D: DynamoDBAttributeValue>(&mut self, item: D, value: I);
     /// Gets the value for an item from an `AttributeValueHashMap`.
-    fn get_item<D: DynamoDbItem>(&self, item: D) -> Result<&<D::ItemType as AttrValAbstraction>::ArgType, ApiError>;
+    fn get_item<D: DynamoDBAttributeValue>(&self, item: D) -> Result<&<D::ItemType as AttrValAbstraction>::ArgType, ApiError>;
     /// Gets a mutable reference to an item value from an `AttributeValueHashMap`.
-    fn get_item_mut<D: DynamoDbItem>(&mut self, item: D) -> Result<(<D::ItemType as AttrValAbstraction>::ArgType, &mut AttributeValue), ApiError>;
+    fn get_item_mut<D: DynamoDBAttributeValue>(&mut self, item: D) -> Result<(<D::ItemType as AttrValAbstraction>::ArgType, &mut AttributeValue), ApiError>;
     /// Gets a reference to a hashmap. Useful for dynamically named hashmaps.
     fn get_map_by_str(&self, key: &str) -> Result<&<M as AttrValAbstraction>::ArgType, ApiError>;
     /// Gets a mutable reference to a hashmap. Useful for dynamically named hashmaps.
@@ -181,19 +181,19 @@ pub trait ItemIntegration {
 
 impl ItemIntegration for AttributeValueHashMap {
     #[inline]
-    fn insert_item<D: DynamoDbItem>(&mut self, item: D, value: <D::ItemType as AttrValAbstraction>::ArgType) {
+    fn insert_item<D: DynamoDBAttributeValue>(&mut self, item: D, value: <D::ItemType as AttrValAbstraction>::ArgType) {
         self.insert_attr_val::<D::ItemType>(item.get_key(), value)
     }
     #[inline]
-    fn insert_item_into<I: Into<<D::ItemType as AttrValAbstraction>::ArgType>, D: DynamoDbItem>(&mut self, item: D, value: I) {
+    fn insert_item_into<I: Into<<D::ItemType as AttrValAbstraction>::ArgType>, D: DynamoDBAttributeValue>(&mut self, item: D, value: I) {
         self.insert_attr_val_into::<D::ItemType, I>(item.get_key(), value)
     }
     #[inline]
-    fn get_item<D: DynamoDbItem>(&self, item: D) -> Result<&<D::ItemType as AttrValAbstraction>::ArgType, ApiError> {
+    fn get_item<D: DynamoDBAttributeValue>(&self, item: D) -> Result<&<D::ItemType as AttrValAbstraction>::ArgType, ApiError> {
         self.get_attr_val::<D::ItemType>(item.get_key())
     }
     #[inline]
-    fn get_item_mut<D: DynamoDbItem>(&mut self, item: D) -> Result<(<D::ItemType as AttrValAbstraction>::ArgType, &mut AttributeValue), ApiError> {
+    fn get_item_mut<D: DynamoDBAttributeValue>(&mut self, item: D) -> Result<(<D::ItemType as AttrValAbstraction>::ArgType, &mut AttributeValue), ApiError> {
         Ok((
             self.get_attr_val::<D::ItemType>(item.get_key()).cloned()?, 
             self.get_attr_val_mut::<D::ItemType>(item.get_key())?
@@ -215,7 +215,7 @@ impl ItemIntegration for AttributeValueHashMap {
 /// Allows the insertion and retrieval of null values into an AttributeValueHashMap
 pub trait NullableFields {
     /// Inserts a null value in place of an Item's value.
-    fn insert_null<D: DynamoDbItem>(&mut self, key: D);
+    fn insert_null<D: DynamoDBAttributeValue>(&mut self, key: D);
     /// Gets a potentially null value.
     /// 
     /// These valid types return a string representing the value:
@@ -229,18 +229,18 @@ pub trait NullableFields {
     /// * M (Map)
     /// * NS (Number Set)
     /// * SS (String Set)
-    fn get_potential_null<D: DynamoDbItem>(&self, key: D) -> Result<String, ApiError>;
+    fn get_potential_null<D: DynamoDBAttributeValue>(&self, key: D) -> Result<String, ApiError>;
     /// Returns true if the item is null
-    fn is_null<D: DynamoDbItem>(&self, key: D) -> Result<bool, ApiError>;
+    fn is_null<D: DynamoDBAttributeValue>(&self, key: D) -> Result<bool, ApiError>;
 }
 
 impl NullableFields for AttributeValueHashMap {
     #[inline]
-    fn insert_null<D: DynamoDbItem>(&mut self, key: D) {
+    fn insert_null<D: DynamoDBAttributeValue>(&mut self, key: D) {
         self.insert(key.get_key().into(), AttributeValue::Null(true) );
     }
     #[inline]
-    fn get_potential_null<D: DynamoDbItem>(&self, key: D) -> Result<String, ApiError> {
+    fn get_potential_null<D: DynamoDBAttributeValue>(&self, key: D) -> Result<String, ApiError> {
         let attr_val = match self.get(key.get_key()) {
             Some(x) => x,
             None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.get_key())))
@@ -256,7 +256,7 @@ impl NullableFields for AttributeValueHashMap {
         }
     }
     #[inline]
-    fn is_null<D: DynamoDbItem>(&self, key: D) -> Result<bool, ApiError> {
+    fn is_null<D: DynamoDBAttributeValue>(&self, key: D) -> Result<bool, ApiError> {
         let attr_val = match self.get(key.get_key()) {
             Some(x) => x,
             None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.get_key())))

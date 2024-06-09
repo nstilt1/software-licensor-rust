@@ -3,13 +3,13 @@
 //! KB than DynamoDB reads, and if there is extra data in each
 //! item in the table, then we'd be paying for more.
 
-use super::Item;
+use super::{Item, PrimaryHashKey};
 use crate::dynamodb::maps_mk2::*;
 
 pub struct MetricsTable {
     pub table_name: &'static str,
     /// primary index
-    pub store_id: Item<B>,
+    pub store_id: PrimaryHashKey<B>,
     /// This statistic serves as the amount of times that the 
     /// create_product API method has been called.
     pub num_products: Item<N>,
@@ -36,7 +36,7 @@ pub struct MetricsTable {
 /// in the STORES table.
 pub const METRICS_TABLE: MetricsTable = MetricsTable {
     table_name: "M",
-    store_id: Item::new("id"),
+    store_id: PrimaryHashKey { item: Item::new("id") },
     num_products: Item::new("num_products"),
     num_licenses: Item::new("num_licenses"),
     num_licensed_machines: Item::new("num_licensed_machines"),

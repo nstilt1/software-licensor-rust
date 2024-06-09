@@ -1,11 +1,11 @@
 //! Some constants for the Stores Table
-use super::Item;
+use super::{Item, PrimaryHashKey};
 use crate::dynamodb::maps_mk2::*;
 
 pub struct StoresTable {
     pub table_name: &'static str,
     /// primary index
-    pub id: Item<B>,
+    pub id: PrimaryHashKey<B>,
     /// this hashed email will be a secondary index
     pub email: Item<B>,
     pub protobuf_data: Item<B>,
@@ -15,7 +15,7 @@ pub struct StoresTable {
 
 pub const STORES_TABLE: StoresTable = StoresTable {
     table_name: STORES_TABLE_NAME,
-    id: Item::new("id"),
+    id: PrimaryHashKey { item: Item::new("id") },
     email: Item::new("email"),
     protobuf_data: Item::new("data"),
     public_key: Item::new("pubkey"),

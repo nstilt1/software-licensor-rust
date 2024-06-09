@@ -19,9 +19,14 @@ pub mod machines;
 #[cfg(feature = "dynamodb")]
 pub mod metrics;
 
-/// A trait that allows for different structs to be used in `insert_item` and 
-/// `get_item` operations.
-pub trait DynamoDbItem {
+/// A trait that can abstract away the naming and types of DynamoDB
+/// Attribute Values.
+/// 
+/// Attribute Values can be inserted or retrieved from
+/// `AttributeValueHashMap`s via `insert_item` and `get_item`. While
+/// these technically are not items, `item` rolls off the tongue a 
+/// bit better than `attribute_value`.
+pub trait DynamoDBAttributeValue {
     fn get_key(&self) -> &'static str;
     type ItemType: AttrValAbstraction;
 }
@@ -31,7 +36,7 @@ pub struct Item<T: AttrValAbstraction> {
     pub ty: PhantomData<T>
 }
 
-impl<T: AttrValAbstraction> DynamoDbItem for Item<T> {
+impl<T: AttrValAbstraction> DynamoDBAttributeValue for Item<T> {
     fn get_key(&self) -> &'static str {
         self.key
     }
@@ -49,19 +54,53 @@ pub struct MapItem<F> {
     pub fields: F
 }
 
-impl<F> DynamoDbItem for MapItem<F> {
+impl<F> DynamoDBAttributeValue for MapItem<F> {
     fn get_key(&self) -> &'static str {
         self.key.key
     }
     type ItemType = M;
 }
 
+/// Implements DynamoDBAttributeValue for a struct whose only field is
+/// `item` of type `Item<T>`.
+macro_rules! impl_dynamodb_attr_val {
+    ($struct:ident) => {
+        impl<T: AttrValAbstraction> DynamoDBAttributeValue for $struct<T> {
+            fn get_key(&self) -> &'static str {
+                self.item.key
+            }
+            type ItemType = T;
+        }
+    };
+}
+
+/// A Primary Hash Key type of Attribute Value.
+/// 
+/// The purpose of this is for helping to distinguish which
+/// `DynamoDBAttributeValue` in a struct is a Primary Hash Key.
+pub struct PrimaryHashKey<T: AttrValAbstraction> {
+    pub item: Item<T>
+}
+
+impl_dynamodb_attr_val!(PrimaryHashKey);
+
+/// A Primary Sort Key type of Attribute Value.
+/// 
+/// The purpose of this is for helping to distinguish which
+/// `DynamoDBAttributeValue` in a struct is a Primary Sort Key.
+pub struct PrimarySortKey<T: AttrValAbstraction> {
+    pub item: Item<T>
+}
+
+impl_dynamodb_attr_val!(PrimarySortKey);
+
+/// A Global Secondary Index type of Attribute Value.
 pub struct GlobalSecondaryIndex<T: AttrValAbstraction> {
     pub index_name: &'static str,
     pub item: Item<T>
 }
 
-impl<T: AttrValAbstraction> DynamoDbItem for GlobalSecondaryIndex<T> {
+impl<T: AttrValAbstraction> DynamoDBAttributeValue for GlobalSecondaryIndex<T> {
     fn get_key(&self) -> &'static str {
         self.item.key
     }

@@ -59,7 +59,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         request.user_id.as_bytes()], &LICENSE_DB_SALT).to_vec();
     let query = client.query()
         .table_name(LICENSES_TABLE.table_name)
-        .index_name("user_id_hash-index")
+        .index_name(LICENSES_TABLE.hashed_store_id_and_user_id.index_name)
         .key_condition_expression("#user_id_hash = :key_value")
         .expression_attribute_names("#user_id_hash", LICENSES_TABLE.hashed_store_id_and_user_id.item.key)
         .expression_attribute_values(":key_value", AttributeValue::B(Blob::new(secondary_index)))

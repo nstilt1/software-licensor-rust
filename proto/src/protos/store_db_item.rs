@@ -36,6 +36,8 @@ pub struct ProductInfo {
     pub is_offline_allowed: bool,
     #[prost(string, tag = "2")]
     pub version: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "3")]
+    pub max_machines_per_license: u32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

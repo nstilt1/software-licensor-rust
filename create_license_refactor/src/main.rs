@@ -16,7 +16,6 @@ use proto::protos::{
 use utils::tables::metrics::METRICS_TABLE;
 use utils::{debug_log, error_log, impl_function_handler, prelude::*};
 use utils::tables::licenses::LICENSES_TABLE;
-use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 
@@ -118,25 +117,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     // insert product ids into request_items
     let product_map_keys: Vec<&String> = request.product_info.keys().collect();
-    let mut product_items: HashMap<String, AttributeValueHashMap> = HashMap::new();
-    // for finding the product-tablehash of a product id
-    let mut pid_hash_to_product_id_hmap: HashMap<Blob, String> = HashMap::new();
-    for k in product_map_keys.iter() {
-        let mut product_item = AttributeValueHashMap::new();
-        let product_id = key_manager.validate_product_id(&k, &store_id)?;
-        let hashed_product_id = salty_hash(&[product_id.binary_id.as_ref()], &PRODUCT_DB_SALT);
-        product_item.insert_item(PRODUCTS_TABLE.id, Blob::new(hashed_product_id.to_vec()));
-        product_items.insert(k.to_string(), product_item);
-        pid_hash_to_product_id_hmap.insert(Blob::new(hashed_product_id.to_vec()), k.to_string());
-    }
-    debug_log!("Inserted product items into hashmap");
-
-    request_items.insert(PRODUCTS_TABLE.table_name.to_string(), KeysAndAttributes::builder()
-        .set_keys(Some(product_items.values().cloned().collect()))
-        .consistent_read(false)
-        .build()?
-    );
-    debug_log!("Inserted product_items into request_items");
 
     // check for pre-existing license
     let mut license_item = AttributeValueHashMap::new();
@@ -245,23 +225,13 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     verifier.verify_digest(hasher, &signature)?;
     debug_log!("Verified the signature");
 
+    let store_products_info = &store_item_protobuf.product_ids;
     // make sure all products are present in the database
-    if let Some(ref p) = tables.get(PRODUCTS_TABLE.table_name) {
-        if p.len() != product_map_keys.len() {
+    for k in product_map_keys.iter() {
+        if !store_products_info.contains_key(k.as_str()) {
             return Err(ApiError::NotFound)
         }
-        // ensure that product items are pointing to the responses from the db
-        for prod in p.iter() {
-            let id = prod.get_item(PRODUCTS_TABLE.id)?;
-            
-            let map = product_items.get_mut(
-                pid_hash_to_product_id_hmap.get(id).expect("hmap should contain the value")
-            ).expect("hmap should contain the value");
-            *map = prod.clone();
-        }
-    } else {
-        return Err(ApiError::NotFound)
-    };
+    }
     debug_log!("All items are present in the PRODUCTS_TABLE");
 
     // check for pre-existing license
@@ -297,8 +267,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let mut issues: HashMap<String, String> = HashMap::new();
     for product_id_string in product_map_keys.iter() {
         debug_log!("In product_map_keys loop");
-        let product_item = product_items.get(product_id_string.as_str()).expect("key should exist");
-        let machines_per_license = product_item.get_item(PRODUCTS_TABLE.max_machines_per_license)?.parse::<u64>()?;
+        let product_info = store_products_info.get(product_id_string.as_str()).expect("We have checked that these exist");
+        let machines_per_license = product_info.max_machines_per_license;
         let product_info = request.product_info.get(product_id_string.as_str()).expect("valid key");
         let subscription_expiration_period = store_config.subscription_license_expiration_days;
         let subscription_expiration_period_seconds = (subscription_expiration_period as u64) * 60 * 60 * 24;
@@ -325,7 +295,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             let existing_license_type = existing_license_info.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?;
             if &purchased_license_type == existing_license_type && purchased_license_type != license_types::SUBSCRIPTION {
                 // increase machines by quantity * max_machines_per_license
-                let num_machines = existing_license_info.increase_number(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license * product_info.quantity as u64)?;
+                let num_machines = existing_license_info.increase_number(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license as u64 * product_info.quantity as u64)?;
                 machine_limits.insert(product_id_string.to_string(), num_machines);
                 (existing_license_info, mut_existing_license_info)
             } else if &purchased_license_type == existing_license_type && purchased_license_type == license_types::SUBSCRIPTION {
@@ -358,9 +328,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 // and `Trial`, this must be either Trial -> Perpetual or 
                 // Subscription -> Perpetual.
                 existing_license_info.insert_item_into(LICENSES_TABLE.products_map_item.fields.license_type, purchased_license_type);
-                let new_limit = product_info.quantity as u64 * machines_per_license;
+                let new_limit = product_info.quantity * machines_per_license;
                 let max_machines = new_limit.to_string();
-                machine_limits.insert(product_id_string.to_string(), new_limit);
+                machine_limits.insert(product_id_string.to_string(), new_limit as u64);
                 existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, max_machines);
                 (existing_license_info, mut_existing_license_info)
             }
@@ -373,11 +343,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             
             if purchased_license_type == license_types::TRIAL {
                 new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
-                machine_limits.insert(product_id_string.to_string(), machines_per_license);
+                machine_limits.insert(product_id_string.to_string(), machines_per_license as u64);
             } else {
-                let total_machines = machines_per_license * product_info.quantity as u64;
+                let total_machines = machines_per_license * product_info.quantity;
                 new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, total_machines.to_string());
-                machine_limits.insert(product_id_string.to_string(), total_machines);
+                machine_limits.insert(product_id_string.to_string(), total_machines as u64);
                 
                 // initialize expiry_time for subscription licenses
                 if purchased_license_type == license_types::SUBSCRIPTION {

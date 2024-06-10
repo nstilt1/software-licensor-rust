@@ -43,9 +43,6 @@ use std::sync::LazyLock;
 pub static STORE_DB_SALT: LazyLock<String> = LazyLock::new(|| {
     std::env::var("STORE_TABLE_SALT").expect("STORE_TABLE_SALT not set")
 });
-pub static PRODUCT_DB_SALT: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("PRODUCT_TABLE_SALT").expect("PRODUCT_TABLE_SALT not set")
-});
 pub static LICENSE_DB_SALT: LazyLock<String> = LazyLock::new(|| {
     std::env::var("LICENSE_TABLE_SALT").expect("LICENSE_TABLE_SALT not set")
 });

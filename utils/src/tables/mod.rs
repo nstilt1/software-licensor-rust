@@ -11,8 +11,6 @@ use crate::prelude::{AttrValAbstraction, M};
 #[cfg(feature = "dynamodb")]
 pub mod stores;
 #[cfg(feature = "dynamodb")]
-pub mod products;
-#[cfg(feature = "dynamodb")]
 pub mod licenses;
 #[cfg(feature = "dynamodb")]
 pub mod machines;
@@ -136,5 +134,8 @@ mod generating_ids {
 
         let machines_table_name = generate_table_id("MACHINES");
         println!("Machines table name: {}", machines_table_name);
+
+        let metrics_table_name = generate_table_id("METRICS");
+        println!("Metrics table name: {}", metrics_table_name);
     }
 }

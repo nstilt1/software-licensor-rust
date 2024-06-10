@@ -14,7 +14,10 @@ pub struct MetricsTable {
     /// create_product API method has been called.
     pub num_products: Item<N>,
     /// This statistic serves as the amount of times that the 
-    /// create_license API method has been called.
+    /// create_license API method has been called, but it is not 
+    /// necessarily the amount of licenses distributed. Use store
+    /// analytics tools to determine how many licenses have been
+    /// purchased.
     pub num_licenses: Item<N>,
     /// The total number of licensed machines.
     pub num_licensed_machines: Item<N>,
@@ -35,7 +38,7 @@ pub struct MetricsTable {
 /// The primary key is simply the store's ID as it is represented
 /// in the STORES table.
 pub const METRICS_TABLE: MetricsTable = MetricsTable {
-    table_name: "M",
+    table_name: "METRICS-wsSatspn7XCnipKQtjSEJ4dFZCpViyd1I9Io4P5hj0RLJG1Q840F7xoB",
     store_id: PrimaryHashKey { item: Item::new("id") },
     num_products: Item::new("num_products"),
     num_licenses: Item::new("num_licenses"),

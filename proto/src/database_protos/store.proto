@@ -21,6 +21,7 @@ message StoreDbItem {
 message ProductInfo {
     bool is_offline_allowed = 1;
     string version = 2;
+    uint32 max_machines_per_license = 3;
 }
 
 message Configs {

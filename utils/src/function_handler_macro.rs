@@ -16,7 +16,10 @@ macro_rules! impl_function_handler {
                 return ApiError::InvalidRequest("Query string parameters are forbidden.".into()).respond();
             }
             let signature = if let Some(s) = event.headers().get("X-Signature") {
-                s.as_bytes().from_base64()?
+                match s.as_bytes().from_base64() {
+                    Ok(v) => v,
+                    Err(e) => return ApiError::InvalidRequest("The X-Signature header needs to contain base64 data.".into()).respond()
+                }
             } else {
                 return ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into()).respond()
             };
@@ -30,10 +33,9 @@ macro_rules! impl_function_handler {
             debug_log!("Initialized key_manager");
 
             let crypto_result = handle_crypto(&mut key_manager, request_bytes, $is_handshake, signature).await;
-            let (encrypted, signature) = if let Ok(v) = crypto_result {
-                v
-            } else {
-                return crypto_result.unwrap_err().respond()
+            let (encrypted, signature) = match crypto_result {
+                Ok(v) => v,
+                Err(e) => return e.respond()
             };
 
             let resp = Response::builder()
@@ -43,7 +45,7 @@ macro_rules! impl_function_handler {
                 .header("X-Signature", signature.as_slice().to_base64())
                 .body(encrypted.encode_length_delimited_to_vec().into())
                 .expect("Unable to build http::Response");
-            debug_log!("Build response");
+            debug_log!("Built response");
             Ok(resp)
         }
         #[tokio::main]

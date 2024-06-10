@@ -92,7 +92,7 @@ impl AbstractAttributeValueMaps for AttributeValueHashMap {
     fn get_attr_val<A: AttrValAbstraction>(&self, key: &str) -> Result<&A::ArgType, ApiError> {
         let attr_val = match self.get(key) {
             Some(x) => x,
-            None => return Err(ApiError::InvalidDbSchema("Key `{}` was not in the hashmap".into()))
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key)))
         };
         let val = match A::get_val(attr_val) {
             Ok(v) => v,
@@ -104,7 +104,7 @@ impl AbstractAttributeValueMaps for AttributeValueHashMap {
     fn get_attr_val_mut<A: AttrValAbstraction>(&mut self, key: &str) -> Result<&mut AttributeValue, ApiError> {
         let attr_val = match self.get_mut(key) {
             Some(x) => x,
-            None => return Err(ApiError::InvalidDbSchema("Key `{}` was not in the hashmap".into()))
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key)))
         };
         Ok(attr_val)
     }

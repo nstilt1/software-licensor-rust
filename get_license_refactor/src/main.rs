@@ -123,11 +123,20 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 });
             }
         }
+        let expiration = if license_type.eq(license_types::SUBSCRIPTION) || license_type.eq(license_types::TRIAL) {
+            match product.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time) {
+                Ok(v) => v,
+                Err(_) => "Not yet set"
+            }
+        } else {
+            "No expiration"
+        };
         licensed_products.insert(key.to_string(), LicenseInfo {
             offline_machines, 
             online_machines, 
             machine_limit, 
-            license_type
+            license_type,
+            expiration_or_renewal: expiration.to_string()
         });
     }
     let response = GetLicenseResponse {

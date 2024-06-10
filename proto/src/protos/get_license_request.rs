@@ -24,6 +24,8 @@ pub struct GetLicenseResponse {
 pub struct LicenseInfo {
     #[prost(string, tag = "1")]
     pub license_type: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub expiration_or_renewal: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "5")]
     pub offline_machines: ::prost::alloc::vec::Vec<Machine>,
     #[prost(message, repeated, tag = "10")]

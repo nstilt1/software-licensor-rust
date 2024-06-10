@@ -6,7 +6,6 @@ use http_private_key_manager::prelude::rand_core::RngCore;
 use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, Select, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
-use utils::crypto::http_private_key_manager::Id;
 use utils::crypto::p384::ecdsa::Signature;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
@@ -14,13 +13,12 @@ use proto::protos::{
     store_db_item::StoreDbItem,
     license_db_item::LicenseDbItem,
 };
-use utils::{debug_log, error_log, prelude::*};
+use utils::tables::metrics::METRICS_TABLE;
+use utils::{debug_log, error_log, impl_function_handler, prelude::*};
 use utils::tables::licenses::LICENSES_TABLE;
 use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
-use proto::prost::Message;
-use http_private_key_manager::impl_handle_crypto;
 
 async fn init_license(
     client: &Client, 
@@ -66,14 +64,11 @@ async fn init_license(
     Ok((license_code.encoded_id, offline_secret))
 }
 
-impl_handle_crypto!(
-    CreateLicenseRequest, 
-    CreateLicenseResponse, 
-    ApiError, 
-    EcdsaDigest, 
-    ("chacha20poly1305", ChaCha20Poly1305), 
-    ("aes-gcm-128", Aes128Gcm),
-    ("aes-gcm-256", Aes256Gcm)
+impl_function_handler!(
+    CreateLicenseRequest,
+    CreateLicenseResponse,
+    ApiError,
+    false
 );
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut CreateLicenseRequest, hasher: D, signature: Vec<u8>) -> Result<CreateLicenseResponse, ApiError> {
@@ -107,10 +102,17 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     
     store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
     
-    request_items.insert(STORES_TABLE.table_name.to_string(), KeysAndAttributes::builder()
-        .set_keys(Some(vec![store_item]))
-        .consistent_read(false)
-        .build()?
+    request_items.insert(STORES_TABLE.table_name.to_string(),   KeysAndAttributes::builder()
+            .set_keys(Some(vec![store_item.clone()]))
+            .consistent_read(false)
+            .build()?
+    );
+
+    request_items.insert(METRICS_TABLE.table_name.to_string(),
+        KeysAndAttributes::builder()
+            .set_keys(Some(vec![store_item]))
+            .consistent_read(false)
+            .build()?
     );
     debug_log!("Inserted store table into request_items");
 
@@ -211,6 +213,15 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         return Err(ApiError::NotFound)
     };
     debug_log!("Set the store_item");
+
+    let mut metrics_item = if let Some(s) = tables.get(METRICS_TABLE.table_name) {
+        if s.len() != 1 {
+            return Err(ApiError::NotFound)
+        }
+        s[0].clone()
+    } else {
+        return Err(ApiError::NotFound)
+    };
 
     let store_item_protobuf: StoreDbItem = key_manager.decrypt_db_proto(
         &STORES_TABLE.table_name,
@@ -387,15 +398,15 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     *mut_products_map = AttributeValue::M(products_map);
 
-    // update store table
-    store_item.increase_number(&STORES_TABLE.num_licenses, 1)?;
+    // update metrics table
+    metrics_item.increase_number(&METRICS_TABLE.num_licenses, 1)?;
     debug_log!("Increased num_licenses");
 
     // write to database
     let mut write_request_map: HashMap<String, Vec<WriteRequest>> = HashMap::new();
-    write_request_map.insert(STORES_TABLE.table_name.into(), vec![WriteRequest::builder()
+    write_request_map.insert(METRICS_TABLE.table_name.into(), vec![WriteRequest::builder()
         .put_request(PutRequest::builder()
-            .set_item(Some(store_item))
+            .set_item(Some(metrics_item))
             .build()?
         ).build()
     ]);
@@ -424,57 +435,4 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
 
     Ok(response)
-}
-
-/// This is the main body for the function.
-/// Write your code inside it.
-/// There are some code example in the following URLs:
-/// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
-async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
-    // Extract some useful information from the request
-    if event.query_string_parameters_ref().is_some() {
-        return ApiError::InvalidRequest("There should be no query string parameters.".into()).respond();
-    }
-    let signature = if let Some(s) = event.headers().get("X-Signature") {
-        s.as_bytes().from_base64()?
-    } else {
-        return ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into()).respond()
-    };
-    let req_bytes = if let Body::Binary(contents) = event.body() {
-        contents
-    } else {
-        return ApiError::InvalidRequest("Body is not binary".into()).respond()
-    };
-
-    let mut key_manager = init_key_manager(None, None);
-
-    let crypto_result = handle_crypto(&mut key_manager, req_bytes, false, signature).await;
-
-    let (encrypted, signature) = if let Ok(v) = crypto_result {
-        v
-    } else {
-        return crypto_result.unwrap_err().respond()
-    };
-
-    // package `encrypted` into a response and `signature` into the header
-
-    // Return something that implements IntoResponse.
-    // It will be serialized to the right response event automatically by the runtime
-
-    let resp = Response::builder()
-        .status(200)
-        .header("content-type", "application/x-protobuf")
-        .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
-        .header("X-Signature", signature.as_slice().to_base64())
-        .body(encrypted.encode_length_delimited_to_vec().into())
-        .unwrap();
-
-    Ok(resp)
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    tracing::init_default_subscriber();
-
-    run(service_fn(function_handler)).await
 }

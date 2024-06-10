@@ -13,14 +13,13 @@ use proto::protos::{
         Stats,
     },
 };
-use http_private_key_manager::impl_handle_crypto;
 use utils::prelude::proto::protos::store_db_item::StoreDbItem;
 use utils::tables::machines::MACHINES_TABLE;
-use utils::{debug_log, now_as_seconds, prelude::*, StringSanitization};
+use utils::tables::metrics::METRICS_TABLE;
+use utils::{now_as_seconds, prelude::*, StringSanitization};
 use utils::tables::licenses::{LICENSES_TABLE, MACHINE};
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
-use proto::prost::Message;
 use utils::aws_sdk_dynamodb::Client;
 use utils::aws_config::meta::region::RegionProviderChain;
 
@@ -165,14 +164,11 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
     }
 }
 
-impl_handle_crypto!(
+impl_function_handler!(
     LicenseActivationRequest, 
     LicenseActivationResponse, 
     ApiError, 
-    EcdsaDigest, 
-    ("chacha20poly1305", ChaCha20Poly1305), 
-    ("aes-gcm-128", Aes128Gcm),
-    ("aes-gcm-256", Aes256Gcm)
+    false
 );
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut LicenseActivationRequest, _hasher: D, _signature: Vec<u8>) -> Result<LicenseActivationResponse, ApiError> {
@@ -213,6 +209,14 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
     request_items.insert(
         STORES_TABLE.table_name.to_string(), 
+        KeysAndAttributes::builder()
+            .set_keys(Some(vec![store_item.clone()]))
+            .consistent_read(false)
+            .build()?
+    );
+
+    request_items.insert(
+        METRICS_TABLE.table_name.to_string(),
         KeysAndAttributes::builder()
             .set_keys(Some(vec![store_item]))
             .consistent_read(false)
@@ -259,6 +263,15 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
 
     store_item = if let Some(s) = tables.get(STORES_TABLE.table_name) {
+        if s.len() != 1 {
+            return Err(ApiError::NotFound)
+        }
+        s[0].clone()
+    } else {
+        return Err(ApiError::NotFound)
+    };
+
+    let mut metrics_item = if let Some(s) = tables.get(METRICS_TABLE.table_name) {
         if s.len() != 1 {
             return Err(ApiError::NotFound)
         }
@@ -382,7 +395,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         // check machine lists
         if !exists_in_machine_list {
             if current_machine_count < max_machines {
-                // add 1 to total machines?
+                // add 1 to total machines
+                metrics_item.increase_number(&METRICS_TABLE.num_licensed_machines, 1)?;
                 // success response, update tables
                 if is_offline_attempt {
                     if !product_allows_offline {
@@ -390,7 +404,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                         continue;
                     }
                     insert_machine_into_machine_map(&mut offline_machines_map, &request);
-                    // add 1 to total offline machines?
+                    // add 1 to total offline machines
+                    metrics_item.increase_number(&METRICS_TABLE.num_offline_machines, 1)?;
                     update_lists(&mut updated_license, &mut license_product_map, None, Some(offline_machines_map));
                 } else {
                     insert_machine_into_machine_map(&mut online_machines_map, &request);
@@ -497,13 +512,13 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         );
     }
 
-    store_item.increase_number(&STORES_TABLE.num_auths, 1)?;
+    metrics_item.increase_number(&METRICS_TABLE.num_license_activations, 1)?;
     write_requests.insert(
-        STORES_TABLE.table_name.to_string(),
+        METRICS_TABLE.table_name.to_string(),
         vec![WriteRequest::builder()
             .put_request(
                 PutRequest::builder()
-                    .set_item(Some(store_item))
+                    .set_item(Some(metrics_item))
                     .build()?
             ).build()
         ]
@@ -534,52 +549,4 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
 
     Ok(response)
-}
-
-/// This is the main body for the function.
-/// Write your code inside it.
-/// There are some code example in the following URLs:
-/// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
-async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
-    // Extract some useful information from the request
-    if event.query_string_parameters_ref().is_some() {
-        return ApiError::InvalidRequest("There should be no query string parameters.".into()).respond();
-    }
-    let req_bytes = if let Body::Binary(contents) = event.body() {
-        contents
-    } else {
-        return ApiError::InvalidRequest("Body is not binary".into()).respond()
-    };
-
-    let mut key_manager = init_key_manager(None, None);
-
-    let crypto_result = handle_crypto(&mut key_manager, req_bytes, false, Vec::new()).await;
-
-    let (encrypted, signature) = if let Ok(v) = crypto_result {
-        v
-    } else {
-        return crypto_result.unwrap_err().respond()
-    };
-
-    // package `encrypted` into a response and `signature` into the header
-
-    // Return something that implements IntoResponse.
-    // It will be serialized to the right response event automatically by the runtime
-
-    let resp = Response::builder()
-        .status(200)
-        .header("content-type", "application/x-protobuf")
-        .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
-        .header("X-Signature", signature.as_slice().to_base64())
-        .body(encrypted.encode_length_delimited_to_vec().into())
-        .map_err(Box::new)?;
-
-    Ok(resp)
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    tracing::init_default_subscriber();
-
-    run(service_fn(function_handler)).await
 }

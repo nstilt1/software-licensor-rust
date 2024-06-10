@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use proto::protos::store_db_item::ProductInfo;
 use utils::aws_config::meta::region::RegionProviderChain;
-use utils::aws_sdk_dynamodb::types::{PutRequest, WriteRequest};
+use utils::aws_sdk_dynamodb::types::{KeysAndAttributes, PutRequest, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
 use utils::crypto::p384::ecdsa::Signature;
 use utils::dynamodb::maps::Maps;
@@ -12,21 +12,19 @@ use proto::protos::{
     create_product_request::{CreateProductRequest, CreateProductResponse},
 };
 use utils::prelude::proto::protos::store_db_item::StoreDbItem;
-use utils::{debug_log, error_log, prelude::*};
+use utils::tables::metrics::METRICS_TABLE;
+use utils::{impl_function_handler, prelude::*};
 use utils::tables::products::PRODUCTS_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
-use proto::prost::Message;
+
 use http_private_key_manager::impl_handle_crypto;
 
-impl_handle_crypto!(
+impl_function_handler!(
     CreateProductRequest, 
     CreateProductResponse, 
-    ApiError, 
-    EcdsaDigest, 
-    ("chacha20poly1305", ChaCha20Poly1305), 
-    ("aes-gcm-128", Aes128Gcm),
-    ("aes-gcm-256", Aes256Gcm)
+    ApiError,
+    false
 );
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut CreateProductRequest, hasher: D, signature: Vec<u8>) -> Result<CreateProductResponse, ApiError> {
@@ -50,19 +48,53 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
 
     debug_log!("Checking if store id exists in DB");
-    let get_output = client.get_item()
-        .table_name(STORES_TABLE.table_name)
-        .set_key(Some(store_item))
-        .consistent_read(false)
+    
+    let mut request_items: HashMap<String, KeysAndAttributes> = HashMap::new();
+    request_items.insert(
+        STORES_TABLE.table_name.to_string(), 
+        KeysAndAttributes::builder()
+            .keys(store_item.clone())
+            .consistent_read(false)
+            .build()?
+    );
+    request_items.insert(
+        METRICS_TABLE.table_name.to_string(),
+        KeysAndAttributes::builder()
+            .keys(store_item.clone())
+            .consistent_read(false)
+            .build()?
+    );
+
+    let batch_get_output = client.batch_get_item()
+        .set_request_items(Some(request_items))
         .send()
         .await?;
-    
-    store_item = match get_output.item {
-        Some(x) => x,
-        // It is very unlikely that this will happen, unless the salt used for 
-        // hashing were to change... in which case, it would happen every time
+
+    let tables = match batch_get_output.responses {
+        Some(v) => v,
         None => return Err(ApiError::NotFound)
     };
+
+    let mut metrics_item = if let Some(v) = tables.get(METRICS_TABLE.table_name) {
+        if v.len() != 1 {
+            store_item.clone()
+        } else {
+            v[0].clone()
+        }
+    } else {
+        store_item.clone()
+    };
+
+    store_item = if let Some(v) = tables.get(STORES_TABLE.table_name) {
+        if v.len() != 1 {
+            return Err(ApiError::NotFound)
+        } else {
+            v[0].clone()
+        }
+    } else {
+        return Err(ApiError::NotFound)
+    };
+    
     debug_log!("Store ID was found in the DB");
 
     let public_key = store_item.get_item(STORES_TABLE.public_key)?;
@@ -137,7 +169,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     product_item.insert_item(PRODUCTS_TABLE.protobuf_data, Blob::new(encrypted_protobuf));
 
     debug_log!("Increasing num_products by 1");
-    store_item.increase_number(&STORES_TABLE.num_products, 1)?;
 
     debug_log!("Decrypting Store DB Proto");
     let mut store_proto: StoreDbItem = key_manager.decrypt_db_proto(
@@ -167,9 +198,19 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             .build()?
         ).build()
     ]);
+
     request_items.insert(PRODUCTS_TABLE.table_name.into(), vec![WriteRequest::builder()
         .put_request(PutRequest::builder()
             .set_item(Some(product_item))
+            .build()?
+        ).build()
+    ]);
+
+    metrics_item.increase_number(&METRICS_TABLE.num_products, 1)?;
+
+    request_items.insert(METRICS_TABLE.table_name.into(), vec![WriteRequest::builder()
+        .put_request(PutRequest::builder()
+            .set_item(Some(metrics_item))
             .build()?
         ).build()
     ]);
@@ -187,67 +228,4 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     debug_log!("Success");
     Ok(response)
-}
-
-/// This is the main body for the function.
-/// Write your code inside it.
-/// There are some code example in the following URLs:
-/// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
-async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
-    // Extract some useful information from the request
-    debug_log!("In function handler");
-    if event.query_string_parameters_ref().is_some() {
-        return ApiError::InvalidRequest("There should be no query string parameters.".into()).respond();
-    }
-    let signature = if let Some(s) = event.headers().get("X-Signature") {
-        s.as_bytes().from_base64()?
-    } else {
-        return Err(Box::new(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into())))
-    };
-    debug_log!("Decoding RestRequest");
-    let req_bytes = if let Body::Binary(contents) = event.body() {
-        contents
-    } else {
-        return ApiError::InvalidRequest("Body is not binary".into()).respond()
-    };
-
-    debug_log!("Initializing key_manager");
-    let mut key_manager = init_key_manager(None, None);
-
-    debug_log!("handle_crypto()");
-    let crypto_result = handle_crypto(&mut key_manager, req_bytes, false, signature).await;
-    
-    let (encrypted, signature) = if let Ok(v) = crypto_result {
-        v
-    } else {
-        let err = crypto_result.unwrap_err();
-        error_log!("Error encountered: {}", err.to_string());
-        return err.respond()
-    };
-
-    // package `encrypted` into a response and `signature` into the header
-
-    // Return something that implements IntoResponse.
-    // It will be serialized to the right response event automatically by the runtime
-
-    let resp = Response::builder()
-        .status(200)
-        .header("content-type", "application/x-protobuf")
-        .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
-        .header("X-Signature", signature.as_slice().to_base64())
-        .body(encrypted.encode_length_delimited_to_vec().into())
-        .map_err(Box::new)?;
-
-    Ok(resp)
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt()
-        .json()
-        .with_level(true)
-        .with_max_level(tracing::Level::DEBUG)
-        .init();
-
-    run(service_fn(function_handler)).await
 }

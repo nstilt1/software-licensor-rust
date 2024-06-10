@@ -1,26 +1,21 @@
 //! A store registration API method for a licensing service.
 use std::collections::HashMap;
 use utils::crypto::p384::ecdsa::Signature;
-use utils::{debug_log, now_as_seconds};
+use utils::now_as_seconds;
 use proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::proto::protos::store_db_item;
 use utils::prelude::*;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
 use proto::protos::register_store_request::{RegisterStoreRequest, RegisterStoreResponse};
-use proto::prost::Message;
-use http_private_key_manager::impl_handle_crypto;
 use utils::aws_sdk_dynamodb::Client;
 use utils::aws_config::meta::region::RegionProviderChain;
 
-impl_handle_crypto!(
+impl_function_handler!(
     RegisterStoreRequest, 
     RegisterStoreResponse, 
     ApiError, 
-    EcdsaDigest, 
-    ("chacha20poly1305", ChaCha20Poly1305), 
-    ("aes-gcm-128", Aes128Gcm),
-    ("aes-gcm-256", Aes256Gcm)
+    true
 );
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut RegisterStoreRequest, hasher: D, signature: Vec<u8>) -> Result<RegisterStoreResponse, ApiError> {
@@ -134,11 +129,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     store_item.insert_item(STORES_TABLE.public_key, Blob::new(request.public_signing_key.to_vec()));
     store_item.insert_item(STORES_TABLE.registration_date, now_as_seconds().to_string());
 
-    store_item.insert_item_into(STORES_TABLE.num_products, "0");
-    store_item.insert_item_into(STORES_TABLE.num_licenses, "0");
-    store_item.insert_item_into(STORES_TABLE.num_auths, "0");
-    store_item.insert_item_into(STORES_TABLE.num_license_regens, "0");
-
     client.put_item()
         .table_name(STORES_TABLE.table_name)
         .set_item(Some(store_item))
@@ -151,67 +141,4 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         store_id: store_id.encoded_id,
     };
     Ok(response)
-}
-
-/// This is the main body for the function.
-/// Write your code inside it.
-/// There are some code example in the following URLs:
-/// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
-async fn function_handler(event: Request) -> Result<Response<Body>, String> {
-    debug_log!("In function_handler()");
-    // Extract some useful information from the request
-    if event.query_string_parameters_ref().is_some() {
-        return Err(ApiError::InvalidRequest("There should be no query string parameters.".into()).to_string());
-    }
-    let signature = if let Some(s) = event.headers().get("X-Signature") {
-        match s.as_bytes().from_base64() {
-            Ok(v) => v,
-            Err(e) => return Err(e.to_string())
-        }
-    } else {
-        return Err(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into()).to_string())
-    };
-    let req_bytes = if let Body::Binary(contents) = event.body() {
-        contents
-    } else {
-        return Err(ApiError::InvalidRequest("Body is not binary".into()).to_string())
-    };
-
-    debug_log!("About to init key_manager");
-
-    let mut key_manager = init_key_manager(None, None);
-    debug_log!("Initialized key_manager");
-
-    let result = handle_crypto(&mut key_manager, req_bytes, true, signature).await;
-    if result.as_ref().is_err() {
-        return Err(result.unwrap_err().to_string())
-    }
-    let (encrypted, signature) = result.unwrap();
-    debug_log!("Processed the request");
-
-    // package `encrypted` into a response and `signature` into the header
-
-    // Return something that implements IntoResponse.
-    // It will be serialized to the right response event automatically by the runtime
-
-    let resp = Response::builder()
-        .status(200)
-        .header("content-type", "application/x-protobuf")
-        .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
-        .header("X-Signature", signature.as_slice().to_base64())
-        .body(encrypted.encode_length_delimited_to_vec().into())
-        .unwrap();
-
-    Ok(resp)
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt()
-        .json()
-        .with_level(true)
-        .with_max_level(tracing::Level::DEBUG)
-        .init();
-    debug_log!("In main()");
-    run(service_fn(function_handler)).await
 }

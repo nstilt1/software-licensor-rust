@@ -23,7 +23,6 @@ use utils::{
     now_as_seconds, 
 };
 use proto::protos::pubkeys::{ExpiringEcdhKey, ExpiringEcdsaKey, PubkeyRepo};
-use proto::prost::Message;
 /// This is the main body for the function.
 /// Write your code inside it.
 /// There are some code example in the following URLs:

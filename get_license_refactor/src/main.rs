@@ -7,21 +7,16 @@ use utils::aws_sdk_dynamodb::Client;
 use utils::crypto::p384::ecdsa::Signature;
 use utils::prelude::proto::protos::license_db_item::LicenseDbItem;
 use utils::prelude::proto::protos::get_license_request::{GetLicenseRequest, GetLicenseResponse, LicenseInfo, Machine};
-use utils::{debug_log, prelude::*};
+use utils::prelude::*;
 use utils::tables::licenses::LICENSES_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
-use proto::prost::Message;
-use http_private_key_manager::impl_handle_crypto;
 
-impl_handle_crypto!(
+impl_function_handler!(
     GetLicenseRequest, 
     GetLicenseResponse, 
     ApiError, 
-    EcdsaDigest, 
-    ("chacha20poly1305", ChaCha20Poly1305), 
-    ("aes-gcm-128", Aes128Gcm),
-    ("aes-gcm-256", Aes256Gcm)
+    false
 );
 
 async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, request: &mut GetLicenseRequest, hasher: D, signature: Vec<u8>) -> Result<GetLicenseResponse, ApiError> {
@@ -142,60 +137,4 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
 
     Ok(response)
-}
-
-/// This is the main body for the function.
-/// Write your code inside it.
-/// There are some code example in the following URLs:
-/// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
-async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
-    // Extract some useful information from the request
-    debug_log!("Inside function_handler");
-    if event.query_string_parameters_ref().is_some() {
-        return ApiError::InvalidRequest("There should be no query string parameters.".into()).respond();
-    }
-    let signature = if let Some(s) = event.headers().get("X-Signature") {
-        s.as_bytes().from_base64()?
-    } else {
-        return Err(Box::new(ApiError::InvalidRequest("Signature must be base64 encoded in the X-Signature header".into())))
-    };
-    let req_bytes = if let Body::Binary(contents) = event.body() {
-        contents
-    } else {
-        return ApiError::InvalidRequest("Body is not binary".into()).respond()
-    };
-
-    let mut key_manager = init_key_manager(None, None);
-
-    debug_log!("About to run handle_crypto");
-    let crypto_result = handle_crypto(&mut key_manager, req_bytes, false, signature).await;
-    
-    debug_log!("Got handle_crypto's result");
-    let (encrypted, signature) = if let Ok(v) = crypto_result {
-        v
-    } else {
-        return crypto_result.unwrap_err().respond()
-    };
-
-    // package `encrypted` into a response and `signature` into the header
-
-    // Return something that implements IntoResponse.
-    // It will be serialized to the right response event automatically by the runtime
-
-    let resp = Response::builder()
-        .status(200)
-        .header("content-type", "application/x-protobuf")
-        .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
-        .header("X-Signature", signature.as_slice().to_base64())
-        .body(encrypted.encode_length_delimited_to_vec().into())
-        .unwrap();
-
-    Ok(resp)
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    tracing::init_default_subscriber();
-
-    run(service_fn(function_handler)).await
 }

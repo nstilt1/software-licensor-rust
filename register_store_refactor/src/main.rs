@@ -22,7 +22,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     debug_log!("In process_request");
     if request.contact_first_name.len() < 2 || 
         request.contact_last_name.len() < 2 ||
-        request.store_name.len() < 1 ||
+        request.contact_email.len() < 2 ||
+        request.store_name.len() < 2 ||
         request.store_url.len() < 2 || 
         request.state.len() < 2 ||
         request.country.len() < 2 

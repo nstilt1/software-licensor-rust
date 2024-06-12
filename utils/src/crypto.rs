@@ -8,12 +8,9 @@ use http_private_key_manager::{
     }, 
     utils::StringSanitization,
 };
-pub use http_private_key_manager::{
-    private_key_generator::{
-        ecdsa::signature::DigestVerifier,
-        hkdf::hmac::digest::{Digest, FixedOutput}
-    },
-    process_request_with_symmetric_algorithm,
+pub use http_private_key_manager::private_key_generator::{
+    ecdsa::signature::DigestVerifier,
+    hkdf::hmac::digest::{Digest, FixedOutput},
 };
 pub use p384::{
     PublicKey,
@@ -330,7 +327,7 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
         let id = if let Ok(id) = self.key_generator.validate_keyless_id::<LicenseCode>(&decoded, b"license code", Some(&associated_data)) {
             id
         } else {
-            return Err(ApiError::InvalidAuthentication)
+            return Err(ApiError::InvalidLicenseCode)
         };
 
         Ok(Id::new(&id, license_code.to_string(), Some(associated_data)))

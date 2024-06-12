@@ -320,7 +320,9 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
 
     #[inline]
     fn validate_license_code(&mut self, license_code: &str, store_id: &Id<StoreId>) -> Result<Id<LicenseCode>, ApiError> {
-        let decoded = decode_hex::<LicenseCode>(license_code)?;
+        let mut sanitized = license_code.sanitize_str("abcdefABCDEF1234567890");
+        sanitized.truncate(LICENSE_CODE_LEN);
+        let decoded = decode_hex::<LicenseCode>(&sanitized)?;
 
         let associated_data = store_id.binary_id.as_ref();
 

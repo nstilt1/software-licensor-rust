@@ -348,8 +348,7 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
 
     #[inline]
     fn sign_key_file(&mut self, key_file: &[u8], product_id: &Id<ProductId>) -> Result<Vec<u8>, ApiError> {
-        self.sign_data_with_key_id::<EcdsaAlg, ProductId, EcdsaDigest>(key_file, product_id)?;
-        todo!()
+        Ok(self.sign_data_with_key_id::<EcdsaAlg, ProductId, EcdsaDigest>(key_file, product_id)?.to_vec())
     }
 
     #[inline]

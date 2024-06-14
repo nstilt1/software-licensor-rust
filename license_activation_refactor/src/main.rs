@@ -37,7 +37,7 @@ fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: boo
     )?;
     debug_log!("Decrypted LicenseDbItem");
     if is_offline_attempt {
-        if decrypted_proto.offline_secret.ne(offline_license_code) {
+        if decrypted_proto.offline_secret.to_lowercase().ne(&offline_license_code.to_lowercase()) {
             return Err(ApiError::IncorrectOfflineCode)
         }
     }

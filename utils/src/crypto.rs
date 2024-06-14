@@ -1,7 +1,6 @@
 use base64::alphabet::Alphabet;
 use http_private_key_manager::{
     private_key_generator::{
-        ecdsa::SigningKey, 
         hkdf::hmac::Hmac,
         hkdf::hmac::digest::Output, 
         typenum::Unsigned, 
@@ -9,26 +8,27 @@ use http_private_key_manager::{
     }, 
     utils::StringSanitization,
 };
-pub use http_private_key_manager::{
-    private_key_generator::{
-        ecdsa::signature::DigestVerifier,
-        hkdf::hmac::digest::{Digest, FixedOutput}
-    },
-    process_request_with_symmetric_algorithm,
+pub use http_private_key_manager::private_key_generator::{
+    ecdsa::signature::DigestVerifier,
+    hkdf::hmac::digest::{Digest, FixedOutput},
 };
 pub use p384::{
     PublicKey,
     ecdsa::{DerSignature, VerifyingKey},
 };
-use p384::NistP384;
+pub use p384::NistP384;
+pub use p384;
+pub use chacha20poly1305;
 pub use http_private_key_manager;
 use http_private_key_manager::prelude::*;
 use proto::prost::Message;
 pub use sha2;
 use sha3::Sha3_512;
 pub use aes_gcm::{Aes128Gcm, Aes256Gcm};
-pub use aes_gcm_siv::{Aes128GcmSiv, Aes256GcmSiv};
 pub use chacha20poly1305::ChaCha20Poly1305;
+use hex::decode;
+#[cfg(feature = "local")]
+use dotenv::dotenv;
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
@@ -39,9 +39,6 @@ use std::sync::LazyLock;
 /// A salt for the Stores table.
 pub static STORE_DB_SALT: LazyLock<String> = LazyLock::new(|| {
     std::env::var("STORE_TABLE_SALT").expect("STORE_TABLE_SALT not set")
-});
-pub static PRODUCT_DB_SALT: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("PRODUCT_TABLE_SALT").expect("PRODUCT_TABLE_SALT not set")
 });
 pub static LICENSE_DB_SALT: LazyLock<String> = LazyLock::new(|| {
     std::env::var("LICENSE_TABLE_SALT").expect("LICENSE_TABLE_SALT not set")
@@ -77,6 +74,13 @@ type BigId<TimestampPolicy> = BinaryId<
     TimestampPolicy
 >;
 
+type MediumId<TimestampPolicy> = BinaryId<
+    U24, // id length - 24 bytes or 32 base64 chars
+    U8, // mac length - 8 bytes or 2^64 MACs
+    6, // prefix length
+    TimestampPolicy
+>;
+
 /// The ECDH Key ID format. Sometimes uses timestamps.
 pub type EcdhKeyId = BigId<use_timestamps::Sometimes>;
 
@@ -91,14 +95,14 @@ pub type StoreId = BigId<use_timestamps::Never>;
 /// The private key will be used to sign responses, but the server's EcdsaKey ID
 /// will also be used to double-sign the response because we want a rotating key's
 /// signature.
-pub type ProductId = BigId<use_timestamps::Never>;
+pub type ProductId = MediumId<use_timestamps::Never>;
 
 /// The binary format of a license code.
 /// 
 /// This LicenseCode type can be represented with 20 hexadigits, and it offers:
 /// 
 /// * a `2 in 16 million (16,777,216)` chance on average of a random ID passing the MAC check
-/// * `1 trillion` unique IDs
+/// * `1 trillion` unique IDs (per version, which changes yearly)
 ///   * `2^(80 IdLen bits - 14 VERSION_BITS - 24 MAC bits - 2 Constant bits) = 1,099,511,627,776`
 pub type LicenseCode = BinaryId<
     U10, // id length for license codes is 10, or 20 hexadigits
@@ -128,7 +132,7 @@ type KeyGen = KeyGenerator<
 pub type EcdsaAlg = NistP384;
 type EcdhAlg = NistP384;
 type EcdhDigest = sha2::Sha384;
-type EcdsaDigest = sha2::Sha384;
+pub type EcdsaDigest = sha2::Sha384;
 
 pub type KeyManager = HttpPrivateKeyManager<
     KeyGen, // key generator
@@ -146,12 +150,12 @@ pub type KeyManager = HttpPrivateKeyManager<
 /// 
 /// The key needs to be changed to something secure, and the initialization should probably be handled in conjunction with a `Box` or stack bleaching.
 pub fn init_key_manager(kdf_key: Option<&[u8]>, alphabet: Option<&str>) -> KeyManager {
+    #[cfg(feature = "local")]
+    dotenv().ok();
     #[allow(unused_mut)]
-    let mut key = Box::new(
-        std::env::var("KEY_MANAGER_PRIVATE_KEY").expect("KEY_MANAGER_PRIVATE_KEY not set")
-    );
+    let mut key = decode(std::env::var("KEY_MANAGER_PRIVATE_KEY").expect("KEY_MANAGER_PRIVATE_KEY not set")).expect("KEY_MANAGER_PRIVATE_KEY should be hexadecimal");
     let result = KeyManager::from_key_generator(
-        KeyGen::new(kdf_key.unwrap_or(key.as_bytes()), b"software licensor"), 
+        KeyGen::new(kdf_key.unwrap_or(&key), b"software licensor"), 
         Alphabet::new(alphabet.unwrap_or("qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM/_")).unwrap()
     );
     #[cfg(feature = "zeroize")]
@@ -234,7 +238,7 @@ pub trait DigitalLicensingThemedKeymanager {
     /// # Notes
     /// 
     /// Some of the "user-supplied" data is actually going to be sent automatically by the client-side code, but it could be sent maliciously from a script, and as such, it is treated as "user-supplied" data.
-    fn validate_product_id(&mut self, product_id: &str, store_id: &Id<StoreId>) -> Result<(Id<ProductId>, SigningKey<EcdsaAlg>), ApiError>;
+    fn validate_product_id(&mut self, product_id: &str, store_id: &Id<StoreId>) -> Result<Id<ProductId>, ApiError>;
 
     /// Checks if a store ID is likely to be authentic. Just because this check passes does not mean that the store ID is in the database.
     /// 
@@ -316,24 +320,25 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
 
     #[inline]
     fn validate_license_code(&mut self, license_code: &str, store_id: &Id<StoreId>) -> Result<Id<LicenseCode>, ApiError> {
-        let decoded = decode_hex::<LicenseCode>(license_code)?;
+        let mut sanitized = license_code.sanitize_str("abcdefABCDEF1234567890");
+        sanitized.truncate(LICENSE_CODE_LEN);
+        let decoded = decode_hex::<LicenseCode>(&sanitized)?;
 
         let associated_data = store_id.binary_id.as_ref();
 
         let id = if let Ok(id) = self.key_generator.validate_keyless_id::<LicenseCode>(&decoded, b"license code", Some(&associated_data)) {
             id
         } else {
-            return Err(ApiError::InvalidAuthentication)
+            return Err(ApiError::InvalidLicenseCode)
         };
 
         Ok(Id::new(&id, license_code.to_string(), Some(associated_data)))
     }
 
     #[inline]
-    fn validate_product_id(&mut self, product_id: &str, store_id: &Id<StoreId>) -> Result<(Id<ProductId>, SigningKey<EcdsaAlg>), ApiError> {
+    fn validate_product_id(&mut self, product_id: &str, store_id: &Id<StoreId>) -> Result<Id<ProductId>, ApiError> {
         let id = self.validate_ecdsa_key_id::<EcdsaAlg, ProductId>(product_id, Some(store_id.binary_id.as_ref()))?;
-        let key = self.key_generator.generate_ecdsa_key_from_id::<EcdsaAlg, ProductId>(&id.binary_id, Some(store_id.binary_id.as_ref()));
-        Ok((id, key))
+        Ok(id)
     }
 
     #[inline]
@@ -343,14 +348,13 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
 
     #[inline]
     fn sign_key_file(&mut self, key_file: &[u8], product_id: &Id<ProductId>) -> Result<Vec<u8>, ApiError> {
-        self.sign_data_with_key_id::<EcdsaAlg, ProductId, EcdsaDigest>(key_file, product_id)?;
-        todo!()
+        Ok(self.sign_data_with_key_id::<EcdsaAlg, ProductId, EcdsaDigest>(key_file, product_id)?.to_vec())
     }
 
     #[inline]
     fn encrypt_db_proto<M: Message>(&mut self, table_name: &str, related_id: &[u8], data: &M) -> Result<Vec<u8>, ApiError> {
         #[allow(unused_mut)]
-        let mut encoded = data.encode_to_vec();
+        let mut encoded = data.encode_length_delimited_to_vec();
 
         let encrypted = self.encrypt_resource::<ChaCha20Poly1305>(encoded.as_slice(), table_name.as_bytes(), related_id, &[])?;
         
@@ -365,7 +369,7 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
         #[allow(unused_mut)]
         let mut decrypted = self.decrypt_resource::<ChaCha20Poly1305>(data, table_name.as_bytes(), related_id, &[])?;
 
-        let decoded = if let Ok(d) = M::decode(decrypted.as_slice()) {
+        let decoded = if let Ok(d) = M::decode_length_delimited(decrypted.as_slice()) {
             d
         } else {
             return Err(ApiError::InvalidDbSchema("Store DB's protobuf data didn't match the .proto file".into()))
@@ -463,28 +467,9 @@ mod tests {
         let verified_plugin_id = key_manager.validate_product_id(&plugin_id.encoded_id, &store_id);
         assert_eq!(verified_plugin_id.is_ok(), true);
 
-        let (_plugin_id, _) = verified_plugin_id.unwrap();
+        let _plugin_id = verified_plugin_id.unwrap();
         let verified_license = key_manager.validate_license_code(&license_code.encoded_id, &store_id);
         assert_eq!(verified_license.is_ok(), true);
-    }
-
-    /// This test shows that private keys generated from Plugin/Product IDs are mostly unique, and that they can be regenerated fairly quickly... probably faster than you can pull one out of your database unless you're caching the database with something like AWS DAX clusters.
-    #[test]
-    fn assert_unique_and_regenerable_keys() {
-        let mut key_manager = init_key_manager(None, None);
-        let store_id = key_manager.generate_store_id("testing").unwrap();
-        let (plugin_id_1, key_1) = key_manager.generate_product_id("", &store_id).unwrap();
-        let (plugin_id_2, key_2) = key_manager.generate_product_id("", &store_id).unwrap();
-
-        // this test has an extremely small chance of failing, even if all the code is correct. Even if it did fail, it would not be as significant as the possibility of a malicious user decompiling the client-side code and swapping out the URL and public key, or even just cracking the client side DRM normally
-        assert_ne!(key_1, key_2);
-
-        // the encoded_ids will be given to developers, and the server will receive them in http requests
-        let (_verified_plugin_id_1, regenned_key_1) = key_manager.validate_product_id(&plugin_id_1.encoded_id, &store_id).unwrap();
-        assert_eq!(regenned_key_1.verifying_key().to_sec1_bytes(), key_1);
-
-        let (_verified_plugin_id_2, regenned_key_2) = key_manager.validate_product_id(&plugin_id_2.encoded_id, &store_id).unwrap();
-        assert_eq!(regenned_key_2.verifying_key().to_sec1_bytes(), key_2);
     }
 
     #[test]

@@ -13,8 +13,15 @@ message StoreDbItem {
     string state = 27;
     string country = 29;
     Configs configs = 30;
-    // a list of product_ids that the store is licensing to customers
-    repeated bytes product_ids = 35;
+    // a map of product_ids that the store is licensing to customers
+    map<string, ProductInfo> product_ids = 35;
+}
+
+// Some data that was previously in the Product table's protobuf data
+message ProductInfo {
+    bool is_offline_allowed = 1;
+    string version = 2;
+    uint32 max_machines_per_license = 3;
 }
 
 message Configs {

@@ -15,7 +15,6 @@ message CreateLicenseRequest {
 
     // map of Product IDs to ProductInfo
     map<string, ProductInfo> product_info = 70;
-    uint64 timestamp = 100;
 }
 
 message ProductInfo {
@@ -38,5 +37,4 @@ message CreateLicenseResponse {
     // if there are any issues, there will be an error message corresponding to 
     // the product ID
     map<string, string> issues = 4;
-    uint64 timestamp = 10;
 }

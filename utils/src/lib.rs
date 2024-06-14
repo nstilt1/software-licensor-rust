@@ -2,9 +2,13 @@
 
 pub mod base64;
 pub mod crypto;
+#[cfg(feature = "dynamodb")]
 pub mod dynamodb;
 pub mod error;
+#[cfg(feature = "dynamodb")]
 pub mod tables;
+
+pub mod function_handler_macro;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -12,23 +16,38 @@ use error::ApiError;
 use lambda_http::{Response, Body, Error as LambdaError};
 use substring::Substring;
 pub use http_private_key_manager::utils::StringSanitization;
-pub use tracing_subscriber;
-pub use tracing;
 pub use aws_config;
+
+#[cfg(feature = "dynamodb")]
 pub use aws_sdk_dynamodb;
+
+#[cfg(feature = "s3")]
 pub use aws_sdk_s3;
 pub use lambda_runtime;
 pub use serde_json;
+#[cfg(feature = "lambda")]
+pub use aws_sdk_lambda;
+pub use http_private_key_manager::{debug_log, error_log};
+
 /// The primary dependencies that will be required for lambda functions are re-exported so as to minimize the chance of different API methods having different versions of dependencies, which would result in more crates to download and compile.
 pub mod prelude {
     pub use http_private_key_manager;
     pub use lambda_http;
     pub use crate::crypto::*;
     pub use crate::error::*;
+    pub use http_private_key_manager::{debug_log, error_log, Id, impl_handle_crypto};
+    pub use proto::prost::Message;
     pub use crate::base64::Base64Vec;
     pub use tokio;
     pub use proto;
+    #[cfg(feature = "dynamodb")]
     pub use crate::dynamodb::maps_mk2::*;
+    #[cfg(feature = "dynamodb")]
+    pub use aws_sdk_dynamodb::primitives::Blob;
+    pub use tracing_subscriber;
+    pub use tracing;
+    pub use log;
+    pub use crate::impl_function_handler;
 }
 
 pub trait OptionHandler<T> {

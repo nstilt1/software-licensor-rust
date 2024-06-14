@@ -7,14 +7,6 @@ edition = "2021"
 name = "create_license_refactor"
 path = "src/main.rs"
 
-[profile.release]
-strip = true
-#debug = true
-opt-level = "z"
-lto = true
-codegen-units = 1
-panic = "abort"
-
 # Starting in Rust 1.62 you can use `cargo add` to add dependencies 
 # to your project.
 #
@@ -30,4 +22,5 @@ panic = "abort"
 utils = { path = "../utils" }
 
 [features]
+logging = ["utils/logging"]
 zeroize = ["utils/zeroize"]

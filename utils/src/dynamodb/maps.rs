@@ -86,10 +86,10 @@ impl Maps for HashMap<String, AttributeValue> {
         let existing_value = self.insert_data(&item.key, &to_add.to_string(), N);
         let sum = if existing_value.as_ref().is_some(){
             let existing_value = existing_value
-            .should_exist_in_db_schema(item.key)?
-            .as_n()
-            .unwrap()
-            .parse::<u64>()?;
+                .should_exist_in_db_schema(item.key)?
+                .as_n()
+                .unwrap()
+                .parse::<u64>()?;
             let s = to_add + existing_value;
             self.insert_data(&item.key, &(s).to_string(), N);
             s

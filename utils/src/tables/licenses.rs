@@ -1,4 +1,4 @@
-use super::{Item, MapItem};
+use super::{GlobalSecondaryIndex, Item, MapItem, PrimaryHashKey};
 use crate::dynamodb::maps_mk2::*;
 
 pub struct LicensesTable {
@@ -6,11 +6,11 @@ pub struct LicensesTable {
     /// primary index
     /// 
     /// created with hash(store_id + license_code)
-    pub id: Item<B>,
-    /// this hashed store ID will be a secondary index
+    pub id: PrimaryHashKey<B>,
+    /// The secondary index consists of a hash of the store ID and user id
     /// 
     /// created with hash(store_id + user_id)
-    pub hashed_store_id_and_user_id: Item<B>,
+    pub hashed_store_id_and_user_id: GlobalSecondaryIndex<B>,
     pub custom_success_message: Item<S>,
     /// a hashed email address for doing some analytics, such as seeing
     /// what percentage of users own a license for a particular product
@@ -48,9 +48,13 @@ pub const MACHINE: MachineMap = MachineMap {
 
 pub const LICENSES_TABLE: LicensesTable = LicensesTable {
     table_name: "LICENSES-AgKSHjwfYk0lu-s-a2nvizD-DgUP5ORzOO_ZQRajJ12z2nxBs1kvMTse",
-    id: Item::new("id"),
+    id: PrimaryHashKey { item: Item::new("id") },
     protobuf_data: Item::new("data"),
-    hashed_store_id_and_user_id: Item::new("user_id_hash"),
+
+    hashed_store_id_and_user_id: GlobalSecondaryIndex {
+        index_name: "user_id_hash-index",
+        item: Item::new("user_id_hash"),
+    },
     custom_success_message: Item::new("custom_message"),
     email_hash: Item::new("email_hash"),
     products_map_item: MapItem::<ProductsMap> {

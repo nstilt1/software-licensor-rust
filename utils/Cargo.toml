@@ -7,15 +7,16 @@ edition = "2021"
 
 [dependencies]
 aes-gcm = { version = "0.10" }
-aes-gcm-siv = "0.11"
 aws-config = { version= "1.5.0", features = ["behavior-version-latest"] }
-aws-sdk-dynamodb = "1.30.1"
-aws-sdk-s3 = "1.30.1"
+aws-sdk-dynamodb = { version = "1.30.1", optional = true }
+aws-sdk-lambda = { version = "1.28.0", optional = true }
+aws-sdk-s3 = { version = "1.30.1", optional = true }
 base64 = "0.22.1"
-bytes = "1.0"
 chacha20poly1305 = "0.10"
+dotenv = { version = "0.15.0", optional = true }
+hex = "0.4.3"
 http_private_key_manager = { path = "../../../libs/crypto-on-the-edge/key_manager" }
-lambda_http = "0.11"
+lambda_http = { version = "0.11", default-features = false, features = ["tracing", "apigw_http", "apigw_rest"] }
 lambda_runtime = "0.11"
 log = "0.4"
 openssl = { version = "0.10", features = ["vendored"] }
@@ -32,6 +33,12 @@ tracing-subscriber = { version = "0.3.5", features = ["env-filter"] }
 zeroize = { version = "1.7.0", optional = true }
 
 [features]
+default = ["dynamodb"]
+dynamodb = ["aws-sdk-dynamodb"]
+lambda = ["aws-sdk-lambda"]
+s3 = ["aws-sdk-s3"]
+local = ["dotenv"]
+logging = ["http_private_key_manager/logging"]
 zeroize = [
     "dep:zeroize", 
     "http_private_key_manager/zeroize", 

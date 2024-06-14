@@ -2,13 +2,13 @@
 //! with some boilerplate code.
 
 use std::collections::HashMap;
-use aws_sdk_s3::primitives::Blob;
-//pub use proto::prost::bytes::Bytes;
-pub use bytes::Bytes;
+use aws_sdk_dynamodb::primitives::Blob;
 use aws_sdk_dynamodb::types::AttributeValue;
 
 use crate::error::ApiError;
-use crate::tables::Item;
+use crate::tables::DynamoDBAttributeValue;
+
+pub type AttributeValueHashMap = HashMap<String, AttributeValue>;
 
 /// Abstracts the creation and retrieval of `AttributeValue`s from a HashMap.
 /// 
@@ -41,6 +41,7 @@ use crate::tables::Item;
 /// ```rust
 /// use utils::dynamodb::maps_mk2::*;
 /// use utils::tables::Item;
+/// use aws_sdk_dynamodb::primitives::Blob;
 /// let mut map = AttributeValueHashMap::new();
 /// 
 /// pub struct ExampleDbTable {
@@ -63,12 +64,10 @@ use crate::tables::Item;
 /// map.insert_item_into(EXAMPLE_TABLE.string_item_example, "test");
 /// assert_eq!(map.get_item(EXAMPLE_TABLE.string_item_example).unwrap(), "test");
 ///
-/// map.insert_item_into(EXAMPLE_TABLE.binary_item_example, b"testing slice".to_vec());
-/// let expected: Bytes = b"testing slice".as_slice().into();
+/// map.insert_item(EXAMPLE_TABLE.binary_item_example, Blob::new(b"testing slice"));
+/// let expected: Blob = Blob::new(b"testing slice");
 /// assert_eq!(map.get_item(EXAMPLE_TABLE.binary_item_example).unwrap(), &expected);
 /// ```
-
-pub type AttributeValueHashMap = HashMap<String, AttributeValue>;
 trait AbstractAttributeValueMaps {
     /// Inserts an attribute value into an AttributeValueHashMap
     fn insert_attr_val<A: AttrValAbstraction>(&mut self, key: &str, data: A::ArgType);
@@ -93,7 +92,7 @@ impl AbstractAttributeValueMaps for AttributeValueHashMap {
     fn get_attr_val<A: AttrValAbstraction>(&self, key: &str) -> Result<&A::ArgType, ApiError> {
         let attr_val = match self.get(key) {
             Some(x) => x,
-            None => return Err(ApiError::InvalidDbSchema("Key `{}` was not in the hashmap".into()))
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key)))
         };
         let val = match A::get_val(attr_val) {
             Ok(v) => v,
@@ -105,7 +104,7 @@ impl AbstractAttributeValueMaps for AttributeValueHashMap {
     fn get_attr_val_mut<A: AttrValAbstraction>(&mut self, key: &str) -> Result<&mut AttributeValue, ApiError> {
         let attr_val = match self.get_mut(key) {
             Some(x) => x,
-            None => return Err(ApiError::InvalidDbSchema("Key `{}` was not in the hashmap".into()))
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key)))
         };
         Ok(attr_val)
     }
@@ -167,13 +166,13 @@ impl_attr_val_abstraction!(SS, Vec<String>, Ss, as_ss, false, "The `String Set` 
 
 pub trait ItemIntegration {
     /// Inserts an item into the `AttributeValueHashMap`.
-    fn insert_item<T: AttrValAbstraction>(&mut self, item: Item<T>, value: T::ArgType);
+    fn insert_item<D: DynamoDBAttributeValue>(&mut self, item: D, value: <D::ItemType as AttrValAbstraction>::ArgType);
     /// Inserts an item into the `AttributeValueHashMap`, calling `.into()` on the value.
-    fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>>(&mut self, item: Item<T>, value: I);
+    fn insert_item_into<I: Into<<D::ItemType as AttrValAbstraction>::ArgType>, D: DynamoDBAttributeValue>(&mut self, item: D, value: I);
     /// Gets the value for an item from an `AttributeValueHashMap`.
-    fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError>;
+    fn get_item<D: DynamoDBAttributeValue>(&self, item: D) -> Result<&<D::ItemType as AttrValAbstraction>::ArgType, ApiError>;
     /// Gets a mutable reference to an item value from an `AttributeValueHashMap`.
-    fn get_item_mut<T: AttrValAbstraction>(&mut self, item: Item<T>) -> Result<(T::ArgType, &mut AttributeValue), ApiError>;
+    fn get_item_mut<D: DynamoDBAttributeValue>(&mut self, item: D) -> Result<(<D::ItemType as AttrValAbstraction>::ArgType, &mut AttributeValue), ApiError>;
     /// Gets a reference to a hashmap. Useful for dynamically named hashmaps.
     fn get_map_by_str(&self, key: &str) -> Result<&<M as AttrValAbstraction>::ArgType, ApiError>;
     /// Gets a mutable reference to a hashmap. Useful for dynamically named hashmaps.
@@ -182,22 +181,22 @@ pub trait ItemIntegration {
 
 impl ItemIntegration for AttributeValueHashMap {
     #[inline]
-    fn insert_item<T: AttrValAbstraction>(&mut self, item: Item<T>, value: T::ArgType) {
-        self.insert_attr_val::<T>(item.key, value)
+    fn insert_item<D: DynamoDBAttributeValue>(&mut self, item: D, value: <D::ItemType as AttrValAbstraction>::ArgType) {
+        self.insert_attr_val::<D::ItemType>(item.get_key(), value)
     }
     #[inline]
-    fn insert_item_into<T: AttrValAbstraction, I: Into<T::ArgType>>(&mut self, item: Item<T>, value: I) {
-        self.insert_attr_val_into::<T, I>(item.key, value)
+    fn insert_item_into<I: Into<<D::ItemType as AttrValAbstraction>::ArgType>, D: DynamoDBAttributeValue>(&mut self, item: D, value: I) {
+        self.insert_attr_val_into::<D::ItemType, I>(item.get_key(), value)
     }
     #[inline]
-    fn get_item<T: AttrValAbstraction>(&self, item: Item<T>) -> Result<&T::ArgType, ApiError> {
-        self.get_attr_val::<T>(item.key)
+    fn get_item<D: DynamoDBAttributeValue>(&self, item: D) -> Result<&<D::ItemType as AttrValAbstraction>::ArgType, ApiError> {
+        self.get_attr_val::<D::ItemType>(item.get_key())
     }
     #[inline]
-    fn get_item_mut<T: AttrValAbstraction>(&mut self, item: Item<T>) -> Result<(T::ArgType, &mut AttributeValue), ApiError> {
+    fn get_item_mut<D: DynamoDBAttributeValue>(&mut self, item: D) -> Result<(<D::ItemType as AttrValAbstraction>::ArgType, &mut AttributeValue), ApiError> {
         Ok((
-            self.get_attr_val::<T>(item.key).cloned()?, 
-            self.get_attr_val_mut::<T>(item.key)?
+            self.get_attr_val::<D::ItemType>(item.get_key()).cloned()?, 
+            self.get_attr_val_mut::<D::ItemType>(item.get_key())?
         ))
     }
     #[inline]
@@ -216,7 +215,7 @@ impl ItemIntegration for AttributeValueHashMap {
 /// Allows the insertion and retrieval of null values into an AttributeValueHashMap
 pub trait NullableFields {
     /// Inserts a null value in place of an Item's value.
-    fn insert_null<T: AttrValAbstraction>(&mut self, key: Item<T>);
+    fn insert_null<D: DynamoDBAttributeValue>(&mut self, key: D);
     /// Gets a potentially null value.
     /// 
     /// These valid types return a string representing the value:
@@ -230,37 +229,37 @@ pub trait NullableFields {
     /// * M (Map)
     /// * NS (Number Set)
     /// * SS (String Set)
-    fn get_potential_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<String, ApiError>;
+    fn get_potential_null<D: DynamoDBAttributeValue>(&self, key: D) -> Result<String, ApiError>;
     /// Returns true if the item is null
-    fn is_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<bool, ApiError>;
+    fn is_null<D: DynamoDBAttributeValue>(&self, key: D) -> Result<bool, ApiError>;
 }
 
 impl NullableFields for AttributeValueHashMap {
     #[inline]
-    fn insert_null<T: AttrValAbstraction>(&mut self, key: Item<T>) {
-        self.insert(key.key.into(), AttributeValue::Null(true) );
+    fn insert_null<D: DynamoDBAttributeValue>(&mut self, key: D) {
+        self.insert(key.get_key().into(), AttributeValue::Null(true) );
     }
     #[inline]
-    fn get_potential_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<String, ApiError> {
-        let attr_val = match self.get(key.key) {
+    fn get_potential_null<D: DynamoDBAttributeValue>(&self, key: D) -> Result<String, ApiError> {
+        let attr_val = match self.get(key.get_key()) {
             Some(x) => x,
-            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.key)))
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.get_key())))
         };
         match attr_val.is_null() {
             true => Ok("Not provided.".into()),
             false => {
-                match T::get_val(attr_val) {
-                    Ok(v) => Ok(T::get_str_val(v)),
-                    Err(_) => Err(ApiError::InvalidDbSchema(format!("Key `{}` had a type issue", key.key)))
+                match D::ItemType::get_val(attr_val) {
+                    Ok(v) => Ok(D::ItemType::get_str_val(v)),
+                    Err(_) => Err(ApiError::InvalidDbSchema(format!("Key `{}` had a type issue", key.get_key())))
                 }
             }
         }
     }
     #[inline]
-    fn is_null<T: AttrValAbstraction>(&self, key: Item<T>) -> Result<bool, ApiError> {
-        let attr_val = match self.get(key.key) {
+    fn is_null<D: DynamoDBAttributeValue>(&self, key: D) -> Result<bool, ApiError> {
+        let attr_val = match self.get(key.get_key()) {
             Some(x) => x,
-            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.key)))
+            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.get_key())))
         };
         Ok(attr_val.is_null())
     }
@@ -268,8 +267,6 @@ impl NullableFields for AttributeValueHashMap {
 
 #[cfg(test)]
 mod tests {
-    use crate::tables::stores::STORES_TABLE;
-
     use super::*;
 
     #[test]
@@ -290,8 +287,6 @@ mod tests {
 
         map.insert_attr_val::<N>("test_2", "5".into());
         assert_eq!(map.get_attr_val::<N>("test_2").unwrap(), "5");
-
-        map.insert_item_into(STORES_TABLE.num_auths, "4");
     }
 }
 

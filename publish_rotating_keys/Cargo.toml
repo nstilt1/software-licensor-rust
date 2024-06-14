@@ -7,14 +7,6 @@ edition = "2021"
 name = "publish_rotating_keys"
 path = "src/main.rs"
 
-[profile.release]
-strip = true
-#debug = true
-opt-level = "z"
-lto = true
-codegen-units = 1
-panic = "abort"
-
 # Starting in Rust 1.62 you can use `cargo add` to add dependencies 
 # to your project.
 #
@@ -28,7 +20,7 @@ panic = "abort"
 
 [dependencies]
 aws_lambda_events = { version = "0.15.1", default-features = false, features = ["eventbridge"] }
-utils = { path = "../utils" }
+utils = { path = "../utils", default-features = false, features = ["s3"] }
 
 [features]
 zeroize = ["utils/zeroize"]

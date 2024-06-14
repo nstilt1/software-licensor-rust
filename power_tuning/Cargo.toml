@@ -1,0 +1,9 @@
+[package]
+name = "power_tuning"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rand_chacha = "0.3"
+reqwest = "0.12.4"
+utils = { path = "../utils", features = ["local"] }

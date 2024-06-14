@@ -1,4 +1,4 @@
-export RUSTFLAGS="-Ctarget-cpu=neoverse-n1 -Ctarget-feature=+lse"
+export RUSTFLAGS="--cfg chacha20_force_neon -Ctarget-cpu=neoverse-n1 -Ctarget-feature=+lse"
 
 echo "COMPILING!!! Your compiled code will be ready in a moment"
 
@@ -24,6 +24,7 @@ else
     echo "compiling with features: $1"
     features_flag="--features $1"
 fi
+
 cross build --release ${features_flag} --target aarch64-unknown-linux-musl     && {
     timestamp=$(date '+%y-%m-%d-%H-%M-%S')
     filename="${timestamp}_$1_register_store_refactor.zip"

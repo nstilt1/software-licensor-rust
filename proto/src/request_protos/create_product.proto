@@ -8,7 +8,6 @@ message CreateProductRequest {
     string product_id_prefix = 21;
     bool is_offline_allowed = 40;
     uint32 max_machines_per_license = 60;
-    uint64 timestamp = 150;
 }
 
 message CreateProductResponse {
@@ -18,5 +17,4 @@ message CreateProductResponse {
     // the public verifying key for this product. You will need to verify 
     // the server's signature on the key file with this public key.
     bytes product_public_key = 2;
-    uint64 timestamp = 10;
 }

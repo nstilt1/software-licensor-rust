@@ -3,6 +3,8 @@ fn main() {
         .out_dir("src/protos")
         .compile_protos(
             &[
+                "src/request_protos/request.proto",
+                "src/request_protos/response.proto",
                 "src/request_protos/register_store.proto",
                 "src/request_protos/create_product.proto",
                 "src/request_protos/create_license.proto",

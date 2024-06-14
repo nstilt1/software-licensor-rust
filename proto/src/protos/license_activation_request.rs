@@ -10,17 +10,11 @@ pub struct LicenseActivationRequest {
     pub license_code: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub machine_id: ::prost::alloc::string::String,
-    /// this language_id can be used to have the server send a response in
-    /// a pre-determined language
-    #[prost(string, tag = "3")]
-    pub language_id: ::prost::alloc::string::String,
     /// hardware/simd statistics
     #[prost(message, optional, tag = "4")]
     pub hardware_stats: ::core::option::Option<Stats>,
-    #[prost(string, tag = "5")]
-    pub product_id: ::prost::alloc::string::String,
-    #[prost(uint64, tag = "50")]
-    pub timestamp: u64,
+    #[prost(string, repeated, tag = "5")]
+    pub product_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -106,6 +100,8 @@ pub struct LicenseKeyFile {
     #[prost(string, tag = "3")]
     pub customer_last_name: ::prost::alloc::string::String,
     #[prost(string, tag = "4")]
+    pub customer_email: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
     pub product_version: ::prost::alloc::string::String,
     #[prost(string, tag = "10")]
     pub license_code: ::prost::alloc::string::String,
@@ -144,8 +140,22 @@ pub struct LicenseKeyFile {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LicenseActivationResponse {
-    #[prost(message, optional, tag = "1")]
-    pub key_file: ::core::option::Option<LicenseKeyFile>,
-    #[prost(bytes = "vec", tag = "2")]
-    pub key_file_signature: ::prost::alloc::vec::Vec<u8>,
+    /// map of product ids to license key files
+    #[prost(map = "string, message", tag = "1")]
+    pub key_files: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        LicenseKeyFile,
+    >,
+    /// map of product ids to licensing errors
+    #[prost(map = "string, string", tag = "2")]
+    pub licensing_errors: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
+    /// map of product ids to key file signature
+    #[prost(map = "string, bytes", tag = "5")]
+    pub key_file_signatures: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::vec::Vec<u8>,
+    >,
 }

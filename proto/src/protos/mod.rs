@@ -1,5 +1,8 @@
 pub mod pubkeys;
 
+pub mod request;
+pub mod response;
+
 pub mod register_store_request;
 pub mod store_db_item;
 
@@ -71,7 +74,6 @@ impl_zeroize_on_drop_for_struct!(
     contact_last_name,
     country,
     discord_username,
-    product_ids,
     store_name,
     store_url,
     email
@@ -85,9 +87,9 @@ impl_zeroize_on_drop_for_struct!(CreateLicenseRequest, customer_first_name, cust
 impl_zeroize_on_drop_for_struct!(CreateLicenseResponse, license_code, offline_code);
 impl_zeroize_on_drop_for_struct!(LicenseDbItem, license_id, customer_first_name, customer_last_name, customer_email, offline_secret);
 
-impl_zeroize_on_drop_for_struct!(LicenseActivationRequest, license_code, machine_id);
+impl_zeroize_on_drop_for_struct!(LicenseActivationRequest, license_code, machine_id, product_ids);
 impl_zeroize_on_drop_for_struct!(Stats, computer_name);
-impl_zeroize_on_drop_for_struct!(LicenseKeyFile, machine_id, license_code);
+impl_zeroize_on_drop_for_struct!(LicenseKeyFile, machine_id, license_code, customer_email, customer_first_name, customer_last_name);
 
 impl_zeroize_on_drop_for_struct!(GetLicenseRequest, user_id);
 impl_zeroize_on_drop_for_struct!(GetLicenseResponse, license_code, offline_code);

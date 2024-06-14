@@ -33,53 +33,59 @@ Currently, subscription licenses can only have the base amount of machines using
 
 # Building
 
-There are at least 2 ways that this code can be built. There are `build.sh` files that require `docker` and `cross`, and there are `build-zig.sh` files that require `cargo-lambda` and `zig`. `cross` seems to output slightly smaller files, but the `build-zig.sh` with `cargo-lambda` builds about twice as fast. 
+There are at least two ways to build this for the Graviton 2 processor using `cross` or `cargo-lambda`. `cargo-lambda` is a bit faster, but the files are a bit larger and **the binaries do not run properly, as there is an issue with the GLIBC version**. `cargo-lambda` build scripts are saved as `build-zig.sh` and the `cross` build scripts are saved as `build.sh`. You can also pass an argument that specifies the features to use. Available features are currently only `zeroize` and `logging`. Here's an example of how to call them:
 
-It is possible to configure `cross` to build Rust code with `zig`.
+```bash
+./build.sh
+# or
+./build.sh "zeroize"
+# or
+./build.sh "zeroize,logging"
+```
 
-Install rust on Ubuntu:
+To build these API methods, you will need to install a few packages if you don't already have them installed:
+
+* Install rust on Ubuntu:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-Install openssl on Ubuntu:
+* Install openssl on Ubuntu:
 
 ```bash
 sudo apt update
 sudo apt install build-essential pkg-config libssl-dev
 ```
 
-Install cargo lambda
+* Install cargo lambda (optional, and its built binaries do not work at the moment)
 
 ```bash
 rustup update
 cargo install cargo-lambda
 ```
 
-Install Docker Desktop on your Host OS and enable its use in WSL if you are using WSL (highly recommended if you're on Windows). Or you can install `zig` using Homebrew on Linux/WSL.
+* Install Docker Desktop on your Host OS and enable its use in WSL if you are using WSL (highly recommended if you're on Windows). Or you can install `zig` using Homebrew on Linux/WSL.
 
-Install cross
+* Install cross
 
 ```bash
 cargo install cross
 ```
 
-Install `aarch64` build target:
+* Install `aarch64` build target:
 
 ```bash
 rustup target add aarch64-unknown-linux-musl
 ```
 
-Install `aws-cli`:
+* Install `aws-cli`:
 
 ```bash
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 unzip awscliv2.zip
 sudo ./aws/install
 ```
-
-Then run `./build.sh` or `./build.sh "zeroize"` to cross compile the code for the AWS Graviton2 processor, for running with AWS Lambda. Adding `"zeroize"`, or any list of features will enable those features on the crate being built.
 
 ## Setting up local environment variables:
 

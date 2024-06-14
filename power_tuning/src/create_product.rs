@@ -1,8 +1,22 @@
 use reqwest::Response;
-use utils::{crypto::chacha20poly1305::Key, prelude::proto::{prost::Message, protos}};
+use utils::{base64::Base64Vec, crypto::chacha20poly1305::Key, prelude::proto::{prost::Message, protos::{self, pubkeys::{ExpiringEcdhKey, ExpiringEcdsaKey}}}};
+use crate::Error;
+use crate::server_requests_and_responses::{decrypt_response, encrypt_and_sign_payload};
 
-use crate::server_requests_and_responses::decrypt_response;
+#[allow(unused)]
+pub async fn test_create_product(req_client: &reqwest::Client, server_keys: (ExpiringEcdhKey, ExpiringEcdsaKey)) -> Result<(), Error> {
+    let inner_payload = generate_create_product_payload();
+    let payload = encrypt_and_sign_payload(inner_payload, false, server_keys);
+    let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/create_plugin_refactor")
+        .header("X-Signature", payload.signature.to_base64())
+        .body(payload.encrypted)
+        .send()
+        .await.unwrap();
 
+    let product_id = get_product_id(response, payload.symmetric_key).await;
+    println!("Product ID: {}", product_id);
+    Ok(())
+}
 
 pub fn generate_create_product_payload() -> Vec<u8> {
     use protos::create_product_request::CreateProductRequest;

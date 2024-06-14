@@ -57,8 +57,8 @@ async fn main() -> Result<(), Error> {
     // test_register_store(&req_client, server_keys).await?;
     // test_create_product(&req_client, server_keys).await?;
     // test_create_license(&req_client, server_keys).await?;
-    //test_get_license(&req_client, server_keys).await?;
-    test_license_activation(&req_client, server_keys).await?;
+    test_get_license(&req_client, server_keys).await?;
+    //test_license_activation(&req_client, server_keys).await?;
     Ok(())
 }
 

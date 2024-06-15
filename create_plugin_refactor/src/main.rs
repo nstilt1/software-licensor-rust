@@ -31,9 +31,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     // the StoreId has already been verified in `decrypt_and_hash_request()` but
     // we still need to verify the signature against the public key in the db
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
-    let client = Client::new(&aws_config);
+    let client = init_dynamodb_client!();
     debug_log!("Set client with aws_config");
 
     let mut store_item = AttributeValueHashMap::new();

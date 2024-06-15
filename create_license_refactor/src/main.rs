@@ -86,9 +86,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     }
     debug_log!("Passed basic validation");
 
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
-    let client = Client::new(&aws_config);
+    let client = init_dynamodb_client!();
     debug_log!("Set up db client");
 
     let mut request_items: HashMap<String, KeysAndAttributes> = HashMap::new();

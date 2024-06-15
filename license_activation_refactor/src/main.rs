@@ -195,6 +195,7 @@ async fn process_request<D: Digest + FixedOutput>(
     _signature: Vec<u8>
 ) -> Result<LicenseActivationResponse, ApiError> {
     debug_log!("Inside process_request");
+    let client = init_dynamodb_client!();
     // there is no signature on this request
     let store_id = if let Ok(s) = key_manager.get_store_id() {
         s
@@ -265,12 +266,6 @@ async fn process_request<D: Digest + FixedOutput>(
             .consistent_read(false)
             .build()?
     );
-
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
-    let client = Client::new(&aws_config);
-
-    debug_log!("DynamoDB client is initialized");
 
     let batch_get = client.batch_get_item()
         .set_request_items(Some(request_items))

@@ -31,6 +31,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         return Err(ApiError::InvalidRequest("Please provide accurate information".into()))
     }
 
+    let client = init_dynamodb_client!();
+
     debug_log!("Made it past initial validation");
     // verify public key before storing info in the database to ensure that they know how to format requests and that everything is working properly
     // with an established client, we will need to fetch the public key 
@@ -50,13 +52,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     let mut store_item = AttributeValueHashMap::new();
 
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
-    debug_log!("Set region_provider");
-    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
-    debug_log!("Set aws_config");
-    let client = Client::new(&aws_config);
-
-    debug_log!("Initialized dynamodb client");
     loop {
         let hashed_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
         

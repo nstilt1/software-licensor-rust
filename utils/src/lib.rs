@@ -45,6 +45,8 @@ pub mod prelude {
     pub use crate::dynamodb::maps_mk2::*;
     #[cfg(feature = "dynamodb")]
     pub use aws_sdk_dynamodb::primitives::Blob;
+    #[cfg(feature = "dynamodb")]
+    pub use crate::init_dynamodb_client;
     pub use tracing_subscriber;
     pub use tracing;
     pub use log;

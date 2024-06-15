@@ -37,7 +37,7 @@ fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: boo
     )?;
     debug_log!("Decrypted LicenseDbItem");
     if is_offline_attempt {
-        if decrypted_proto.offline_secret.ne(offline_license_code) {
+        if decrypted_proto.offline_secret.to_lowercase().ne(&offline_license_code.to_lowercase()) {
             return Err(ApiError::IncorrectOfflineCode)
         }
     }
@@ -424,11 +424,7 @@ async fn process_request<D: Digest + FixedOutput>(
                 // add 1 to total machines
                 metrics_item.increase_number(&METRICS_TABLE.num_licensed_machines, 1)?;
                 // success response, update tables
-                if is_offline_attempt {
-                    if !product_allows_offline {
-                        licensing_errors.insert(product_id.encoded_id, ApiError::OfflineIsNotAllowed.to_string());
-                        continue;
-                    }
+                if is_offline_attempt && product_allows_offline {
                     insert_machine_into_machine_map(&mut offline_machines_map, &request);
                     // add 1 to total offline machines
                     metrics_item.increase_number(&METRICS_TABLE.num_offline_machines, 1)?;
@@ -445,11 +441,7 @@ async fn process_request<D: Digest + FixedOutput>(
         } else {
             debug_log!("The machine has already activated this license previously");
             // machine exists in machine lists
-            if is_offline_attempt {
-                if !product_allows_offline {
-                    licensing_errors.insert(product_id.encoded_id, ApiError::OfflineIsNotAllowed.to_string());
-                    continue;
-                }
+            if is_offline_attempt && product_allows_offline {
                 // remove machine from online machines list if it is there, then add it to offline machines list
                 if online_machines_map.contains_key(&request.machine_id) {
                     online_machines_map.remove(&request.machine_id);

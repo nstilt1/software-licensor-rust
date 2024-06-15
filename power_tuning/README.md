@@ -9,7 +9,7 @@ Unfortunately, it would not have been possible to use the official Lambda Power 
 Here are some results for the `register_store_refactor` function:
 
 Store ID: 
-`TEST6smY-/iIpO2AaB0OvoOYxkcnh1LVyetzUq9JTKYqSNKXe9Zqh6Ch7DnS2vvQ1`
+`TESTuiQO-Kp6JXjPeKIh7DT/iPpNFnZhN2NYT0ITpltBLqlmvJ71PoA5UU_6ZnmB4`
 
 ```
 With 128 MB of RAM - 258 ms average time
@@ -45,9 +45,9 @@ The first column is larger due to the cold boot times, and after crunching some 
 # Create Product
 
 Product IDs: 
-* `TestfxcJ-uldVDjRWqIPhjc1BXqaijHN1`
-* `TestKvXk-scAX/xccsTlqCGFHnfI9_deo`
-* `TestlyjE-1nGk9VrQ/eYzy185BB2icpas`
+* `Test1U58-dmYcq_corvrg5ca19az_Lzef`
+* `TestCq16-ClKZsVOLN_zFnR9y4EWS4z9o`
+* `TestGhDt-jkezEw0aV8L1Pn/bgrpz5gog`
 
 # Create License
 License code:

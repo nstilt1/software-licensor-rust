@@ -27,6 +27,8 @@ pub struct LicensesTable {
     /// 
     /// Vecs can contain duplicates and take O(n) lookup time
     pub machines_to_deactivate: Item<M>,
+    /// The last time that a user attempted to regenerate their license code
+    pub last_license_regen: Item<N>,
 }
 
 pub struct ProductsMap {
@@ -55,11 +57,13 @@ pub const LICENSES_TABLE: LicensesTable = LicensesTable {
     id: PrimaryHashKey { item: Item::new("id") },
     protobuf_data: Item::new("data"),
     machines_to_deactivate: Item::new("deactivated_machs"),
-    
+    last_license_regen: Item::new("last_regen"),
+
     hashed_store_id_and_user_id: GlobalSecondaryIndex {
         index_name: "user_id_hash-index",
         item: Item::new("user_id_hash"),
     },
+
     custom_success_message: Item::new("custom_message"),
     email_hash: Item::new("email_hash"),
     products_map_item: MapItem::<ProductsMap> {

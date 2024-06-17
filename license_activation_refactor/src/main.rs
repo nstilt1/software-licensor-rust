@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use http_private_key_manager::prelude::years_to_seconds;
-use proto::protos::deactivate_machines;
 use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::dynamodb::maps::Maps;
 use proto::protos::{

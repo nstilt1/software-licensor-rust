@@ -37,6 +37,7 @@ zeroize = { version = "1.7.0", optional = true }
 
 [features]
 default = ["dynamodb"]
+create_license = ["dynamodb"] # contains functionality for creating license codes
 dynamodb = ["aws-sdk-dynamodb"]
 get_license = ["dynamodb"] # contains all the functionality for outputting a GetLicenseResponse
 lambda = ["aws-sdk-lambda"]

@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package deactivate_machines;
+
+// A GetLicenseResponse is sent as the response for this.
+message DeactivateMachinesRequest {
+    string user_id = 1;
+    repeated string machine_ids = 2;
+}

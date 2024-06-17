@@ -3,6 +3,7 @@ members = [
     "license_activation_refactor",
     "create_license_refactor",
     "create_plugin_refactor",
+    "deactivate_machines",
     "get_license_refactor",
     "register_store_refactor",
 	"utils",

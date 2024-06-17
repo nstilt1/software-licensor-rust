@@ -16,6 +16,8 @@ pub mod license_activation_request;
 
 pub mod get_license_request;
 
+pub mod deactivate_machines;
+
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 

@@ -5,3 +5,4 @@ cd scripting
 ./create_build_script.sh "license_activation_refactor"
 ./create_build_script.sh "get_license_refactor"
 ./create_build_script.sh "publish_rotating_keys"
+./create_build_script.sh "deactivate_machines"

@@ -21,6 +21,9 @@ pub use aws_config;
 #[cfg(feature = "dynamodb")]
 pub use aws_sdk_dynamodb;
 
+#[cfg(feature = "get_license")]
+pub mod get_license;
+
 #[cfg(feature = "s3")]
 pub use aws_sdk_s3;
 pub use lambda_runtime;

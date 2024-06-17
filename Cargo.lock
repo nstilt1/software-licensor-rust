@@ -948,6 +948,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "deactivate_machines"
+version = "0.1.0"
+dependencies = [
+ "utils",
+]
+
+[[package]]
 name = "der"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

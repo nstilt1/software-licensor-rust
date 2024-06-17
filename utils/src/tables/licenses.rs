@@ -23,6 +23,10 @@ pub struct LicensesTable {
     /// * customer_email
     /// * offline_secret
     pub protobuf_data: Item<B>,
+    /// A map of strings of machine IDs that need to be deactivated. 
+    /// 
+    /// Vecs can contain duplicates and take O(n) lookup time
+    pub machines_to_deactivate: Item<M>,
 }
 
 pub struct ProductsMap {
@@ -50,7 +54,8 @@ pub const LICENSES_TABLE: LicensesTable = LicensesTable {
     table_name: "LICENSES-AgKSHjwfYk0lu-s-a2nvizD-DgUP5ORzOO_ZQRajJ12z2nxBs1kvMTse",
     id: PrimaryHashKey { item: Item::new("id") },
     protobuf_data: Item::new("data"),
-
+    machines_to_deactivate: Item::new("deactivated_machs"),
+    
     hashed_store_id_and_user_id: GlobalSecondaryIndex {
         index_name: "user_id_hash-index",
         item: Item::new("user_id_hash"),

@@ -79,6 +79,8 @@ message LicenseKeyFile {
     // 16: license no longer active
     // 32: incorrect offline code
     // 64: Offline codes are not allowed for this product
+    // 128: Invalid License Code
+    // 256: Machine Deactivated
     uint32 message_code = 31;
     // the message to show if the license ever expires on the user
     string post_expiration_message = 35;

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use aws_sdk_dynamodb::{types::{AttributeValue, Select}, Client};
-use aws_sdk_s3::primitives::Blob;
+use aws_sdk_dynamodb::primitives::Blob;
 use http_private_key_manager::Id;
 use proto::protos::{get_license_request::{GetLicenseResponse, LicenseInfo, Machine}, license_db_item::LicenseDbItem};
 

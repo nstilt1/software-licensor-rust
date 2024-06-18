@@ -14,7 +14,7 @@ pub use http_private_key_manager::private_key_generator::{
 };
 pub use p384::{
     PublicKey,
-    ecdsa::{DerSignature, VerifyingKey},
+    ecdsa::{Signature, VerifyingKey},
 };
 pub use p384::NistP384;
 pub use p384;
@@ -64,6 +64,56 @@ pub fn salty_hash(data: &[&[u8]], salt: &String) -> Output<DbHasher> {
     }
     digest.update(salt.as_bytes());
     digest.finalize()
+}
+
+#[cfg(feature = "dynamodb")]
+use crate::{
+    tables::stores::STORES_TABLE,
+    dynamodb::maps_mk2::{AttributeValueHashMap, ItemIntegration},
+};
+
+#[cfg(feature = "dynamodb")]
+pub trait ExtractPublicKey {
+    /// Extracts a public key from a specific data structure.
+    /// 
+    /// Currently supports public key extraction from a `store_item`, as 
+    /// well as a `RegisterStoreRequest`.
+    fn extract_public_key(&self) -> Result<PublicKey, ApiError>;
+}
+
+#[cfg(feature = "dynamodb")]
+impl ExtractPublicKey for AttributeValueHashMap {
+    #[inline]
+    fn extract_public_key(&self) -> Result<PublicKey, ApiError> {
+        Ok(PublicKey::from_sec1_bytes(
+            &self.get_item(STORES_TABLE.public_key)?.as_ref()
+        )?)
+    }
+}
+
+#[cfg(feature = "dynamodb")]
+impl ExtractPublicKey for proto::protos::register_store_request::RegisterStoreRequest {
+    #[inline]
+    fn extract_public_key(&self) -> Result<PublicKey, ApiError> {
+        Ok(PublicKey::from_sec1_bytes(
+            &self.public_signing_key
+        )?)
+    }
+}
+
+/// Verifies a store's signature using their public key.
+#[cfg(feature = "dynamodb")]
+#[inline]
+pub fn verify_signature<P, H>(public_key_container: &P, hasher: H, signature: &[u8]) -> Result<(), ApiError> 
+where 
+    P: ExtractPublicKey,
+    H: Digest + FixedOutput
+{
+    let pubkey = public_key_container.extract_public_key()?;
+    let verifier = VerifyingKey::from(pubkey);
+    let signature: Signature = Signature::from_bytes(signature.try_into().unwrap())?;
+    verifier.verify_digest(hasher, &signature)?;
+    Ok(())
 }
 
 /// BigId shorthand type with 64 base64 chars.

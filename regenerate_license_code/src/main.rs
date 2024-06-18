@@ -1,10 +1,8 @@
 use http_private_key_manager::prelude::days_to_seconds;
-use http_private_key_manager::private_key_generator::ecdsa::VerifyingKey;
 use proto::protos::regenerate_license_code::RegenerateLicenseCodeRequest;
 use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{DeleteRequest, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
-use utils::crypto::p384::ecdsa::Signature;
 use utils::dynamodb::maps::Maps;
 use utils::get_license::{construct_get_license_response_from_license_item, query_dynamodb_for_license_item_primary_key};
 use utils::init_license::init_license;
@@ -68,12 +66,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         None => return Err(ApiError::NotFound)
     };
 
-    // verify signature
-    let public_key = store_item.get_item(STORES_TABLE.public_key)?;
-    let pubkey = PublicKey::from_sec1_bytes(&public_key.as_ref())?;
-    let verifier = VerifyingKey::from(pubkey);
-    let signature: Signature = Signature::from_bytes(signature.as_slice().try_into().unwrap())?;
-    verifier.verify_digest(hasher, &signature)?;
+    verify_signature(&store_item, hasher, &signature)?;
 
     old_license_item = match tables.get(LICENSES_TABLE.table_name) {
         Some(v) => v[0].clone(),

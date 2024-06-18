@@ -1,6 +1,5 @@
 //! A store registration API method for a licensing service.
 use std::collections::HashMap;
-use utils::crypto::p384::ecdsa::Signature;
 use utils::now_as_seconds;
 use proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::proto::protos::store_db_item;
@@ -35,14 +34,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     debug_log!("Made it past initial validation");
     // verify public key before storing info in the database to ensure that they know how to format requests and that everything is working properly
-    // with an established client, we will need to fetch the public key 
-    // from the database to verify the signature instead of this
-    let pubkey = PublicKey::from_sec1_bytes(&request.public_signing_key)?;
-    debug_log!("Initialized pubkey");
-    let verifier = VerifyingKey::from(pubkey);
-    let signature: Signature = Signature::from_bytes(signature.as_slice().try_into().unwrap())?;
-    debug_log!("Initialized signature");
-    verifier.verify_digest(hasher, &signature)?;
+    verify_signature(request, hasher, &signature)?;
 
     debug_log!("Verfied signature");
 

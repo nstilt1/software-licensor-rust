@@ -1,12 +1,3 @@
 [[bin]]
 name = "{{name}}"
 path = "src/main.rs"
-
-[profile.release]
-strip = true
-#debug = true
-opt-level = "z"
-lto = true
-codegen-units = 1
-panic = "abort"
-

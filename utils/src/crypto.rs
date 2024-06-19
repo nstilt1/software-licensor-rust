@@ -1,10 +1,7 @@
 use base64::alphabet::Alphabet;
 use http_private_key_manager::{
     private_key_generator::{
-        hkdf::hmac::Hmac,
-        hkdf::hmac::digest::Output, 
-        typenum::Unsigned, 
-        EncodedId
+        ecdsa::SigningKey, hkdf::hmac::{digest::Output, Hmac}, typenum::Unsigned, EncodedId
     }, 
     utils::StringSanitization,
 };
@@ -314,6 +311,9 @@ pub trait DigitalLicensingThemedKeymanager {
     /// * `product_id` - the product ID that the key file is for
     fn sign_key_file(&mut self, key_file: &[u8], product_id: &Id<ProductId>) -> Result<Vec<u8>, ApiError>;
 
+    /// Gets the product's public key.
+    fn get_product_public_key(&mut self, product_id: &Id<ProductId>, store_id: &Id<StoreId>) -> Vec<u8>;
+
     /// Encrypts and zeroizes a `StoreDbItem`
     fn encrypt_db_proto<M: Message>(&mut self, table_name: &str, related_id: &[u8], data: &M) -> Result<Vec<u8>, ApiError>;
 
@@ -399,6 +399,16 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
     #[inline]
     fn sign_key_file(&mut self, key_file: &[u8], product_id: &Id<ProductId>) -> Result<Vec<u8>, ApiError> {
         Ok(self.sign_data_with_key_id::<EcdsaAlg, ProductId, EcdsaDigest>(key_file, product_id)?.to_vec())
+    }
+
+    #[inline]
+    fn get_product_public_key(&mut self, product_id: &Id<ProductId>, store_id: &Id<StoreId>) -> Vec<u8> {
+        let signing_key: SigningKey<EcdsaAlg> = self.key_generator.generate_ecdsa_key_from_id(
+            &product_id.binary_id, 
+            Some(store_id.binary_id.as_ref()),
+        );
+
+        signing_key.verifying_key().to_sec1_bytes().to_vec()
     }
 
     #[inline]

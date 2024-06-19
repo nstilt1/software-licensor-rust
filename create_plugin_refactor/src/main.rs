@@ -92,13 +92,46 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     // verify signature with public key
     verify_signature(&store_item, hasher, &signature)?;
-    
+
     debug_log!("Decrypting Store DB Proto");
     let mut store_proto: StoreDbItem = key_manager.decrypt_db_proto(
         &STORES_TABLE.table_name,
         store_id.binary_id.as_ref(),
         store_item.get_item(STORES_TABLE.protobuf_data)?.as_ref()
     )?;
+
+    match store_proto.product_ids.get_mut(&request.product_id_prefix) {
+        Some(v) => {
+            // update product_info
+            v.is_offline_allowed = request.is_offline_allowed;
+            v.version = request.version.clone();
+            store_item.insert_item(
+                STORES_TABLE.protobuf_data,
+                Blob::new(
+                    key_manager.encrypt_db_proto(
+                        &STORES_TABLE.table_name,
+                        store_id.binary_id.as_ref(),
+                        &store_proto
+                    )?
+                )
+            );
+
+            let product_id = key_manager.validate_product_id(&request.product_id_prefix, &store_id)?;
+            
+            client.put_item()
+                .table_name(STORES_TABLE.table_name)
+                .set_item(Some(store_item))
+                .send()
+                .await?;
+
+            let resp = CreateProductResponse {
+                product_id: request.product_id_prefix.to_owned(),
+                product_public_key: key_manager.get_product_public_key(&product_id, &store_id),
+            };
+            return Ok(resp)
+        },
+        None => ()
+    }
 
     // create plugin id and public key, and verify that it isn't already in the db
     let (product_id, product_pubkey) = loop {

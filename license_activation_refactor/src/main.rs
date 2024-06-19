@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use http_private_key_manager::prelude::years_to_seconds;
 use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, WriteRequest};
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
@@ -195,6 +196,7 @@ async fn process_request<D: Digest + FixedOutput>(
     _signature: Vec<u8>
 ) -> Result<LicenseActivationResponse, ApiError> {
     debug_log!("Inside process_request");
+    let client = init_dynamodb_client!();
     // there is no signature on this request
     let store_id = if let Ok(s) = key_manager.get_store_id() {
         s
@@ -266,12 +268,6 @@ async fn process_request<D: Digest + FixedOutput>(
             .build()?
     );
 
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
-    let client = Client::new(&aws_config);
-
-    debug_log!("DynamoDB client is initialized");
-
     let batch_get = client.batch_get_item()
         .set_request_items(Some(request_items))
         .send()
@@ -324,6 +320,65 @@ async fn process_request<D: Digest + FixedOutput>(
         return Err(ApiError::InvalidLicenseCode)
     };
 
+    let mut updated_license = false;
+
+    // TODO: remove this if `regenerate_license_code` method will be better than
+    // the `deactivate_machines` method
+
+    // check if machine has been deactivated
+    match license_item.get_item(LICENSES_TABLE.machines_to_deactivate) {
+        Ok(v) => {
+            if v.contains_key(&request.machine_id) {
+                license_item.remove(&request.machine_id);
+                metrics_item.increase_number(&METRICS_TABLE.num_license_activations, 1)?;
+                
+                client.batch_write_item()
+                    .request_items(
+                        LICENSES_TABLE.table_name.to_string(), 
+                        vec![
+                            WriteRequest::builder()
+                                .put_request(
+                                    PutRequest::builder()
+                                        .set_item(Some(license_item))
+                                        .build()?
+                                ).build()
+                        ]
+                    ).request_items(
+                        METRICS_TABLE.table_name,
+                        vec![
+                            WriteRequest::builder()
+                                .put_request(
+                                    PutRequest::builder()
+                                        .set_item(Some(metrics_item))
+                                        .build()?
+                                ).build()
+                        ]
+                    ).send()
+                    .await?;
+                return Err(ApiError::MachineDeactivated)
+            }
+            // deactivated machines list exists, but it did not contain the machine
+            // remove machine if it has been there for over a year;
+            // this can happen if a machine has broken or was sold or surplussed
+            // yes, surplussed can be spelt with 2-3 `s`'s for some reason. It's
+            // a weird word, more weird than "weird"
+            let mut deactivated_machines = v.to_owned();
+            let now = now_as_seconds();
+            for (k, value) in v {
+                let timestamp = value.as_n().expect("Deactivated Machines' values should be numbers").parse::<u64>()?;
+                if now - timestamp > years_to_seconds(1) {
+                    deactivated_machines.remove(k);
+                }
+            }
+            if deactivated_machines.len() < v.len() {
+                license_item.insert_item(LICENSES_TABLE.machines_to_deactivate, deactivated_machines);
+                updated_license = true;
+            }
+        },
+        Err(_) => ()
+    }
+
+
     // update the machine item
     let machine_needs_update = if let Some(m) = tables.get(MACHINES_TABLE.table_name) {
         if m.len() != 1 {
@@ -353,7 +408,6 @@ async fn process_request<D: Digest + FixedOutput>(
     // validate the license
 
     let (mut products_map, mut_products_map) = license_item.get_item_mut(LICENSES_TABLE.products_map_item)?;
-    let mut updated_license = false;
     let mut key_files: HashMap<String, LicenseKeyFile> = HashMap::new();
     let mut key_file_signatures: HashMap<String, Vec<u8>> = HashMap::new();
     let mut licensing_errors: HashMap<String, String> = HashMap::new();

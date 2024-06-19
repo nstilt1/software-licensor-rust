@@ -7,3 +7,4 @@ cd scripting
 ./create_deployment_script.sh "create_license_refactor" $iam
 ./create_deployment_script.sh "license_activation_refactor" $iam
 ./create_deployment_script.sh "publish_rotating_keys" $iam
+./create_deployment_script.sh "deactivate_machines" $iam

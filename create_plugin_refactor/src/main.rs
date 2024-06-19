@@ -5,7 +5,6 @@ use proto::protos::store_db_item::ProductInfo;
 use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{KeysAndAttributes, PutRequest, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
-use utils::crypto::p384::ecdsa::Signature;
 use utils::dynamodb::maps::Maps;
 use proto::protos::create_product_request::{CreateProductRequest, CreateProductResponse};
 use utils::prelude::proto::protos::store_db_item::StoreDbItem;
@@ -31,9 +30,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     // the StoreId has already been verified in `decrypt_and_hash_request()` but
     // we still need to verify the signature against the public key in the db
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
-    let client = Client::new(&aws_config);
+    let client = init_dynamodb_client!();
     debug_log!("Set client with aws_config");
 
     let mut store_item = AttributeValueHashMap::new();
@@ -93,17 +90,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     
     debug_log!("Store ID was found in the DB");
 
-    let public_key = store_item.get_item(STORES_TABLE.public_key)?;
-    debug_log!("Got public key");
     // verify signature with public key
-    let pubkey = PublicKey::from_sec1_bytes(&public_key.as_ref())?;
-    debug_log!("Set pubkey");
-    let verifier = VerifyingKey::from(pubkey);
-    let signature: Signature = Signature::from_bytes(signature.as_slice().try_into().unwrap())?;
-    debug_log!("Set signature");
-    verifier.verify_digest(hasher, &signature)?;
-    debug_log!("Verified signature");
-    // signature verified
+    verify_signature(&store_item, hasher, &signature)?;
+    
     debug_log!("Decrypting Store DB Proto");
     let mut store_proto: StoreDbItem = key_manager.decrypt_db_proto(
         &STORES_TABLE.table_name,

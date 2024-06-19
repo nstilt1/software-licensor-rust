@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package regenerate_license_code;
+
+// Regenerates a user's license code, removing all online machines 
+// from their license.
+// 
+// Each user can only do this once every fortnight.
+//
+// This is a bit more efficient than `deactivate_machines`, as we 
+// do not need to store every machine that needs to be removed. We 
+// will need to write extra items to the database and remove some 
+// extra items from the database, but it is better to do 2 writes 
+// than it is to store an unknown amount of data in each item that 
+// we need to remove machines from, which could result in larger reads
+// and writes for up to a year after machines are deactivated.
+//
+// A GetLicenseResponse is sent as the response for this.
+message RegenerateLicenseCodeRequest {
+    string user_id = 1;
+}

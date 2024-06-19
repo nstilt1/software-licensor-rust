@@ -21,7 +21,7 @@ filename=\$(find . -maxdepth 1 -type f -printf "%f\n" | sort | tail -n 1)
 aws lambda create-function --function-name ${name} \\
 --handler bootstrap \\
 --zip-file fileb://./\$filename \\
---runtime provided.al2 \\
+--runtime provided.al2023 \\
 --role ${iam} \\
 --region us-east-1 \\
 --architectures arm64

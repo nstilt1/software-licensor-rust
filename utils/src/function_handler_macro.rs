@@ -1,6 +1,14 @@
 #[macro_export]
 macro_rules! impl_function_handler {
     ($request_type:ty, $response_type:ty, $error_type:ty, $is_handshake:literal) => {
+        // set global allocator for increased performance
+        #[cfg(not(target_env = "msvc"))]
+        use jemallocator::Jemalloc;
+
+        #[cfg(not(target_env = "msvc"))]
+        #[global_allocator]
+        static GLOBAL: Jemalloc = Jemalloc;
+        
         impl_handle_crypto!(
             $request_type,
             $response_type,

@@ -52,8 +52,8 @@ EOF
 
 sudo chmod +x ./build.sh
 
-# create build-zig.sh
-cat << EOF > build-zig.sh
+# create build-cargo-lambda.sh
+cat << EOF > build-cargo-lambda.sh
 export RUSTFLAGS="--cfg chacha20_force_neon -Ctarget-cpu=neoverse-n1 -Ctarget-feature=+lse"
 
 echo "COMPILING!!! Your compiled code will be ready in a moment"
@@ -83,4 +83,4 @@ cargo lambda build --release --arm64 \${features_flag} \
 }
 EOF
 
-sudo chmod +x ./build-zig.sh
+sudo chmod +x ./build-cargo-lambda.sh

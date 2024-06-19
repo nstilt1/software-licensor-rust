@@ -2,66 +2,21 @@
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
-use http_private_key_manager::prelude::rand_core::RngCore;
 use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, Select, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
-use utils::crypto::p384::ecdsa::Signature;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
     create_license_request::{CreateLicenseRequest, CreateLicenseResponse},
     store_db_item::StoreDbItem,
     license_db_item::LicenseDbItem,
 };
+use utils::init_license::init_license;
 use utils::tables::metrics::METRICS_TABLE;
 use utils::{debug_log, error_log, impl_function_handler, prelude::*};
 use utils::tables::licenses::LICENSES_TABLE;
 use utils::tables::stores::STORES_TABLE;
 use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
-
-async fn init_license(
-    client: &Client, 
-    key_manager: &mut KeyManager, 
-    request: &CreateLicenseRequest, 
-    license_item: &mut AttributeValueHashMap, 
-    store_id: &Id<StoreId>,
-    hashed_user_id: &[u8]
-) -> Result<(String, String), ApiError> {
-    let (license_code, primary_index) = loop {
-        let mut license_check_item = AttributeValueHashMap::new();
-        let license_code = key_manager.generate_license_code(&store_id)?;
-        let primary_index = salty_hash(&[store_id.binary_id.as_ref(), license_code.binary_id.as_ref()], &LICENSE_DB_SALT);
-        license_check_item.insert_item(LICENSES_TABLE.id, Blob::new(primary_index.to_vec()));
-        
-        let get_item = client.get_item()
-            .consistent_read(false)
-            .table_name(LICENSES_TABLE.table_name)
-            .set_key(Some(license_check_item.clone()))
-            .send()
-            .await?;
-        if get_item.item.is_none() {
-            break (license_code, primary_index);
-        }
-    };
-    license_item.insert_item(LICENSES_TABLE.hashed_store_id_and_user_id, Blob::new(hashed_user_id));
-    license_item.insert_item(LICENSES_TABLE.id, Blob::new(primary_index.to_vec()));
-    license_item.insert_item_into(LICENSES_TABLE.custom_success_message, request.custom_success_message.clone());
-    license_item.insert_item(LICENSES_TABLE.email_hash, Blob::new(salty_hash(&[request.customer_email.as_bytes()], &LICENSE_DB_SALT).to_vec()));
-    license_item.insert_item(LICENSES_TABLE.products_map_item, AttributeValueHashMap::new());
-    
-    let offline_secret_u16 = key_manager.rng.next_u32() as u16;
-    let offline_secret = format!("{:x}", offline_secret_u16);
-    let protobuf_data = LicenseDbItem {
-        license_id: license_code.binary_id.as_ref().to_vec(),
-        customer_first_name: request.customer_first_name.clone(),
-        customer_last_name: request.customer_last_name.clone(),
-        customer_email: request.customer_email.clone(),
-        offline_secret: offline_secret.clone(),
-    };
-    let encrypted = key_manager.encrypt_db_proto(LICENSES_TABLE.table_name, &primary_index.as_ref(), &protobuf_data)?;
-    license_item.insert_item(LICENSES_TABLE.protobuf_data, Blob::new(encrypted));
-    Ok((license_code.encoded_id, offline_secret))
-}
 
 impl_function_handler!(
     CreateLicenseRequest,
@@ -86,9 +41,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     }
     debug_log!("Passed basic validation");
 
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = utils::aws_config::from_env().region(region_provider).load().await;
-    let client = Client::new(&aws_config);
+    let client = init_dynamodb_client!();
     debug_log!("Set up db client");
 
     let mut request_items: HashMap<String, KeysAndAttributes> = HashMap::new();
@@ -217,12 +170,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
     debug_log!("Set the store_config");
 
-    // verify signature
-    let public_key = store_item.get_item(STORES_TABLE.public_key)?;
-    let pubkey = PublicKey::from_sec1_bytes(&public_key.as_ref())?;
-    let verifier = VerifyingKey::from(pubkey);
-    let signature: Signature = Signature::from_bytes(signature.as_slice().try_into().unwrap())?;
-    verifier.verify_digest(hasher, &signature)?;
+    verify_signature(&store_item, hasher, &signature)?;
     debug_log!("Verified the signature");
 
     let store_products_info = &store_item_protobuf.product_ids;
@@ -237,7 +185,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     // check for pre-existing license
     let (license_code, offline_code) = if let Some(l) = tables.get(LICENSES_TABLE.table_name) {
         if l.len() == 0 {
-            init_license(&client, key_manager, request, &mut license_item, &store_id, &secondary_index).await?
+            init_license(&client, key_manager, Some((&secondary_index, &request)), &mut license_item, &store_id).await?
         } else {
             // update license as necessary and return info
             license_item = l[0].clone();
@@ -253,7 +201,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         }
     } else {
         // init new license with request data
-        init_license(&client, key_manager, request, &mut license_item, &store_id, &secondary_index).await?
+        init_license(&client, key_manager, Some((&secondary_index, &request)), &mut license_item, &store_id).await?
     };
     debug_log!("Initialized or set license_code");
 

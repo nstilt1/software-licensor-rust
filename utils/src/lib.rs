@@ -21,6 +21,12 @@ pub use aws_config;
 #[cfg(feature = "dynamodb")]
 pub use aws_sdk_dynamodb;
 
+#[cfg(feature = "get_license")]
+pub mod get_license;
+
+#[cfg(feature = "create_license")]
+pub mod init_license;
+
 #[cfg(feature = "s3")]
 pub use aws_sdk_s3;
 pub use lambda_runtime;
@@ -31,6 +37,7 @@ pub use http_private_key_manager::{debug_log, error_log};
 
 /// The primary dependencies that will be required for lambda functions are re-exported so as to minimize the chance of different API methods having different versions of dependencies, which would result in more crates to download and compile.
 pub mod prelude {
+    pub use jemallocator;
     pub use http_private_key_manager;
     pub use lambda_http;
     pub use crate::crypto::*;
@@ -44,6 +51,8 @@ pub mod prelude {
     pub use crate::dynamodb::maps_mk2::*;
     #[cfg(feature = "dynamodb")]
     pub use aws_sdk_dynamodb::primitives::Blob;
+    #[cfg(feature = "dynamodb")]
+    pub use crate::init_dynamodb_client;
     pub use tracing_subscriber;
     pub use tracing;
     pub use log;

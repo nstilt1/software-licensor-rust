@@ -110,11 +110,36 @@ There are a few things that you would need to do to get this to work, besides bu
 Here is a non-comprehensive list of what you would need to do to get the refactored version of the code to work:
 
 1. make an AWS account if you do not have one
+
 2. create some DynamoDB tables with table names, primary keys, and global secondary keys specified in `utils/src/tables/`, or change the names in those files to use different table names. You can generate some table names with `cargo test --features local -- --nocapture`. The long and random table names provide a little entropy when generating resource encryption keys when encrypting some of the data in the tables. It isn't completely necessary to have long table names, but AWS does not charge by the character in the table names. Yes, AWS supposedly encrypts the tables at rest, but why not add an extra layer of encryption? And, believe it or not, the encrypted protobuf messages can actually be smaller in size than putting it in plaintext NoSQL due to the potentially long keys since Protobuf keys are just binary numbers. The downside is that analytics tools such as AWS Athena likely will not be able to analyze any Protobuf/encrypted data.
-3. Create an `IAM Role` that can read and write to these tables. This is best done by first creating an IAM Policy with DynamoDB permissions for BatchGetItem, GetItem, BatchWriteItem, UpdateItem, and PutItem. It will also need `S3>PutObject` permissions for a specific public keys bucket, which needs to be specified in the environment variables.
-4. Create an `IAM user` with permissions for `Lambda>Create Function` and `IAM>Pass Role`, then make an access key for this user to sign into the AWS CLI with. Consider using `aws configure sso` instead, but that's a bit complicated and can break fairly easily.
+
+3. Create an `IAM Role` that can read and write to these tables. This is best done by first creating an IAM Policy with DynamoDB permissions.
+
+Permissions for the `DynamoDB` tables:
+
+* BatchGetItem
+* BatchWriteItem
+* DeleteItem - only required for `Licenses` table
+* GetItem
+* Query - only required for `Licenses` table
+* PutItem
+* UpdateItem
+
+The `Query` permission also needs to be added for the secondary index of the `Licenses` table.
+
+Permissions for the Public Keys S3 bucket:
+* PutObject
+
+The public keys bucket needs to be specified in the environment variables for the `publish_rotating_keys` Lambda Function.
+
+4. Create an `IAM user` with permissions for `Lambda>Create Function` and `IAM>Pass Role`, then make an access key for this user to sign into the AWS CLI with. Consider using `aws configure sso` instead, but it isn't very intuitive.
+
 5. Deploy the lambda functions. First, call `create_deployment_scripts`, specifying the `IAM Role` that can access the tables. Then call `build.sh` and `deploy.sh` to deploy the functions to the cloud. If anything changes, you need to call `update_func.sh` to update the functions.
+
 6. Navigate to `API Gateway` and create an `HTTP API` or `REST API`. Do some research on the two, but you'll probably want a `REST API`. The differences are explained [here](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-vs-rest.html)
+
 7. Add the lambda functions to this API, and ensure that these API endpoints are accessible from the public internet.
+
 8. Optionally, configure AWS WAF to restrict the (ab)usage of the API. You don't want to get DOS-ed.
+
 9. Optionally, take `AWS Lambda Power Tuning` for a spin to potentially increase the speed and lower the cost of the lambda functions.

@@ -26,7 +26,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 #[cfg(feature = "zeroize")]
 use self::{
     create_product_request::{CreateProductRequest, CreateProductResponse}, 
-    create_license_request::{CreateLicenseRequest, CreateLicenseResponse},
+    create_license_request::CreateLicenseRequest,
     register_store_request::{RegisterStoreRequest, RegisterStoreResponse}, 
     store_db_item::StoreDbItem,
     license_db_item::LicenseDbItem,
@@ -88,7 +88,6 @@ impl_zeroize_on_drop_for_struct!(CreateProductResponse, product_id);
 impl_zeroize_on_drop_for_struct!(ProductDbItem, product_id, product_name, store_id, version);
 
 impl_zeroize_on_drop_for_struct!(CreateLicenseRequest, customer_first_name, customer_last_name, customer_email, user_id);
-impl_zeroize_on_drop_for_struct!(CreateLicenseResponse, license_code, offline_code);
 impl_zeroize_on_drop_for_struct!(LicenseDbItem, license_id, customer_first_name, customer_last_name, customer_email, offline_secret);
 
 impl_zeroize_on_drop_for_struct!(LicenseActivationRequest, license_code, machine_id, product_ids);

@@ -24,34 +24,55 @@ pub struct CreateLicenseRequest {
         ProductInfo,
     >,
 }
+/// license-type-specific product information
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ProductInfo {
-    #[prost(string, tag = "20")]
-    pub license_type: ::prost::alloc::string::String,
-    /// the amount of licenses purchased, allowing `max_machines_per_license
-    /// * quantity` machines
-    #[prost(uint32, tag = "30")]
+    #[prost(oneof = "product_info::LicenseType", tags = "1, 2, 3")]
+    pub license_type: ::core::option::Option<product_info::LicenseType>,
+}
+/// Nested message and enum types in `ProductInfo`.
+pub mod product_info {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum LicenseType {
+        #[prost(message, tag = "1")]
+        Subscription(super::SubscriptionLicense),
+        #[prost(message, tag = "2")]
+        PerpetualLicense(super::PerpetualLicense),
+        #[prost(message, tag = "3")]
+        TrialLicense(super::TrialLicense),
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PerpetualLicense {
+    #[prost(uint32, tag = "1")]
+    pub subtotal: u32,
+    #[prost(uint32, tag = "2")]
     pub quantity: u32,
-    #[prost(string, tag = "40")]
-    pub subtotal: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SubscriptionLicense {
+    /// how long the license should last; typical lengths are 30 days or 365 days
+    #[prost(uint64, tag = "1")]
+    pub subscription_period: u64,
+    #[prost(uint32, tag = "2")]
+    pub subtotal: u32,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TrialLicense {
+    #[prost(uint32, tag = "1")]
+    pub subtotal: u32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateLicenseResponse {
-    /// this license code will be used for all products from this store for
-    /// this user
-    #[prost(string, tag = "1")]
-    pub license_code: ::prost::alloc::string::String,
-    /// the offline code (if there is one) for the user to activate an offline
-    /// license for their licenses
-    #[prost(string, tag = "2")]
-    pub offline_code: ::prost::alloc::string::String,
-    /// the updated machine limits for each product
-    #[prost(map = "string, uint64", tag = "3")]
-    pub machine_limits: ::std::collections::HashMap<::prost::alloc::string::String, u64>,
-    /// if there are any issues, there will be an error message corresponding to
-    /// the product ID
+    /// This license_info is a protobuf binary-encoded GetLicenseResponse
+    #[prost(bytes = "vec", tag = "1")]
+    pub license_info: ::prost::alloc::vec::Vec<u8>,
     #[prost(map = "string, string", tag = "4")]
     pub issues: ::std::collections::HashMap<
         ::prost::alloc::string::String,

@@ -17,24 +17,32 @@ message CreateLicenseRequest {
     map<string, ProductInfo> product_info = 70;
 }
 
+// license-type-specific product information
 message ProductInfo {
-    string license_type = 20;
-    // the amount of licenses purchased, allowing `max_machines_per_license
-    // * quantity` machines
-    uint32 quantity = 30;
-    string subtotal = 40;
+    oneof license_type {
+        SubscriptionLicense subscription = 1;
+        PerpetualLicense perpetual_license = 2;
+        TrialLicense trial_license = 3;
+    }
+}
+
+message PerpetualLicense {
+    uint32 subtotal = 1;
+    uint32 quantity = 2;
+}
+
+message SubscriptionLicense {
+    // how long the license should last; typical lengths are 30 days or 365 days
+    uint64 subscription_period = 1;
+    uint32 subtotal = 2;
+}
+
+message TrialLicense {
+    uint32 subtotal = 1;
 }
 
 message CreateLicenseResponse {
-    // this license code will be used for all products from this store for 
-    // this user
-    string license_code = 1;
-    // the offline code (if there is one) for the user to activate an offline
-    // license for their licenses
-    string offline_code = 2;
-    // the updated machine limits for each product
-    map<string, uint64> machine_limits = 3;
-    // if there are any issues, there will be an error message corresponding to 
-    // the product ID
+    // This license_info is a protobuf binary-encoded GetLicenseResponse
+    bytes license_info = 1;
     map<string, string> issues = 4;
 }

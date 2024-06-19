@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use proto::protos::create_license_request::product_info::LicenseType::*;
 use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, Select, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
@@ -11,6 +12,7 @@ use proto::protos::{
     store_db_item::StoreDbItem,
     license_db_item::LicenseDbItem,
 };
+use utils::get_license::construct_get_license_response_from_license_item;
 use utils::init_license::init_license;
 use utils::tables::metrics::METRICS_TABLE;
 use utils::{debug_log, error_log, impl_function_handler, prelude::*};
@@ -183,7 +185,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     debug_log!("All items are present in the PRODUCTS_TABLE");
 
     // check for pre-existing license
-    let (license_code, offline_code) = if let Some(l) = tables.get(LICENSES_TABLE.table_name) {
+    let (_license_code, _offline_code) = if let Some(l) = tables.get(LICENSES_TABLE.table_name) {
         if l.len() == 0 {
             init_license(&client, key_manager, Some((&secondary_index, &request)), &mut license_item, &store_id).await?
         } else {
@@ -205,7 +207,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     };
     debug_log!("Initialized or set license_code");
 
-    let mut machine_limits: HashMap<String, u64> = HashMap::new();
     // update products in license map
     let (mut products_map, mut_products_map) = license_item.get_item_mut(LICENSES_TABLE.products_map_item)?;
     debug_log!("Got mut products_map");
@@ -218,96 +219,93 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         let product_info = store_products_info.get(product_id_string.as_str()).expect("We have checked that these exist");
         let machines_per_license = product_info.max_machines_per_license;
         let product_info = request.product_info.get(product_id_string.as_str()).expect("valid key");
-        let subscription_expiration_period = store_config.subscription_license_expiration_days;
-        let subscription_expiration_period_seconds = (subscription_expiration_period as u64) * 60 * 60 * 24;
         // leniency adds a little extra time to the initial expiration period to 
         // counteract any potential delays from server communications
         let subscription_leniency_seconds = store_config.subscription_license_expiration_leniency_hours as u64 * 60 * 60;
-        // validate license types in request
-        let types = &[license_types::PERPETUAL, license_types::SUBSCRIPTION, license_types::TRIAL];
-        if !types.contains(&product_info.license_type.to_lowercase().as_str()) {
-            return Err(ApiError::InvalidRequest("License type in request is invalid".into()))
-        }
-        let purchased_license_type = product_info.license_type.to_lowercase();
+
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        
+        let purchased_license_type = match &product_info.license_type {
+            None => return Err(ApiError::InvalidRequest("Invalid ProductInfo structure".into())),
+            Some(v) => v
+        };
 
         let (mut license_info, mut_license_info) = if let Ok((mut existing_license_info, mut_existing_license_info)) = products_map.get_mut_map_by_str(&product_id_string) {
-            // product map exists in the license map; user owns/owned a license
-            // for this product
-            // check that newly purchased license is not a trial license
-            if purchased_license_type == license_types::TRIAL {
-                issues.insert(product_id_string.to_string(), "You cannot purchase a trial if you have previously owned a license for this product.".into());
-                continue;
-            }
-            // update license info in product map
-            let existing_license_type = existing_license_info.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?;
-            if &purchased_license_type == existing_license_type && purchased_license_type != license_types::SUBSCRIPTION {
-                // increase machines by quantity * max_machines_per_license
-                let num_machines = existing_license_info.increase_number(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license as u64 * product_info.quantity as u64)?;
-                machine_limits.insert(product_id_string.to_string(), num_machines);
-                (existing_license_info, mut_existing_license_info)
-            } else if &purchased_license_type == existing_license_type && purchased_license_type == license_types::SUBSCRIPTION {
-                // extend expiry time
-                let (mut expiry_time, mut_expiry_time) = existing_license_info.get_item_mut(LICENSES_TABLE.products_map_item.fields.expiry_time)?;
-                if expiry_time != "0" {
-                    let expiry_time_seconds = expiry_time.parse::<u64>().expect("Should be valid");
-                    // adjust expiry time based on whether the expiry time has already passed
-                    if expiry_time_seconds < now {
-                        expiry_time = (now + subscription_expiration_period_seconds + subscription_leniency_seconds).to_string();
+            // product map exists in the license map; user owns/owned a license for this product
+            let existing_license_type = existing_license_info.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
+            match purchased_license_type {
+                PerpetualLicense(v) => {
+                    if existing_license_type.eq(license_types::PERPETUAL) {
+                        // increase max machines by quantity * max_machines per license
+                        existing_license_info.increase_number(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license as u64 * v.quantity as u64)?;
+                        (existing_license_info, mut_existing_license_info)
                     } else {
-                        expiry_time = (subscription_expiration_period_seconds + expiry_time_seconds).to_string();
+                        // user is switching from either a trial license or a subscription; set max machines to base amount * quantity
+                        existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.license_type, license_types::PERPETUAL.to_string());
+                        existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, (machines_per_license * v.quantity).to_string());
+                        
+
+                        (existing_license_info, mut_existing_license_info)
                     }
-                    *mut_expiry_time = AttributeValue::N(expiry_time)
-                }
-                (existing_license_info, mut_existing_license_info)
-            } else {
-                // license type purchased is different than the existing one
-                if purchased_license_type == license_types::SUBSCRIPTION && existing_license_type == license_types::PERPETUAL {
-                    // user should probably not purchase a subscription license
-                    // if they already own a perpetual license
-                    issues.insert(product_id_string.to_string(), "You cannot purchase a subscription license if you already own a perpetual license.".into());
+                },
+                Subscription(v) => {
+                    if existing_license_type.eq(license_types::SUBSCRIPTION) {
+                        // user owns subscription
+                        // extend expiry time
+                        let (mut expiry_time, mut_expiry_time) = existing_license_info.get_item_mut(LICENSES_TABLE.products_map_item.fields.expiry_time)?;
+                        if expiry_time.ne("0") {
+                            let expiry_time_seconds = expiry_time.parse::<u64>().expect("Should be valid");
+                            // adjust expiry time based on whether the expiry time has already passed
+                            if expiry_time_seconds < now {
+                                expiry_time = (now + v.subscription_period + subscription_leniency_seconds).to_string();
+                            } else {
+                                expiry_time = (v.subscription_period + expiry_time_seconds).to_string();
+                            }
+                            *mut_expiry_time = AttributeValue::N(expiry_time)
+                        }
+                    } else if existing_license_type.eq(license_types::PERPETUAL) {
+                        // attempting to switch from perpetual to subscription
+                        issues.insert(product_id_string.to_string(), "You cannot purchase a subscription if you already own a perpetual license".into());
+                    } else if existing_license_type.eq(license_types::TRIAL) {
+                        // switching from trial to subscription
+                        existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.license_type, license_types::SUBSCRIPTION.into());
+                        existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
+                    }
+                    (existing_license_info, mut_existing_license_info)
+                },
+                TrialLicense(_v) => {
+                    issues.insert(product_id_string.to_string(), "You cannot purchase a trial if you have previously owned a license for this product.".into());
                     continue;
-                } else if purchased_license_type == license_types::SUBSCRIPTION {
-                    // user upgraded from trial license to subscription license
-                    existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.expiry_time, (now + subscription_expiration_period_seconds).to_string())
                 }
-                
-                // since the only license types are `Perpetual`, `Subscription`, 
-                // and `Trial`, this must be either Trial -> Perpetual or 
-                // Subscription -> Perpetual.
-                existing_license_info.insert_item_into(LICENSES_TABLE.products_map_item.fields.license_type, purchased_license_type);
-                let new_limit = product_info.quantity * machines_per_license;
-                let max_machines = new_limit.to_string();
-                machine_limits.insert(product_id_string.to_string(), new_limit as u64);
-                existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, max_machines);
-                (existing_license_info, mut_existing_license_info)
-            }
+            }        
         } else {
-            // product map does not exist in the license map; user does not
-            // already own a license for this product
+            // product map does not exist in the license map; user has not owned a license for this product
             products_map.insert_map(&product_id_string, AttributeValueHashMap::new());
-            let (mut new_license_info, mut_new_license_info) = products_map.get_mut_map_by_str(&product_id_string).expect("We just set this");
+            let(mut new_license_info, mut_new_license_info) = products_map.get_mut_map_by_str(&product_id_string).expect("We just set this");
             new_license_info.insert_item_into(LICENSES_TABLE.products_map_item.fields.activation_time, "0");
             
-            if purchased_license_type == license_types::TRIAL {
-                new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
-                machine_limits.insert(product_id_string.to_string(), machines_per_license as u64);
-            } else {
-                let total_machines = machines_per_license * product_info.quantity;
-                new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, total_machines.to_string());
-                machine_limits.insert(product_id_string.to_string(), total_machines as u64);
-                
-                // initialize expiry_time for subscription licenses
-                if purchased_license_type == license_types::SUBSCRIPTION {
-                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.expiry_time, (now + subscription_expiration_period_seconds + subscription_leniency_seconds).to_string())
-                }
-            }
-            new_license_info.insert_item_into(LICENSES_TABLE.products_map_item.fields.license_type, purchased_license_type);
+            match purchased_license_type {
+                TrialLicense(_v) => {
+                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
+                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.license_type, license_types::TRIAL.into());
+                },
+                PerpetualLicense(v) => {
+                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, (machines_per_license * v.quantity).to_string());
+                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.license_type, license_types::PERPETUAL.into());
+                },
+                Subscription(v) => {
+                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.license_type, license_types::SUBSCRIPTION.into());
+                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
+                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.expiry_time, (now + v.subscription_period + subscription_leniency_seconds).to_string());
+                },
+            };
+
             new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines, HashMap::new());
             new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines, HashMap::new());
-            
+
             (new_license_info, mut_new_license_info)
         };
+
         license_info.insert_item(LICENSES_TABLE.products_map_item.fields.is_subscription_active, true);
         license_info.insert_item(LICENSES_TABLE.products_map_item.fields.is_license_active, true);
         *mut_license_info = AttributeValue::M(license_info);
@@ -332,7 +330,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     write_request_map.insert(LICENSES_TABLE.table_name.into(), vec![WriteRequest::builder()
         .put_request(PutRequest::builder()
-            .set_item(Some(license_item))
+            .set_item(Some(license_item.clone()))
             .build()?
         ).build()
     ]);
@@ -344,12 +342,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         .await?;
     debug_log!("Sent batch_write_item");
 
-    // respond to request
+    let get_license_response = construct_get_license_response_from_license_item(key_manager, &license_item)?;
+
     let response = CreateLicenseResponse {
-        license_code,
-        offline_code,
-        machine_limits,
-        issues,
+        license_info: get_license_response.encode_length_delimited_to_vec(),
+        issues
     };
 
     Ok(response)

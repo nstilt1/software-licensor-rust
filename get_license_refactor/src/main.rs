@@ -2,7 +2,6 @@
 
 use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::Client;
-use utils::crypto::p384::ecdsa::Signature;
 use utils::get_license::{construct_get_license_response_from_license_item, query_dynamodb_for_license_item_primary_key};
 use utils::prelude::proto::protos::get_license_request::{GetLicenseRequest, GetLicenseResponse};
 use utils::prelude::*;
@@ -41,13 +40,9 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         // hashing were to change... in which case, it would happen every time
         None => return Err(ApiError::NotFound)
     };
-
-    let public_key = store_item.get_item(STORES_TABLE.public_key)?;
+    
     // verify signature with public key
-    let pubkey = PublicKey::from_sec1_bytes(&public_key.as_ref())?;
-    let verifier = VerifyingKey::from(pubkey);
-    let signature: Signature = Signature::from_bytes(signature.as_slice().try_into().unwrap())?;
-    verifier.verify_digest(hasher, &signature)?;
+    verify_signature(&store_item, hasher, &signature)?;
 
     // signature verified
     // get license item from db

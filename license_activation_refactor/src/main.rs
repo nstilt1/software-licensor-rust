@@ -326,10 +326,11 @@ async fn process_request<D: Digest + FixedOutput>(
     // the `deactivate_machines` method
 
     // check if machine has been deactivated
-    match license_item.get_item(LICENSES_TABLE.machines_to_deactivate) {
-        Ok(v) => {
-            if v.contains_key(&request.machine_id) {
-                license_item.remove(&request.machine_id);
+    match license_item.get_item_mut(LICENSES_TABLE.machines_to_deactivate) {
+        Ok((mut deactivated_machines, mut_deactivated_machines)) => {
+            if deactivated_machines.contains_key(&request.machine_id) {
+                deactivated_machines.remove(&request.machine_id);
+                *mut_deactivated_machines = AttributeValue::M(deactivated_machines);
                 metrics_item.increase_number(&METRICS_TABLE.num_license_activations, 1)?;
                 
                 client.batch_write_item()
@@ -362,17 +363,16 @@ async fn process_request<D: Digest + FixedOutput>(
             // this can happen if a machine has broken or was sold or surplussed
             // yes, surplussed can be spelt with 2-3 `s`'s for some reason. It's
             // a weird word, more weird than "weird"
-            let mut deactivated_machines = v.to_owned();
             let now = now_as_seconds();
-            for (k, value) in v {
+            for (k, value) in deactivated_machines.to_owned() {
                 let timestamp = value.as_n().expect("Deactivated Machines' values should be numbers").parse::<u64>()?;
                 if now - timestamp > years_to_seconds(1) {
-                    deactivated_machines.remove(k);
+                    deactivated_machines.remove(&k);
+                    updated_license = true;
                 }
             }
-            if deactivated_machines.len() < v.len() {
-                license_item.insert_item(LICENSES_TABLE.machines_to_deactivate, deactivated_machines);
-                updated_license = true;
+            if updated_license {
+                *mut_deactivated_machines = AttributeValue::M(deactivated_machines);
             }
         },
         Err(_) => ()

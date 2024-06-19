@@ -65,6 +65,7 @@ pub async fn init_license(
             license_item.get_item(LICENSES_TABLE.id)?.as_ref(),
             license_item.get_item(LICENSES_TABLE.protobuf_data)?.as_ref()
         )?;
+        decrypted_proto.license_id = license_code.binary_id.as_ref().to_vec();
         decrypted_proto.offline_secret = offline_secret.clone();
         let encrypted = key_manager.encrypt_db_proto(
             &LICENSES_TABLE.table_name, 

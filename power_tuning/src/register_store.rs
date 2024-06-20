@@ -2,7 +2,6 @@ use chacha20poly1305::Key;
 use proto::protos::pubkeys::{ExpiringEcdhKey, ExpiringEcdsaKey};
 use rand_chacha::{ChaCha8Rng, rand_core::SeedableRng};
 use reqwest::Response;
-use utils::crypto::p384::ecdsa::SigningKey;
 use utils::prelude::proto::protos;
 use utils::prelude::*;
 use crate::Error;
@@ -12,7 +11,7 @@ use crate::server_requests_and_responses::{decrypt_response, encrypt_and_sign_pa
 #[allow(unused)]
 pub async fn test_register_store(req_client: &reqwest::Client, server_keys: (ExpiringEcdhKey, ExpiringEcdsaKey)) -> Result<(), Error> {
     let inner_payload = generate_register_store_payload();
-    let payload = encrypt_and_sign_payload(inner_payload.0, true, server_keys);
+    let payload = encrypt_and_sign_payload(inner_payload, true, server_keys);
     let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/register_store_refactor")
         .header("X-Signature", payload.signature.to_base64())
         .body(payload.encrypted)
@@ -25,7 +24,7 @@ pub async fn test_register_store(req_client: &reqwest::Client, server_keys: (Exp
 }
 
 #[allow(unused)]
-pub fn generate_register_store_payload() -> (Vec<u8>, SigningKey) {
+pub fn generate_register_store_payload() -> Vec<u8> {
     use protos::register_store_request::{Configs, RegisterStoreRequest};
     let mut rng = ChaCha8Rng::from_seed([4u8; 32]);
     let signing_key = p384::ecdsa::SigningKey::random(&mut rng);
@@ -52,7 +51,7 @@ pub fn generate_register_store_payload() -> (Vec<u8>, SigningKey) {
             trial_license_frequency_hours: 20,
         }),
     };
-    (result.encode_length_delimited_to_vec(), signing_key)
+    result.encode_length_delimited_to_vec()
 }
 
 /// Gets a store ID from a RegisterStoreResponse

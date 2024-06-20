@@ -1,6 +1,6 @@
 use reqwest::Response;
-use utils::{base64::Base64Vec, crypto::chacha20poly1305::Key, prelude::proto::{prost::Message, protos::{self, pubkeys::{ExpiringEcdhKey, ExpiringEcdsaKey}}}};
-use crate::Error;
+use utils::{base64::Base64Vec, crypto::chacha20poly1305::Key, prelude::proto::{prost::Message, protos::{self, get_license_request::GetLicenseResponse, pubkeys::{ExpiringEcdhKey, ExpiringEcdsaKey}}}};
+use crate::{Error, USER_ID};
 use crate::server_requests_and_responses::{decrypt_response, encrypt_and_sign_payload};
 
 // product id: TestcVVS-zcVMKinnSw/NcioqdKUlTONp
@@ -23,18 +23,15 @@ pub async fn test_get_license(req_client: &reqwest::Client, server_keys: (Expiri
 pub fn generate_get_license_payload() -> Vec<u8> {
     use protos::get_license_request::{GetLicenseRequest};
     let req = GetLicenseRequest {
-        user_id: "Test User ID222".into()
+        user_id: USER_ID.into()
     };
     req.encode_length_delimited_to_vec()
 }
-#[allow(unused)]
-pub async fn get_license_data(response: Response, symmetric_key: Key) -> String {
-    let decrypted = decrypt_response(response, symmetric_key).await;
-    use protos::get_license_request::GetLicenseResponse;
-    let r = GetLicenseResponse::decode_length_delimited(decrypted.as_slice()).unwrap();
-    let license_code = r.license_code.clone();
-    let offline_code = r.offline_code.clone();
-    let license_info = r.licensed_products.clone();
+
+pub fn license_data_to_str(license_data: &GetLicenseResponse) -> String {
+    let license_code = license_data.license_code.clone();
+    let offline_code = license_data.offline_code.clone();
+    let license_info = license_data.licensed_products.clone();
     
     let license_info: String = {
         let mut string = String::new();
@@ -44,6 +41,7 @@ pub async fn get_license_data(response: Response, symmetric_key: Key) -> String 
             ));
             string.push_str(&format!("\t\tlicense_type: {},\n", v.license_type));
             string.push_str(&format!("\t\tmachine_limit: {},\n", v.machine_limit));
+            string.push_str(&format!("\t\tmachine_count: {},\n", v.online_machines.len() + v.offline_machines.len()));
             string.push_str(&format!("\t\texpiration_or_renewal: {},\n", v.expiration_or_renewal));
             string.push_str(&format!("\t\tonline_machines: {:?},\n", v.online_machines));
             string.push_str(&format!("\t\toffline_machines: {:?}\n", v.offline_machines));
@@ -53,4 +51,11 @@ pub async fn get_license_data(response: Response, symmetric_key: Key) -> String 
     };
 
     format!("License code: {}\nOffline code: {}\nLicense Info: {}", license_code, offline_code, license_info)
+}
+#[allow(unused)]
+pub async fn get_license_data(response: Response, symmetric_key: Key) -> String {
+    let decrypted = decrypt_response(response, symmetric_key).await;
+    use protos::get_license_request::GetLicenseResponse;
+    let r = GetLicenseResponse::decode_length_delimited(decrypted.as_slice()).unwrap();
+    license_data_to_str(&r)
 }

@@ -5,10 +5,7 @@ use utils::crypto::chacha20poly1305::Nonce;
 use rand_chacha::{ChaCha8Rng, rand_core::{RngCore, SeedableRng}};
 use utils::crypto::p384::{
     ecdh::EphemeralSecret,
-    ecdsa::{
-        Signature,
-        signature::Signer
-    }
+    ecdsa::signature::Signer
 };
 use utils::crypto::p384::elliptic_curve::rand_core::OsRng;
 use utils::now_as_seconds;

@@ -21,10 +21,10 @@ pub async fn test_create_product(req_client: &reqwest::Client, server_keys: (Exp
 pub fn generate_create_product_payload() -> Vec<u8> {
     use protos::create_product_request::CreateProductRequest;
     let req = CreateProductRequest {
-        version: "0.0".into(),
+        version: "1.0".into(),
         product_name: "Test product".into(),
-        product_id_prefix: "Test".into(),
-        is_offline_allowed: false,
+        product_id_prefix: "TestCq16-ClKZsVOLN_zFnR9y4EWS4z9o".into(),
+        is_offline_allowed: true,
         max_machines_per_license: 3,
     };
     req.encode_length_delimited_to_vec()

@@ -1,14 +1,21 @@
 use std::time::Duration;
 use std::time::Instant;
+use create_license::generate_create_license_payload;
+use get_license::generate_get_license_payload;
+use license_activation::generate_license_activation_payload;
+use proto::protos::pubkeys::{ExpiringEcdhKey, ExpiringEcdsaKey};
 use create_product::generate_create_product_payload;
-use create_product::get_product_id;
+use power_tuning::calculate_costs;
+use register_store::generate_register_store_payload;
 #[allow(unused)]
 use crate::{
     create_license::test_create_license,
     create_product::test_create_product,
     register_store::test_register_store,
     get_license::test_get_license,
-    license_activation::test_license_activation
+    license_activation::test_license_activation,
+    deactivate_machines::test_deactivate_machines,
+    regenerate_license_code::test_regenerate_license_code,
 };
 use server_requests_and_responses::encrypt_and_sign_payload;
 use server_requests_and_responses::get_server_pubkeys;
@@ -21,95 +28,44 @@ use utils::prelude::*;
 
 mod create_license;
 mod create_product;
+mod deactivate_machines;
 mod get_license;
 mod license_activation;
+mod regenerate_license_code;
 mod register_store;
+mod power_tuning;
 mod server_requests_and_responses;
 
-const GB_PER_MB: f64 = 0.0009765625;
-const GB_S_BASE_COST: f64 = 0.0000133334;
+impl_power_tuning!(register_store_power_tuning, "register_store_refactor", generate_register_store_payload, true, "https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/register_store_refactor");
 
-fn calculate_costs(memsizes: &[usize], outcomes: Vec<Vec<u128>>) -> Vec<(u128, f64)> {
-    let mut costs: Vec<(u128, f64)> = Vec::with_capacity(memsizes.len());
-    for i in 0..memsizes.len() {
-        let memory = memsizes[i];
-        let mut sum = 0;
-        for j in 0..outcomes[i].len() {
-            sum += outcomes[i][j];
-        }
-        let average_time_ms = sum / outcomes[i].len() as u128;
+impl_power_tuning!(create_plugin_power_tuning, "create_plugin_refactor", generate_create_product_payload, false, "https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/create_plugin_refactor");
 
-        let average_time_s = average_time_ms / 1000;
+impl_power_tuning!(create_license_power_tuning, "create_license_refactor", generate_create_license_payload, false, "https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/create_license_refactor");
 
-        let memory_allocated = memory as f64 * GB_PER_MB;
-        let total_compute_gb_s = memory_allocated * average_time_s as f64;
+impl_power_tuning!(get_license_power_tuning, "get_license_refactor", generate_get_license_payload, false, "https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/get_license_refactor");
 
-        let cost_per_million_invocations = GB_S_BASE_COST * total_compute_gb_s * 1_000_000f64;
-        costs.push((average_time_ms, cost_per_million_invocations));
-    }
-    costs
-}
+impl_power_tuning!(license_activation_power_tuning, "license_activation_refactor", generate_license_activation_payload, false, "https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/license_activation_refactor");
+
+pub const USER_ID: &str = "test_user_3";
+pub const LICENSE_CODE: &str = "E7F0-42CD-8330-C891-B6D1";
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let req_client = reqwest::Client::new();
     let server_keys = get_server_pubkeys(&req_client).await;
-    // test_register_store(&req_client, server_keys).await?;
-    // test_create_product(&req_client, server_keys).await?;
-    // test_create_license(&req_client, server_keys).await?;
-    test_get_license(&req_client, server_keys).await?;
-    //test_license_activation(&req_client, server_keys).await?;
-    Ok(())
-}
 
-#[allow(unused)]
-async fn power_tuning(req_client: &reqwest::Client) -> Result<(), Error> {
-    let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
-    let aws_config = aws_config::from_env().region(region_provider).load().await;
-    let client = Client::new(&aws_config);
-    let server_keys = get_server_pubkeys(&req_client).await;
-    let memsizes = [128, 256, 384, 512, 650, 700, 750, 800, 850, 900];
-    let iterations = 4;
-    let mut outcomes = vec![vec![0u128; iterations]; memsizes.len()];
-    //let mut store_id: String = String::new();
-    let mut product_id: String = String::new();
-    for m in 0..memsizes.len() {
-        client.update_function_configuration()
-            .function_name("create_plugin_refactor")
-            .set_memory_size(Some(memsizes[m] as i32))
-            .send()
-            .await.unwrap();
-        sleep(Duration::from_millis(5000)).await;
+    // tests
+    //test_register_store(&req_client, server_keys).await?;
+    //test_create_product(&req_client, server_keys).await?;
+    //test_create_license(&req_client, server_keys).await?;
+    //test_get_license(&req_client, server_keys).await?;
+    test_license_activation(&req_client, server_keys).await?;
+    //test_deactivate_machines(&req_client, server_keys).await?;
+    //test_regenerate_license_code(&req_client, server_keys).await?;
 
-        for i in 0..iterations {
-            let inner_payload = generate_create_product_payload();
-            let payload = encrypt_and_sign_payload(inner_payload, false, server_keys.clone());
-            
-            let start = Instant::now();
-            let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/create_plugin_refactor")
-            //let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/register_store_refactor")
-                .header("X-Signature", payload.signature.to_base64())
-                .body(payload.encrypted)
-                .send()
-                .await.unwrap();
-            let end = Instant::now();
-            outcomes[m][i] = end.duration_since(start).as_millis();
-
-            product_id = get_product_id(response, payload.symmetric_key).await;
-            //store_id = get_store_id(response, payload.symmetric_key).await;
-
-            sleep(Duration::from_millis(1000)).await;
-        }
-    }
-
-    println!("Register Store Outcomes:");
-    let costs_per_memory_allocated = calculate_costs(&memsizes, outcomes);
-    println!("Product ID: {}", product_id);
-    //println!("Store ID: {}", store_id);
-    for i in 0..costs_per_memory_allocated.len() {
-        println!("With {} MB of RAM\n{} ms average time\n${} average cost", memsizes[i], costs_per_memory_allocated[i].0, costs_per_memory_allocated[i].1)
-    }
-
+    // power tuning
+    //register_store_power_tuning(&req_client, server_keys).await?;
+    //license_activation_power_tuning(&req_client, server_keys).await?;
     Ok(())
 }
 
@@ -117,7 +73,7 @@ async fn power_tuning(req_client: &reqwest::Client) -> Result<(), Error> {
 mod tests {
     use super::*;
 
-    use p384::ecdsa::{Signature, SigningKey, signature::Signer};
+    use p384::ecdsa::{SigningKey, signature::Signer};
     use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
     use utils::crypto::p384::ecdsa::signature::Verifier;
 

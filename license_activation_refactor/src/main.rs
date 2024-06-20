@@ -478,7 +478,7 @@ async fn process_request<D: Digest + FixedOutput>(
                 // add 1 to total machines
                 metrics_item.increase_number(&METRICS_TABLE.num_licensed_machines, 1)?;
                 // success response, update tables
-                if is_offline_attempt && product_allows_offline {
+                if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) {
                     insert_machine_into_machine_map(&mut offline_machines_map, &request);
                     // add 1 to total offline machines
                     metrics_item.increase_number(&METRICS_TABLE.num_offline_machines, 1)?;
@@ -495,7 +495,7 @@ async fn process_request<D: Digest + FixedOutput>(
         } else {
             debug_log!("The machine has already activated this license previously");
             // machine exists in machine lists
-            if is_offline_attempt && product_allows_offline {
+            if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) {
                 // remove machine from online machines list if it is there, then add it to offline machines list
                 if online_machines_map.contains_key(&request.machine_id) {
                     online_machines_map.remove(&request.machine_id);

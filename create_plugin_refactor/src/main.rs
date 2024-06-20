@@ -38,7 +38,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     debug_log!("Got store_id");
 
     let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
-    store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
+    store_item.insert_item(&STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
 
     debug_log!("Checking if store id exists in DB");
     
@@ -97,7 +97,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let mut store_proto: StoreDbItem = key_manager.decrypt_db_proto(
         &STORES_TABLE.table_name,
         store_id.binary_id.as_ref(),
-        store_item.get_item(STORES_TABLE.protobuf_data)?.as_ref()
+        store_item.get_item(&STORES_TABLE.protobuf_data)?.as_ref()
     )?;
 
     match store_proto.product_ids.get_mut(&request.product_id_prefix) {
@@ -106,7 +106,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             v.is_offline_allowed = request.is_offline_allowed;
             v.version = request.version.clone();
             store_item.insert_item(
-                STORES_TABLE.protobuf_data,
+                &STORES_TABLE.protobuf_data,
                 Blob::new(
                     key_manager.encrypt_db_proto(
                         &STORES_TABLE.table_name,
@@ -149,7 +149,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     debug_log!("Encrypting Stores DB Proto");
     store_item.insert_item(
-        STORES_TABLE.protobuf_data,
+        &STORES_TABLE.protobuf_data,
         Blob::new(key_manager.encrypt_db_proto(
             &STORES_TABLE.table_name, 
             store_id.binary_id.as_ref(), 

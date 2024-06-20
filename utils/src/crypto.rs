@@ -83,7 +83,7 @@ impl ExtractPublicKey for AttributeValueHashMap {
     #[inline]
     fn extract_public_key(&self) -> Result<PublicKey, ApiError> {
         Ok(PublicKey::from_sec1_bytes(
-            &self.get_item(STORES_TABLE.public_key)?.as_ref()
+            &self.get_item(&STORES_TABLE.public_key)?.as_ref()
         )?)
     }
 }

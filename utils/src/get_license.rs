@@ -42,21 +42,21 @@ pub fn construct_get_license_response_from_license_item(key_manager: &mut KeyMan
     let (license_code, offline_code) = {
         let license_protobuf: LicenseDbItem = key_manager.decrypt_db_proto(
             &LICENSES_TABLE.table_name, 
-            license_item.get_item(LICENSES_TABLE.id)?.as_ref(),
-            license_item.get_item(LICENSES_TABLE.protobuf_data)?.as_ref()
+            license_item.get_item(&LICENSES_TABLE.id)?.as_ref(),
+            license_item.get_item(&LICENSES_TABLE.protobuf_data)?.as_ref()
         )?;
         let license_code = bytes_to_license(&license_protobuf.license_id);
         (license_code, license_protobuf.offline_secret.to_string())
     };
     
     let mut licensed_products: HashMap<String, LicenseInfo> = HashMap::new();
-    let products_map = license_item.get_item(LICENSES_TABLE.products_map_item)?;
+    let products_map = license_item.get_item(&LICENSES_TABLE.products_map_item)?;
     for key in products_map.keys() {
         let product = products_map.get_map_by_str(key.as_str())?;
-        let offline_machines_map = product.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines)?;
-        let online_machines_map = product.get_item(LICENSES_TABLE.products_map_item.fields.online_machines)?;
-        let machine_limit = product.get_item(LICENSES_TABLE.products_map_item.fields.machines_allowed)?.parse::<u32>()?;
-        let license_type = product.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?.to_string();
+        let offline_machines_map = product.get_item(&LICENSES_TABLE.products_map_item.fields.offline_machines)?;
+        let online_machines_map = product.get_item(&LICENSES_TABLE.products_map_item.fields.online_machines)?;
+        let machine_limit = product.get_item(&LICENSES_TABLE.products_map_item.fields.machines_allowed)?.parse::<u32>()?;
+        let license_type = product.get_item(&LICENSES_TABLE.products_map_item.fields.license_type)?.to_string();
         let mut offline_machines: Vec<Machine> = Vec::with_capacity(offline_machines_map.len());
         let mut online_machines: Vec<Machine> = Vec::with_capacity(online_machines_map.len());
         let workspace = &mut [(offline_machines_map, &mut offline_machines), (online_machines_map, &mut online_machines)];
@@ -64,8 +64,8 @@ pub fn construct_get_license_response_from_license_item(key_manager: &mut KeyMan
             for k in map.keys() {
                 let id = k;
                 let machine = map.get_map_by_str(k)?;
-                let os = machine.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines.fields.os_name)?;
-                let computer_name = machine.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines.fields.computer_name)?;
+                let os = machine.get_item(&LICENSES_TABLE.products_map_item.fields.offline_machines.fields.os_name)?;
+                let computer_name = machine.get_item(&LICENSES_TABLE.products_map_item.fields.offline_machines.fields.computer_name)?;
                 vec.push(Machine { 
                     id: id.to_string(), 
                     os: os.to_string(), 
@@ -74,7 +74,7 @@ pub fn construct_get_license_response_from_license_item(key_manager: &mut KeyMan
             }
         }
         let expiration = if license_type.eq(license_types::SUBSCRIPTION) || license_type.eq(license_types::TRIAL) {
-            match product.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time) {
+            match product.get_item(&LICENSES_TABLE.products_map_item.fields.expiry_time) {
                 Ok(v) => v,
                 Err(_) => "Not yet set"
             }

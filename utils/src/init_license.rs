@@ -23,7 +23,7 @@ pub async fn init_license(
         let mut license_check_item = AttributeValueHashMap::new();
         let license_code = key_manager.generate_license_code(&store_id)?;
         let primary_index = salty_hash(&[store_id.binary_id.as_ref(), license_code.binary_id.as_ref()], &LICENSE_DB_SALT);
-        license_check_item.insert_item(LICENSES_TABLE.id, Blob::new(primary_index.to_vec()));
+        license_check_item.insert_item(&LICENSES_TABLE.id, Blob::new(primary_index.to_vec()));
         
         let get_item = client.get_item()
             .consistent_read(false)
@@ -41,10 +41,10 @@ pub async fn init_license(
 
     if let Some((hashed_user_id, request)) = hashed_user_id_and_request {
         // creating a new license
-        license_item.insert_item(LICENSES_TABLE.hashed_store_id_and_user_id, Blob::new(hashed_user_id));
-        license_item.insert_item_into(LICENSES_TABLE.custom_success_message, request.custom_success_message.clone());
-        license_item.insert_item(LICENSES_TABLE.email_hash, Blob::new(salty_hash(&[request.customer_email.as_bytes()], &LICENSE_DB_SALT).to_vec()));
-        license_item.insert_item(LICENSES_TABLE.products_map_item, AttributeValueHashMap::new());
+        license_item.insert_item(&LICENSES_TABLE.hashed_store_id_and_user_id, Blob::new(hashed_user_id));
+        license_item.insert_item_into(&LICENSES_TABLE.custom_success_message, request.custom_success_message.clone());
+        license_item.insert_item(&LICENSES_TABLE.email_hash, Blob::new(salty_hash(&[request.customer_email.as_bytes()], &LICENSE_DB_SALT).to_vec()));
+        license_item.insert_item(&LICENSES_TABLE.products_map_item, AttributeValueHashMap::new());
         let protobuf_data = LicenseDbItem {
             license_id: license_code.binary_id.as_ref().to_vec(),
             customer_first_name: request.customer_first_name.clone(),
@@ -57,13 +57,13 @@ pub async fn init_license(
             &primary_index.as_ref(), 
             &protobuf_data
         )?;
-        license_item.insert_item(LICENSES_TABLE.protobuf_data, Blob::new(encrypted));
+        license_item.insert_item(&LICENSES_TABLE.protobuf_data, Blob::new(encrypted));
     } else {
         // regenerating the license
         let mut decrypted_proto: LicenseDbItem = key_manager.decrypt_db_proto(
             &LICENSES_TABLE.table_name,
-            license_item.get_item(LICENSES_TABLE.id)?.as_ref(),
-            license_item.get_item(LICENSES_TABLE.protobuf_data)?.as_ref()
+            license_item.get_item(&LICENSES_TABLE.id)?.as_ref(),
+            license_item.get_item(&LICENSES_TABLE.protobuf_data)?.as_ref()
         )?;
         decrypted_proto.license_id = license_code.binary_id.as_ref().to_vec();
         decrypted_proto.offline_secret = offline_secret.clone();
@@ -72,9 +72,9 @@ pub async fn init_license(
             &primary_index.as_ref(), 
             &decrypted_proto
         )?;
-        license_item.insert_item(LICENSES_TABLE.protobuf_data, Blob::new(encrypted));
+        license_item.insert_item(&LICENSES_TABLE.protobuf_data, Blob::new(encrypted));
     }
-    license_item.insert_item(LICENSES_TABLE.id, Blob::new(primary_index.to_vec()));
+    license_item.insert_item(&LICENSES_TABLE.id, Blob::new(primary_index.to_vec()));
 
     Ok((license_code.encoded_id, offline_secret))
 }

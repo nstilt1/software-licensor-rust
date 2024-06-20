@@ -54,7 +54,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let mut store_item = AttributeValueHashMap::new();
     let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
     
-    store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
+    store_item.insert_item(&STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
     
     request_items.insert(STORES_TABLE.table_name.to_string(),   KeysAndAttributes::builder()
             .set_keys(Some(vec![store_item.clone()]))
@@ -161,7 +161,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let store_item_protobuf: StoreDbItem = key_manager.decrypt_db_proto(
         &STORES_TABLE.table_name,
         store_id.binary_id.as_ref(),
-        store_item.get_item(STORES_TABLE.protobuf_data)?.as_ref()
+        store_item.get_item(&STORES_TABLE.protobuf_data)?.as_ref()
     )?;
     debug_log!("Decrypted the StoreDbItem");
 
@@ -191,11 +191,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         } else {
             // update license as necessary and return info
             license_item = l[0].clone();
-            let primary_key = license_item.get_item(LICENSES_TABLE.id)?;
+            let primary_key = license_item.get_item(&LICENSES_TABLE.id)?;
             let protobuf: LicenseDbItem = key_manager.decrypt_db_proto(
                 LICENSES_TABLE.table_name, 
                 &primary_key.as_ref(), 
-                license_item.get_item(LICENSES_TABLE.protobuf_data)?.as_ref()
+                license_item.get_item(&LICENSES_TABLE.protobuf_data)?.as_ref()
             )?;
             let license_code = bytes_to_license(&protobuf.license_id);
 
@@ -208,7 +208,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     debug_log!("Initialized or set license_code");
 
     // update products in license map
-    let (mut products_map, mut_products_map) = license_item.get_item_mut(LICENSES_TABLE.products_map_item)?;
+    let (mut products_map, mut_products_map) = license_item.get_item_mut(&LICENSES_TABLE.products_map_item)?;
     debug_log!("Got mut products_map");
 
     // some updates might fail, such as if the user is trying to obtain a trial 
@@ -232,7 +232,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
         let (mut license_info, mut_license_info) = if let Ok((mut existing_license_info, mut_existing_license_info)) = products_map.get_mut_map_by_str(&product_id_string) {
             // product map exists in the license map; user owns/owned a license for this product
-            let existing_license_type = existing_license_info.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
+            let existing_license_type = existing_license_info.get_item(&LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
             match purchased_license_type {
                 PerpetualLicense(v) => {
                     if existing_license_type.eq(license_types::PERPETUAL) {
@@ -241,8 +241,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                         (existing_license_info, mut_existing_license_info)
                     } else {
                         // user is switching from either a trial license or a subscription; set max machines to base amount * quantity
-                        existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.license_type, license_types::PERPETUAL.to_string());
-                        existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, (machines_per_license * v.quantity).to_string());
+                        existing_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.license_type, license_types::PERPETUAL.to_string());
+                        existing_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.machines_allowed, (machines_per_license * v.quantity).to_string());
                         
 
                         (existing_license_info, mut_existing_license_info)
@@ -252,7 +252,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                     if existing_license_type.eq(license_types::SUBSCRIPTION) {
                         // user owns subscription
                         // extend expiry time
-                        let (mut expiry_time, mut_expiry_time) = existing_license_info.get_item_mut(LICENSES_TABLE.products_map_item.fields.expiry_time)?;
+                        let (mut expiry_time, mut_expiry_time) = existing_license_info.get_item_mut(&LICENSES_TABLE.products_map_item.fields.expiry_time)?;
                         if expiry_time.ne("0") {
                             let expiry_time_seconds = expiry_time.parse::<u64>().expect("Should be valid");
                             // adjust expiry time based on whether the expiry time has already passed
@@ -268,8 +268,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                         issues.insert(product_id_string.to_string(), "You cannot purchase a subscription if you already own a perpetual license".into());
                     } else if existing_license_type.eq(license_types::TRIAL) {
                         // switching from trial to subscription
-                        existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.license_type, license_types::SUBSCRIPTION.into());
-                        existing_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
+                        existing_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.license_type, license_types::SUBSCRIPTION.into());
+                        existing_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
                     }
                     (existing_license_info, mut_existing_license_info)
                 },
@@ -282,32 +282,32 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             // product map does not exist in the license map; user has not owned a license for this product
             products_map.insert_map(&product_id_string, AttributeValueHashMap::new());
             let(mut new_license_info, mut_new_license_info) = products_map.get_mut_map_by_str(&product_id_string).expect("We just set this");
-            new_license_info.insert_item_into(LICENSES_TABLE.products_map_item.fields.activation_time, "0");
+            new_license_info.insert_item_into(&LICENSES_TABLE.products_map_item.fields.activation_time, "0");
             
             match purchased_license_type {
                 TrialLicense(_v) => {
-                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
-                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.license_type, license_types::TRIAL.into());
+                    new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
+                    new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.license_type, license_types::TRIAL.into());
                 },
                 PerpetualLicense(v) => {
-                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, (machines_per_license * v.quantity).to_string());
-                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.license_type, license_types::PERPETUAL.into());
+                    new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.machines_allowed, (machines_per_license * v.quantity).to_string());
+                    new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.license_type, license_types::PERPETUAL.into());
                 },
                 Subscription(v) => {
-                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.license_type, license_types::SUBSCRIPTION.into());
-                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
-                    new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.expiry_time, (now + v.subscription_period + subscription_leniency_seconds).to_string());
+                    new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.license_type, license_types::SUBSCRIPTION.into());
+                    new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
+                    new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.expiry_time, (now + v.subscription_period + subscription_leniency_seconds).to_string());
                 },
             };
 
-            new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines, HashMap::new());
-            new_license_info.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines, HashMap::new());
+            new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.online_machines, HashMap::new());
+            new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.offline_machines, HashMap::new());
 
             (new_license_info, mut_new_license_info)
         };
 
-        license_info.insert_item(LICENSES_TABLE.products_map_item.fields.is_subscription_active, true);
-        license_info.insert_item(LICENSES_TABLE.products_map_item.fields.is_license_active, true);
+        license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.is_subscription_active, true);
+        license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.is_license_active, true);
         *mut_license_info = AttributeValue::M(license_info);
     }
     debug_log!("Out of product_map_keys loop");

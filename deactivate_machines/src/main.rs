@@ -30,7 +30,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let hashed_store_id = salty_hash(&[key_manager.get_store_id()?.binary_id.as_ref()], &STORE_DB_SALT);
 
     let mut store_item = AttributeValueHashMap::new();
-    store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
+    store_item.insert_item(&STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
 
     let mut metrics_item = store_item.clone();
 
@@ -82,14 +82,14 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         None => return Err(ApiError::NotFound)
     };
 
-    let mut products_map = license_item.get_item(LICENSES_TABLE.products_map_item)?.clone();
+    let mut products_map = license_item.get_item(&LICENSES_TABLE.products_map_item)?.clone();
 
     // the client side code should ensure that there's a valid machine being removed, but just in case the machine is there, we will check
     let mut removed_machines = false;
 
     let product_keys: Vec<String> = products_map.keys().cloned().collect();
 
-    let mut machines_to_deactivate = match license_item.get_item(LICENSES_TABLE.machines_to_deactivate) {
+    let mut machines_to_deactivate = match license_item.get_item(&LICENSES_TABLE.machines_to_deactivate) {
         Ok(v) => {
             v.to_owned()
         },
@@ -103,7 +103,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         debug_log!("Inside product_keys.iter() loop");
 
         let mut product_map = products_map.get_map_by_str(k)?.clone();
-        let mut online_machines = product_map.get_item(LICENSES_TABLE.products_map_item.fields.online_machines)?.to_owned();
+        let mut online_machines = product_map.get_item(&LICENSES_TABLE.products_map_item.fields.online_machines)?.to_owned();
         
         let mut found_online_machine_in_product = false;
         for machine in request.machine_ids.iter() {
@@ -120,7 +120,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
             }
         }
         if found_online_machine_in_product {
-            product_map.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines, online_machines);
+            product_map.insert_item(&LICENSES_TABLE.products_map_item.fields.online_machines, online_machines);
             products_map.insert_map(&k, product_map);
         }
     }
@@ -128,8 +128,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     metrics_item.increase_number(&METRICS_TABLE.num_machine_deactivations, 1)?;
     debug_log!("Increased num_machine_deactivations");
 
-    license_item.insert_item(LICENSES_TABLE.products_map_item, products_map);
-    license_item.insert_item(LICENSES_TABLE.machines_to_deactivate, machines_to_deactivate);
+    license_item.insert_item(&LICENSES_TABLE.products_map_item, products_map);
+    license_item.insert_item(&LICENSES_TABLE.machines_to_deactivate, machines_to_deactivate);
 
     debug_log!("Constructing GetLicenseResponse");
     let resp: GetLicenseResponse = construct_get_license_response_from_license_item(key_manager, &license_item)?;

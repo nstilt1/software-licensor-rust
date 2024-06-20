@@ -47,7 +47,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     loop {
         let hashed_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
         
-        store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_id.to_vec()));
+        store_item.insert_item(&STORES_TABLE.id, Blob::new(hashed_id.to_vec()));
         
         let get_output = client.get_item()
             .table_name(STORES_TABLE.table_name)
@@ -112,10 +112,10 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     
     let encrypted_protobuf = key_manager.encrypt_db_proto(STORES_TABLE.table_name, store_id.binary_id.as_ref(), &proto)?;
     debug_log!("Encrypted store db item");
-    store_item.insert_item(STORES_TABLE.protobuf_data, Blob::new(encrypted_protobuf));
+    store_item.insert_item(&STORES_TABLE.protobuf_data, Blob::new(encrypted_protobuf));
 
-    store_item.insert_item(STORES_TABLE.public_key, Blob::new(request.public_signing_key.to_vec()));
-    store_item.insert_item(STORES_TABLE.registration_date, now_as_seconds().to_string());
+    store_item.insert_item(&STORES_TABLE.public_key, Blob::new(request.public_signing_key.to_vec()));
+    store_item.insert_item(&STORES_TABLE.registration_date, now_as_seconds().to_string());
 
     client.put_item()
         .table_name(STORES_TABLE.table_name)

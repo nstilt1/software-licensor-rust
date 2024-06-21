@@ -27,18 +27,15 @@ message ProductInfo {
 }
 
 message PerpetualLicense {
-    uint32 subtotal = 1;
     uint32 quantity = 2;
 }
 
 message SubscriptionLicense {
     // how long the license should last; typical lengths are 30 days or 365 days
     uint64 subscription_period = 1;
-    uint32 subtotal = 2;
 }
 
 message TrialLicense {
-    uint32 subtotal = 1;
 }
 
 message CreateLicenseResponse {

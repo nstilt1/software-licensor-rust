@@ -68,7 +68,6 @@ pub fn generate_create_license_payload() -> Vec<u8> {
             license_type: Some(
                 LicenseType::PerpetualLicense(
                     PerpetualLicense {
-                        subtotal: 0,
                         quantity: 1,
                     }
                 )

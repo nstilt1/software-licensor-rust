@@ -47,8 +47,6 @@ pub mod product_info {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PerpetualLicense {
-    #[prost(uint32, tag = "1")]
-    pub subtotal: u32,
     #[prost(uint32, tag = "2")]
     pub quantity: u32,
 }
@@ -58,15 +56,10 @@ pub struct SubscriptionLicense {
     /// how long the license should last; typical lengths are 30 days or 365 days
     #[prost(uint64, tag = "1")]
     pub subscription_period: u64,
-    #[prost(uint32, tag = "2")]
-    pub subtotal: u32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TrialLicense {
-    #[prost(uint32, tag = "1")]
-    pub subtotal: u32,
-}
+pub struct TrialLicense {}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateLicenseResponse {

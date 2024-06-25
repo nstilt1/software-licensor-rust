@@ -55,11 +55,11 @@ async fn main() -> Result<(), Error> {
     let server_keys = get_server_pubkeys(&req_client).await;
 
     // tests
-    //test_register_store(&req_client, server_keys).await?;
+    test_register_store(&req_client, server_keys).await?;
     //test_create_product(&req_client, server_keys).await?;
     //test_create_license(&req_client, server_keys).await?;
     //test_get_license(&req_client, server_keys).await?;
-    test_license_activation(&req_client, server_keys).await?;
+    //test_license_activation(&req_client, server_keys).await?;
     //test_deactivate_machines(&req_client, server_keys).await?;
     //test_regenerate_license_code(&req_client, server_keys).await?;
 

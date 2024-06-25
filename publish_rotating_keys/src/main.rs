@@ -1,4 +1,5 @@
 use aws_lambda_events::event::eventbridge::EventBridgeEvent;
+use p384::elliptic_curve::sec1::FromEncodedPoint;
 use utils::{
     aws_config::{
         self, meta::region::RegionProviderChain
@@ -50,6 +51,7 @@ async fn function_handler(_event: LambdaEvent<EventBridgeEvent>) -> Result<Value
             ExpiringEcdhKey {
                 ecdh_key_id: id.as_ref().to_vec(),
                 ecdh_public_key: key.to_sec1_bytes().to_vec(),
+                ecdh_public_key_pem: key.to_string(),
             }
         )
     }
@@ -61,9 +63,16 @@ async fn function_handler(_event: LambdaEvent<EventBridgeEvent>) -> Result<Value
             Some(expiration),
             None
         ).expect("This should work");
+
+    // get PEM encoding of ecdsa pubkey
+    // TODO: reduce this whenever `ecdsa` crate simplifies this
+    let encoded_point = ecdsa_key.1.verifying_key().to_encoded_point(true);
+    let public_key = PublicKey::from_encoded_point(&encoded_point).expect("This should work");
+    
     pubkey_repo.ecdsa_key = Some(ExpiringEcdsaKey {
         ecdsa_key_id: ecdsa_key.0.binary_id.as_ref().to_vec(),
         ecdsa_public_key: ecdsa_key.1.verifying_key().to_sec1_bytes().to_vec(),
+        ecdsa_public_key_pem: public_key.to_string(),
         expiration
     });
 
@@ -82,4 +91,20 @@ async fn main() -> Result<(), Error> {
 
     let func = service_fn(function_handler);
     lambda_runtime::run(func).await
+}
+
+#[cfg(test)]
+mod tests {
+    use p384::elliptic_curve::PublicKey;
+
+    use super::*;
+
+    #[test]
+    fn ecdsa_pem() {
+        let mut key_manager = init_key_manager(None, None);
+        let ecdsa_key = key_manager.generate_ecdsa_key_and_id::<EcdsaAlg, EcdsaKeyId>("", Some(now_as_seconds() + years_to_seconds(1)), None).unwrap();
+        let encoded_point = ecdsa_key.1.verifying_key().to_encoded_point(true);
+        let public_key: PublicKey<NistP384> = PublicKey::from_encoded_point(&encoded_point).unwrap();
+        println!("{}", public_key.to_string());
+    }
 }

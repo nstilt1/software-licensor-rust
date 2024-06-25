@@ -1,3 +1,4 @@
+use proto::protos::request::decrypt_info::ClientEcdhPubkey;
 use reqwest::Response;
 use utils::crypto::chacha20poly1305::aead::Aead;
 use utils::crypto::chacha20poly1305::Key;
@@ -53,7 +54,7 @@ pub fn encrypt_and_sign_payload(inner_payload: Vec<u8>, is_handshake: bool, serv
         data: encrypted_data,
         decryption_info: Some(DecryptInfo {
             server_ecdh_key_id,
-            client_ecdh_pubkey: ephemeral_secret.public_key().to_sec1_bytes().to_vec(),
+            client_ecdh_pubkey: Some(ClientEcdhPubkey::Pem(ephemeral_secret.public_key().to_string())),
             ecdh_info: info.to_vec(),
             ecdh_salt: salt.to_vec(),
         }),

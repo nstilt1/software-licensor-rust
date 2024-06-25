@@ -1504,6 +1504,7 @@ version = "0.1.0"
 dependencies = [
  "aead",
  "base64 0.22.1",
+ "elliptic-curve 0.14.0-pre.5",
  "private_key_generator",
  "prost",
  "rand_core 0.9.0-alpha.1",

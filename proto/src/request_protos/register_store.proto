@@ -12,7 +12,10 @@ message RegisterStoreRequest {
     string discord_username = 10;
     string state = 27;
     string country = 29;
-    bytes public_signing_key = 30;
+    oneof public_signing_key {
+        string pem = 37;
+        bytes der = 38;
+    }
     Configs configs = 35;
 }
 

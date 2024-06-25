@@ -1,5 +1,7 @@
 //! A store registration API method for a licensing service.
 use std::collections::HashMap;
+use std::str::FromStr;
+use proto::protos::register_store_request::register_store_request::PublicSigningKey;
 use utils::now_as_seconds;
 use proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::proto::protos::store_db_item;
@@ -33,7 +35,23 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let client = init_dynamodb_client!();
 
     debug_log!("Made it past initial validation");
-    // verify public key before storing info in the database to ensure that they know how to format requests and that everything is working properly
+    
+    // verify public key before storing info in the database to ensure that 
+    // they/we know how to format requests and that everything is working 
+    // properly
+    
+    // convert PEM to DER
+    let public_signing_key_der = match &request.public_signing_key {
+        Some(value) => match value {
+            PublicSigningKey::Pem(v) => {
+                let pubkey: PublicKey = PublicKey::from_str(v.as_str())?;
+                request.public_signing_key = Some(PublicSigningKey::Der(pubkey.to_sec1_bytes().to_vec()));
+                pubkey.to_sec1_bytes().to_vec()
+            }, PublicSigningKey::Der(v) => v.clone(),
+        },
+        None => return Err(ApiError::InvalidRequest("The public signing key must be either PEM or DER encoded.".into()))
+    };
+
     verify_signature(request, hasher, &signature)?;
 
     debug_log!("Verfied signature");
@@ -114,7 +132,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     debug_log!("Encrypted store db item");
     store_item.insert_item(&STORES_TABLE.protobuf_data, Blob::new(encrypted_protobuf));
 
-    store_item.insert_item(&STORES_TABLE.public_key, Blob::new(request.public_signing_key.to_vec()));
+    store_item.insert_item(&STORES_TABLE.public_key, Blob::new(public_signing_key_der));
     store_item.insert_item(&STORES_TABLE.registration_date, now_as_seconds().to_string());
 
     client.put_item()

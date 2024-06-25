@@ -19,10 +19,23 @@ pub struct RegisterStoreRequest {
     pub state: ::prost::alloc::string::String,
     #[prost(string, tag = "29")]
     pub country: ::prost::alloc::string::String,
-    #[prost(bytes = "vec", tag = "30")]
-    pub public_signing_key: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "35")]
     pub configs: ::core::option::Option<Configs>,
+    #[prost(oneof = "register_store_request::PublicSigningKey", tags = "37, 38")]
+    pub public_signing_key: ::core::option::Option<
+        register_store_request::PublicSigningKey,
+    >,
+}
+/// Nested message and enum types in `RegisterStoreRequest`.
+pub mod register_store_request {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum PublicSigningKey {
+        #[prost(string, tag = "37")]
+        Pem(::prost::alloc::string::String),
+        #[prost(bytes, tag = "38")]
+        Der(::prost::alloc::vec::Vec<u8>),
+    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

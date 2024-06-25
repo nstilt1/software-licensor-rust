@@ -1,5 +1,6 @@
 use chacha20poly1305::Key;
 use proto::protos::pubkeys::{ExpiringEcdhKey, ExpiringEcdsaKey};
+use proto::protos::register_store_request::register_store_request::PublicSigningKey;
 use rand_chacha::{ChaCha8Rng, rand_core::SeedableRng};
 use reqwest::Response;
 use utils::prelude::proto::protos;
@@ -23,12 +24,17 @@ pub async fn test_register_store(req_client: &reqwest::Client, server_keys: (Exp
     Ok(())
 }
 
+use p384::elliptic_curve::sec1::FromEncodedPoint;
 #[allow(unused)]
 pub fn generate_register_store_payload() -> Vec<u8> {
     use protos::register_store_request::{Configs, RegisterStoreRequest};
     let mut rng = ChaCha8Rng::from_seed([4u8; 32]);
     let signing_key = p384::ecdsa::SigningKey::random(&mut rng);
-    let pubkey = signing_key.verifying_key().to_sec1_bytes();
+    let pubkey: PublicKey = PublicKey::from_encoded_point(
+        &signing_key
+            .verifying_key()
+            .to_encoded_point(true)
+    ).unwrap();
     let result = RegisterStoreRequest {
         contact_first_name: "Test First Name".into(),
         contact_last_name: "Test Last Name".into(),
@@ -38,7 +44,7 @@ pub fn generate_register_store_payload() -> Vec<u8> {
         discord_username: "testing".into(),
         state: "Test".into(),
         country: "Test".into(),
-        public_signing_key: pubkey.to_vec(),
+        public_signing_key: Some(PublicSigningKey::Pem(pubkey.to_string())),
         configs: Some(Configs {
             max_machines_per_license: 3,
             offline_license_frequency_hours: 20,

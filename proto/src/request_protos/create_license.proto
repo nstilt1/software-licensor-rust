@@ -31,8 +31,17 @@ message PerpetualLicense {
 }
 
 message SubscriptionLicense {
-    // how long the license should last; typical lengths are 30 days or 365 days
-    uint64 subscription_period = 1;
+    // for flexibility, there are two ways that subscription end times can get 
+    // updated
+    oneof subscription_period {
+        // Setting this value will result in Software Licensor adding this many 
+        // seconds to either their current end date, or adding it to `now` if the
+        // end date has already passed
+        uint64 seconds_to_add = 3;
+        // Setting this value will result in Software Licensor setting the end 
+        // time to the value provided. This time must be seconds since UNIX epoch
+        uint64 end_time = 4;
+    }
 }
 
 message TrialLicense {

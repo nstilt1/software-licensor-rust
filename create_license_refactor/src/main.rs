@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use proto::protos::create_license_request::product_info::LicenseType::*;
+use proto::protos::create_license_request::subscription_license::SubscriptionPeriod::*;
 use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, PutRequest, Select, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
@@ -256,12 +257,23 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                         if expiry_time.ne("0") {
                             let expiry_time_seconds = expiry_time.parse::<u64>().expect("Should be valid");
                             // adjust expiry time based on whether the expiry time has already passed
-                            if expiry_time_seconds < now {
-                                expiry_time = (now + v.subscription_period + subscription_leniency_seconds).to_string();
-                            } else {
-                                expiry_time = (v.subscription_period + expiry_time_seconds).to_string();
-                            }
-                            *mut_expiry_time = AttributeValue::N(expiry_time)
+                            let subscription_period = match &v.subscription_period {
+                                Some(value) => value,
+                                None => {
+                                    issues.insert(product_id_string.to_string(), "Subscription period was improperly set".to_string());
+                                    continue;
+                                }
+                            };
+        
+                            expiry_time = match subscription_period {
+                                SecondsToAdd(s) => match expiry_time_seconds < now {
+                                    true => now + s + subscription_leniency_seconds,
+                                    false => s + expiry_time_seconds
+                                },
+                                EndTime(t) => t + subscription_leniency_seconds
+                            }.to_string();
+
+                            *mut_expiry_time = AttributeValue::N(expiry_time.to_string())
                         }
                     } else if existing_license_type.eq(license_types::PERPETUAL) {
                         // attempting to switch from perpetual to subscription
@@ -296,7 +308,19 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 Subscription(v) => {
                     new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.license_type, license_types::SUBSCRIPTION.into());
                     new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.machines_allowed, machines_per_license.to_string());
-                    new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.expiry_time, (now + v.subscription_period + subscription_leniency_seconds).to_string());
+                    let subscription_period = match &v.subscription_period {
+                        Some(value) => value,
+                        None => {
+                            issues.insert(product_id_string.to_string(), "Subscription period was improperly set".to_string());
+                            continue;
+                        }
+                    };
+
+                    let end_time = match subscription_period {
+                        SecondsToAdd(s) => now + s + subscription_leniency_seconds,
+                        EndTime(t) => t + subscription_leniency_seconds
+                    };
+                    new_license_info.insert_item(&LICENSES_TABLE.products_map_item.fields.expiry_time, end_time.to_string());
                 },
             };
 

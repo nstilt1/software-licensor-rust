@@ -53,9 +53,30 @@ pub struct PerpetualLicense {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubscriptionLicense {
-    /// how long the license should last; typical lengths are 30 days or 365 days
-    #[prost(uint64, tag = "1")]
-    pub subscription_period: u64,
+    /// for flexibility, there are two ways that subscription end times can get
+    /// updated
+    #[prost(oneof = "subscription_license::SubscriptionPeriod", tags = "3, 4")]
+    pub subscription_period: ::core::option::Option<
+        subscription_license::SubscriptionPeriod,
+    >,
+}
+/// Nested message and enum types in `SubscriptionLicense`.
+pub mod subscription_license {
+    /// for flexibility, there are two ways that subscription end times can get
+    /// updated
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum SubscriptionPeriod {
+        /// Setting this value will result in Software Licensor adding this many
+        /// seconds to either their current end date, or adding it to `now` if the
+        /// end date has already passed
+        #[prost(uint64, tag = "3")]
+        SecondsToAdd(u64),
+        /// Setting this value will result in Software Licensor setting the end
+        /// time to the value provided. This time must be seconds since UNIX epoch
+        #[prost(uint64, tag = "4")]
+        EndTime(u64),
+    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

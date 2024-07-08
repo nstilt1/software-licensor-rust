@@ -533,8 +533,9 @@ async fn process_request<D: Digest + FixedOutput>(
                     licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.to_string());
                     continue;
                 }
-                let expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
+                let mut expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
                 let mut check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
+                expire_time = expire_time.min(expiry_time);
                 check_up_time = check_up_time.min(expire_time);
                 key_file.post_expiration_message = ApiError::LicenseNoLongerActive.to_string();
                 (expire_time, check_up_time)

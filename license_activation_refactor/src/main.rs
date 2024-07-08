@@ -519,7 +519,7 @@ async fn process_request<D: Digest + FixedOutput>(
                     updated_license = true;
                     expire_time
                 } else {
-                    license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?
+                    expiry_time
                 };
                 let mut check_up_time = now + (store_configs.trial_license_frequency_hours as u64 * 60 * 60);
                 check_up_time = check_up_time.min(expire_time);

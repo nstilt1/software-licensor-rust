@@ -40,8 +40,6 @@ pub mod register_store_request {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Configs {
-    #[prost(uint32, tag = "60")]
-    pub max_machines_per_license: u32,
     /// some notes about "frequency" and "expiration":
     ///
     /// the frequency dictates the minimum amount of time that must pass before a

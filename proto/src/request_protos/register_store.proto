@@ -20,8 +20,6 @@ message RegisterStoreRequest {
 }
 
 message Configs {
-    uint32 max_machines_per_license = 60;
-
     // some notes about "frequency" and "expiration": 
     //
     // the frequency dictates the minimum amount of time that must pass before a

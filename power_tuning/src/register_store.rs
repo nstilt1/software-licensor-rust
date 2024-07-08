@@ -46,7 +46,6 @@ pub fn generate_register_store_payload() -> Vec<u8> {
         country: "Test".into(),
         public_signing_key: Some(PublicSigningKey::Pem(pubkey.to_string())),
         configs: Some(Configs {
-            max_machines_per_license: 3,
             offline_license_frequency_hours: 20,
             perpetual_license_expiration_days: 20,
             perpetual_license_frequency_hours: 20,

@@ -92,7 +92,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 $value = $value.max($lower_bound)
             };
         }
-        bound!(c.max_machines_per_license, 3);
         bound!(c.offline_license_frequency_hours, 300);
         bound!(c.perpetual_license_expiration_days, 24);
         bound!(c.perpetual_license_frequency_hours, 300);

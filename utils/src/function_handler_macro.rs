@@ -14,7 +14,7 @@ macro_rules! impl_function_handler {
             $response_type,
             $error_type,
             $crate::crypto::EcdsaDigest,
-            ("chacha20poly1305", ChaCha20Poly1305),
+            ("chacha20-poly1305", ChaCha20Poly1305),
             ("aes-128-gcm", Aes128Gcm),
             ("aes-256-gcm", Aes256Gcm)
         );

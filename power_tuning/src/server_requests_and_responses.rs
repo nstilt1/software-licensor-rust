@@ -49,7 +49,7 @@ pub fn encrypt_and_sign_payload(inner_payload: Vec<u8>, is_handshake: bool, serv
     encrypted_data.splice(0..0, nonce);
     
     let result = Request {
-        symmetric_algorithm: "chacha20poly1305".into(),
+        symmetric_algorithm: "chacha20-poly1305".into(),
         client_id,
         data: encrypted_data,
         decryption_info: Some(DecryptInfo {

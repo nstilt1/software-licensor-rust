@@ -65,9 +65,7 @@ impl_zeroize_on_drop_for_struct!(
     contact_last_name,
     contact_email,
     country,
-    discord_username,
-    store_name,
-    store_url
+    discord_username
 );
 
 impl_zeroize_on_drop_for_struct!(RegisterStoreResponse, store_id);

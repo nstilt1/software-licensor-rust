@@ -24,9 +24,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     if request.contact_first_name.len() < 2 || 
         request.contact_last_name.len() < 2 ||
         request.contact_email.len() < 2 ||
-        request.store_name.len() < 2 ||
-        request.store_url.len() < 2 || 
-        request.state.len() < 2 ||
         request.country.len() < 2 
     {
         return Err(ApiError::InvalidRequest("Please provide accurate information".into()))
@@ -108,11 +105,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let proto = StoreDbItem {
         contact_first_name: request.contact_first_name.to_owned(),
         contact_last_name: request.contact_last_name.to_owned(),
-        store_name: request.store_name.to_owned(),
-        store_url: request.store_url.to_owned(),
+        store_name: "".to_string(),
+        store_url: "".to_string(),
         email: request.contact_email.to_owned(),
         discord_username: request.discord_username.to_owned(),
-        state: request.state.to_owned(),
+        state: "".to_string(),
         country: request.country.to_owned(),
         product_ids: HashMap::new(),
         configs: Some(store_db_item::Configs {

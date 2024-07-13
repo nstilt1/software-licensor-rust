@@ -9,14 +9,8 @@ pub struct RegisterStoreRequest {
     pub contact_last_name: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub contact_email: ::prost::alloc::string::String,
-    #[prost(string, tag = "5")]
-    pub store_name: ::prost::alloc::string::String,
-    #[prost(string, tag = "6")]
-    pub store_url: ::prost::alloc::string::String,
     #[prost(string, tag = "10")]
     pub discord_username: ::prost::alloc::string::String,
-    #[prost(string, tag = "27")]
-    pub state: ::prost::alloc::string::String,
     #[prost(string, tag = "29")]
     pub country: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "35")]

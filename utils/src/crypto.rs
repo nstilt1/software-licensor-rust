@@ -116,7 +116,7 @@ where
 {
     let pubkey = public_key_container.extract_public_key()?;
     let verifier = VerifyingKey::from(pubkey);
-    let signature: Signature = Signature::from_bytes(signature.try_into().unwrap())?;
+    let signature: Signature = Signature::from_der(signature)?;
     verifier.verify_digest(hasher, &signature)?;
     Ok(())
 }

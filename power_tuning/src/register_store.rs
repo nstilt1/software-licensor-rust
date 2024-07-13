@@ -39,10 +39,7 @@ pub fn generate_register_store_payload() -> Vec<u8> {
         contact_first_name: "Test First Name".into(),
         contact_last_name: "Test Last Name".into(),
         contact_email: "Testemail@gmail.com".into(),
-        store_name: "Test Store Name".into(),
-        store_url: "https://test.com".into(),
         discord_username: "testing".into(),
-        state: "Test".into(),
         country: "Test".into(),
         public_signing_key: Some(PublicSigningKey::Pem(pubkey.to_string())),
         configs: Some(Configs {

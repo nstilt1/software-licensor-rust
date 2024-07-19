@@ -20,6 +20,7 @@ pub mod deactivate_machines;
 
 pub mod regenerate_license_code;
 
+use license_activation_request::LicenseActivationResponse;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -90,7 +91,8 @@ impl_zeroize_on_drop_for_struct!(LicenseDbItem, license_id, customer_first_name,
 
 impl_zeroize_on_drop_for_struct!(LicenseActivationRequest, license_code, machine_id, product_ids);
 impl_zeroize_on_drop_for_struct!(Stats, computer_name);
-impl_zeroize_on_drop_for_struct!(LicenseKeyFile, machine_id, license_code, customer_email, customer_first_name, customer_last_name);
+impl_zeroize_on_drop_for_struct!(LicenseKeyFile, machine_id, license_code);
+impl_zeroize_on_drop_for_struct!(LicenseActivationResponse, customer_email, customer_first_name, customer_last_name);
 
 impl_zeroize_on_drop_for_struct!(GetLicenseRequest, user_id);
 impl_zeroize_on_drop_for_struct!(GetLicenseResponse, license_code, offline_code);

@@ -561,8 +561,6 @@ async fn process_request<D: Digest + FixedOutput>(
         // set expire time and check-up time, then fill remaining fields
         key_file.expiration_timestamp = local_expire_time;
         key_file.check_back_timestamp = check_up_time;
-        key_file.customer_first_name = first_name.clone();
-        key_file.customer_last_name = last_name.clone();
         key_file.message = success_message.clone();
 
         key_files.insert(product_id.encoded_id.clone(), key_file.clone());

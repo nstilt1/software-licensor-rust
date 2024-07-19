@@ -436,8 +436,6 @@ async fn process_request<D: Digest + FixedOutput>(
 
         let mut key_file = LicenseKeyFile {
             product_id: product_id.encoded_id.clone(),
-            customer_first_name: "".into(),
-            customer_last_name: "".into(),
             product_version: store_product_info.version.clone(),
             license_code: request.license_code.clone(),
             license_type: license_type.clone(),
@@ -448,7 +446,6 @@ async fn process_request<D: Digest + FixedOutput>(
             message: "".into(),
             message_code: 1,
             post_expiration_message: "".into(),
-            customer_email: email.clone(),
         };
         
         // doing an OR operation instead of `.ne(license_types::PERPETUAL)` in case other license types get added
@@ -624,6 +621,9 @@ async fn process_request<D: Digest + FixedOutput>(
         key_files,
         key_file_signatures,
         licensing_errors,
+        customer_first_name: first_name,
+        customer_last_name: last_name,
+        customer_email: email,
     };
 
     Ok(response)

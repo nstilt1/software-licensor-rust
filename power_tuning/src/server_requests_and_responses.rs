@@ -34,9 +34,9 @@ pub fn encrypt_and_sign_payload(inner_payload: Vec<u8>, is_handshake: bool, serv
     let signing_key = p384::ecdsa::SigningKey::random(&mut rng);
     let client_id: String = match is_handshake {
         true => "TEST".into(),
-        false => "TESTfW4_-8w1H0NZuntJ2hb/mWZDDHQOvSx/BX5ORIG5xAb4CxEpBPLZ2wqm/K4lO".into()
+        false => "TESTY3GK-ltAKyjzOicZ8a1WTGzQqQ2ra1c9ECsr8mFw4XcT_cPLOFfDMlGUZMYKF".into()
     };
-    let (server_ecdh_key_id, ecdh_pubkey) = if Path::new(NEXT_KEY_FILE_PATH).exists() {
+    let (server_ecdh_key_id, ecdh_pubkey) = if Path::new(NEXT_KEY_FILE_PATH).exists() && !is_handshake {
         let mut file = File::open(NEXT_KEY_FILE_PATH).unwrap();
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();

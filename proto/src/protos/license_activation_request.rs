@@ -95,12 +95,6 @@ pub struct Stats {
 pub struct LicenseKeyFile {
     #[prost(string, tag = "1")]
     pub product_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub customer_first_name: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub customer_last_name: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub customer_email: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub product_version: ::prost::alloc::string::String,
     #[prost(string, tag = "10")]
@@ -148,6 +142,12 @@ pub struct LicenseActivationResponse {
         ::prost::alloc::string::String,
         LicenseKeyFile,
     >,
+    #[prost(string, tag = "6")]
+    pub customer_first_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub customer_last_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "8")]
+    pub customer_email: ::prost::alloc::string::String,
     /// map of product ids to licensing errors
     #[prost(map = "string, string", tag = "2")]
     pub licensing_errors: ::std::collections::HashMap<

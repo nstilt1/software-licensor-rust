@@ -445,7 +445,7 @@ async fn process_request<D: Digest + FixedOutput>(
             check_back_timestamp: 0,
             message: "".into(),
             message_code: 1,
-            post_expiration_message: "".into(),
+            post_expiration_error_code: 0,
         };
         
         // doing an OR operation instead of `.ne(license_types::PERPETUAL)` in case other license types get added
@@ -520,7 +520,7 @@ async fn process_request<D: Digest + FixedOutput>(
                 };
                 let mut check_up_time = now + (store_configs.trial_license_frequency_hours as u64 * 60 * 60);
                 check_up_time = check_up_time.min(expire_time);
-                key_file.post_expiration_message = ApiError::TrialEnded.to_string();
+                key_file.post_expiration_error_code = ApiError::TrialEnded.to_string().parse::<u32>().unwrap();
                 (expire_time, check_up_time)
             },
             license_types::SUBSCRIPTION => {
@@ -534,7 +534,7 @@ async fn process_request<D: Digest + FixedOutput>(
                 let mut check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
                 expire_time = expire_time.min(expiry_time);
                 check_up_time = check_up_time.min(expire_time);
-                key_file.post_expiration_message = ApiError::LicenseNoLongerActive.to_string();
+                key_file.post_expiration_error_code = ApiError::LicenseNoLongerActive.to_string().parse::<u32>().unwrap();
                 (expire_time, check_up_time)
             },
             license_types::PERPETUAL => {

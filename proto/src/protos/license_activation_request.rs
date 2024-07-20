@@ -130,8 +130,8 @@ pub struct LicenseKeyFile {
     #[prost(uint32, tag = "31")]
     pub message_code: u32,
     /// the message to show if the license ever expires on the user
-    #[prost(string, tag = "35")]
-    pub post_expiration_message: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "35")]
+    pub post_expiration_error_code: u32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -410,7 +410,7 @@ async fn process_request<D: Digest + FixedOutput>(
     let (mut products_map, mut_products_map) = license_item.get_item_mut(&LICENSES_TABLE.products_map_item)?;
     let mut key_files: HashMap<String, LicenseKeyFile> = HashMap::new();
     let mut key_file_signatures: HashMap<String, Vec<u8>> = HashMap::new();
-    let mut licensing_errors: HashMap<String, String> = HashMap::new();
+    let mut licensing_errors: HashMap<String, u32> = HashMap::new();
 
     for product_id in product_ids {
         debug_log!("In product_ids loop");
@@ -427,7 +427,7 @@ async fn process_request<D: Digest + FixedOutput>(
 
         let license_is_active = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.is_license_active)?;
         if !license_is_active {
-            licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.to_string());
+            licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.get_licensing_error_number());
             continue;
         }
         debug_log!("Got license_is_active");
@@ -455,11 +455,11 @@ async fn process_request<D: Digest + FixedOutput>(
             // expiry time has been reached
             match license_type.as_str() {
                 license_types::TRIAL => {
-                    licensing_errors.insert(product_id.encoded_id, ApiError::TrialEnded.to_string());
+                    licensing_errors.insert(product_id.encoded_id, ApiError::TrialEnded.get_licensing_error_number());
                     continue;
                 },
                 license_types::SUBSCRIPTION => {
-                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.to_string());
+                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.get_licensing_error_number());
                     continue;
                 },
                 _ => unreachable!()
@@ -486,7 +486,7 @@ async fn process_request<D: Digest + FixedOutput>(
                 }
             } else {
                 // machine limit reached
-                licensing_errors.insert(product_id.encoded_id, ApiError::OverMaxMachines.to_string());
+                licensing_errors.insert(product_id.encoded_id, ApiError::OverMaxMachines.get_licensing_error_number());
                 continue;
             }
         } else {
@@ -527,7 +527,7 @@ async fn process_request<D: Digest + FixedOutput>(
                 debug_log!("Handling subscription license activation");
                 let is_subscription_active = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.is_subscription_active)?;
                 if !is_subscription_active {
-                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.to_string());
+                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.get_licensing_error_number());
                     continue;
                 }
                 let mut expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
@@ -549,7 +549,7 @@ async fn process_request<D: Digest + FixedOutput>(
                 (expire_time, check_up_time)
             },
             _ => {
-                licensing_errors.insert(product_id.encoded_id, ApiError::InvalidDbSchema("Invalid license type".into()).to_string());
+                licensing_errors.insert(product_id.encoded_id, ApiError::InvalidDbSchema("Invalid license type".into()).get_licensing_error_number());
                 continue;
             }
         };

@@ -127,6 +127,7 @@ pub struct LicenseKeyFile {
     /// 64: Offline codes are not allowed for this product
     /// 128: Invalid License Code
     /// 256: Machine Deactivated
+    /// 512: Invalid License Type (should not happen)
     #[prost(uint32, tag = "31")]
     pub message_code: u32,
     /// the message to show if the license ever expires on the user
@@ -149,10 +150,10 @@ pub struct LicenseActivationResponse {
     #[prost(string, tag = "8")]
     pub customer_email: ::prost::alloc::string::String,
     /// map of product ids to licensing errors
-    #[prost(map = "string, string", tag = "2")]
+    #[prost(map = "string, uint32", tag = "2")]
     pub licensing_errors: ::std::collections::HashMap<
         ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
+        u32,
     >,
     /// map of product ids to key file signature
     #[prost(map = "string, bytes", tag = "5")]

@@ -28,6 +28,7 @@ pub enum ApiError {
 }
 
 impl ApiError {
+    #[inline]
     fn get_status_code(&self) -> StatusCode {
         let status = match self {
             Self::IdExpired => 403,
@@ -52,6 +53,21 @@ impl ApiError {
             Self::MachineDeactivated => 403,
         };
         StatusCode::from_u16(status).expect("Invalid status code")
+    }
+
+    #[inline]
+    pub fn get_licensing_error_number(&self) -> u32 {
+        match self {
+            Self::IncorrectOfflineCode => 32,
+            Self::LicenseNoLongerActive => 16,
+            Self::NoLicenseFound => 2,
+            Self::OverMaxMachines => 4,
+            Self::TrialEnded => 8,
+            Self::InvalidLicenseCode => 128,
+            Self::OfflineIsNotAllowed => 64,
+            Self::MachineDeactivated => 256,
+            _ => 512
+        }
     }
 }
 

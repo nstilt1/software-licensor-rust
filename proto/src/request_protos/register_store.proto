@@ -7,18 +7,16 @@ message RegisterStoreRequest {
     string contact_first_name = 1;
     string contact_last_name = 2;
     string contact_email = 3;
-    string store_name = 5;
-    string store_url = 6;
     string discord_username = 10;
-    string state = 27;
     string country = 29;
-    bytes public_signing_key = 30;
+    oneof public_signing_key {
+        string pem = 37;
+        bytes der = 38;
+    }
     Configs configs = 35;
 }
 
 message Configs {
-    uint32 max_machines_per_license = 60;
-
     // some notes about "frequency" and "expiration": 
     //
     // the frequency dictates the minimum amount of time that must pass before a

@@ -23,4 +23,5 @@ aws_lambda_events = { version = "0.15.1", default-features = false, features = [
 utils = { path = "../utils", default-features = false, features = ["s3"] }
 
 [features]
+local = ["utils/local"]
 zeroize = ["utils/zeroize"]

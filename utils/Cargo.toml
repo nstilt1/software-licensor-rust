@@ -23,7 +23,7 @@ lambda_http = { version = "0.11", default-features = false, features = ["tracing
 lambda_runtime = "0.11"
 log = "0.4"
 openssl = { version = "0.10", features = ["vendored"] }
-p384 = { git = "https://github.com/RustCrypto/elliptic-curves.git", branch = "master", package = "p384", version = "0.14.0-pre", features = ["jwk", "ecdsa"]  }
+p384 = { git = "https://github.com/RustCrypto/elliptic-curves.git", branch = "master", package = "p384", version = "0.14.0-pre", features = ["jwk", "ecdsa", "pem"]  }
 proto = { path = "../proto" }
 serde_json = "1"
 sha2 = { version = "0.11.0-pre.3" }

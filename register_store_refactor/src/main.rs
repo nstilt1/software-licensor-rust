@@ -1,5 +1,7 @@
 //! A store registration API method for a licensing service.
 use std::collections::HashMap;
+use std::str::FromStr;
+use proto::protos::register_store_request::register_store_request::PublicSigningKey;
 use utils::now_as_seconds;
 use proto::protos::store_db_item::StoreDbItem;
 use utils::prelude::proto::protos::store_db_item;
@@ -22,9 +24,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     if request.contact_first_name.len() < 2 || 
         request.contact_last_name.len() < 2 ||
         request.contact_email.len() < 2 ||
-        request.store_name.len() < 2 ||
-        request.store_url.len() < 2 || 
-        request.state.len() < 2 ||
         request.country.len() < 2 
     {
         return Err(ApiError::InvalidRequest("Please provide accurate information".into()))
@@ -33,7 +32,23 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let client = init_dynamodb_client!();
 
     debug_log!("Made it past initial validation");
-    // verify public key before storing info in the database to ensure that they know how to format requests and that everything is working properly
+    
+    // verify public key before storing info in the database to ensure that 
+    // they/we know how to format requests and that everything is working 
+    // properly
+    
+    // convert PEM to DER
+    let public_signing_key_der = match &request.public_signing_key {
+        Some(value) => match value {
+            PublicSigningKey::Pem(v) => {
+                let pubkey: PublicKey = PublicKey::from_str(v.as_str())?;
+                request.public_signing_key = Some(PublicSigningKey::Der(pubkey.to_sec1_bytes().to_vec()));
+                pubkey.to_sec1_bytes().to_vec()
+            }, PublicSigningKey::Der(v) => v.clone(),
+        },
+        None => return Err(ApiError::InvalidRequest("The public signing key must be either PEM or DER encoded.".into()))
+    };
+
     verify_signature(request, hasher, &signature)?;
 
     debug_log!("Verfied signature");
@@ -47,7 +62,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     loop {
         let hashed_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
         
-        store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_id.to_vec()));
+        store_item.insert_item(&STORES_TABLE.id, Blob::new(hashed_id.to_vec()));
         
         let get_output = client.get_item()
             .table_name(STORES_TABLE.table_name)
@@ -74,7 +89,6 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
                 $value = $value.max($lower_bound)
             };
         }
-        bound!(c.max_machines_per_license, 3);
         bound!(c.offline_license_frequency_hours, 300);
         bound!(c.perpetual_license_expiration_days, 24);
         bound!(c.perpetual_license_frequency_hours, 300);
@@ -91,11 +105,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let proto = StoreDbItem {
         contact_first_name: request.contact_first_name.to_owned(),
         contact_last_name: request.contact_last_name.to_owned(),
-        store_name: request.store_name.to_owned(),
-        store_url: request.store_url.to_owned(),
+        store_name: "".to_string(),
+        store_url: "".to_string(),
         email: request.contact_email.to_owned(),
         discord_username: request.discord_username.to_owned(),
-        state: request.state.to_owned(),
+        state: "".to_string(),
         country: request.country.to_owned(),
         product_ids: HashMap::new(),
         configs: Some(store_db_item::Configs {
@@ -112,10 +126,10 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     
     let encrypted_protobuf = key_manager.encrypt_db_proto(STORES_TABLE.table_name, store_id.binary_id.as_ref(), &proto)?;
     debug_log!("Encrypted store db item");
-    store_item.insert_item(STORES_TABLE.protobuf_data, Blob::new(encrypted_protobuf));
+    store_item.insert_item(&STORES_TABLE.protobuf_data, Blob::new(encrypted_protobuf));
 
-    store_item.insert_item(STORES_TABLE.public_key, Blob::new(request.public_signing_key.to_vec()));
-    store_item.insert_item(STORES_TABLE.registration_date, now_as_seconds().to_string());
+    store_item.insert_item(&STORES_TABLE.public_key, Blob::new(public_signing_key_der));
+    store_item.insert_item(&STORES_TABLE.registration_date, now_as_seconds().to_string());
 
     client.put_item()
         .table_name(STORES_TABLE.table_name)

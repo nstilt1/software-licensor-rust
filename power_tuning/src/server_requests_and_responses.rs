@@ -1,3 +1,5 @@
+use proto::protos::request::decrypt_info::ClientEcdhPubkey;
+use proto::protos::response::EcdhKey;
 use reqwest::Response;
 use utils::crypto::chacha20poly1305::aead::Aead;
 use utils::crypto::chacha20poly1305::Key;
@@ -5,10 +7,7 @@ use utils::crypto::chacha20poly1305::Nonce;
 use rand_chacha::{ChaCha8Rng, rand_core::{RngCore, SeedableRng}};
 use utils::crypto::p384::{
     ecdh::EphemeralSecret,
-    ecdsa::{
-        Signature,
-        signature::Signer
-    }
+    ecdsa::signature::Signer
 };
 use utils::crypto::p384::elliptic_curve::rand_core::OsRng;
 use utils::now_as_seconds;
@@ -16,6 +15,12 @@ use utils::prelude::proto::protos;
 use utils::prelude::*;
 use chacha20poly1305::KeyInit;
 use protos::pubkeys::{PubkeyRepo, ExpiringEcdhKey, ExpiringEcdsaKey};
+
+use std::fs::File;
+use std::io::prelude::*;
+use std::path::Path;
+
+const NEXT_KEY_FILE_PATH: &str = "next_key.bin";
 
 pub struct Payload {
     pub encrypted: Vec<u8>,
@@ -29,9 +34,18 @@ pub fn encrypt_and_sign_payload(inner_payload: Vec<u8>, is_handshake: bool, serv
     let signing_key = p384::ecdsa::SigningKey::random(&mut rng);
     let client_id: String = match is_handshake {
         true => "TEST".into(),
-        false => "TESTuiQO-Kp6JXjPeKIh7DT/iPpNFnZhN2NYT0ITpltBLqlmvJ71PoA5UU_6ZnmB4".into()
+        false => "TESTY3GK-ltAKyjzOicZ8a1WTGzQqQ2ra1c9ECsr8mFw4XcT_cPLOFfDMlGUZMYKF".into()
     };
-    let (server_ecdh_key_id, ecdh_pubkey) = (server_keys.0.ecdh_key_id, server_keys.0.ecdh_public_key);
+    let (server_ecdh_key_id, ecdh_pubkey) = if Path::new(NEXT_KEY_FILE_PATH).exists() && !is_handshake {
+        let mut file = File::open(NEXT_KEY_FILE_PATH).unwrap();
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).unwrap();
+        let next_key = EcdhKey::decode_length_delimited(buffer.as_slice()).unwrap();
+        println!("Using next_key.bin");
+        (next_key.ecdh_key_id, next_key.ecdh_public_key)
+    } else {
+        (server_keys.0.ecdh_key_id, server_keys.0.ecdh_public_key)
+    };
     
     let server_ecdsa_key_id = server_keys.1;
     let ephemeral_secret = EphemeralSecret::random(&mut OsRng);
@@ -51,12 +65,12 @@ pub fn encrypt_and_sign_payload(inner_payload: Vec<u8>, is_handshake: bool, serv
     encrypted_data.splice(0..0, nonce);
     
     let result = Request {
-        symmetric_algorithm: "chacha20poly1305".into(),
+        symmetric_algorithm: "chacha20-poly1305".into(),
         client_id,
         data: encrypted_data,
         decryption_info: Some(DecryptInfo {
             server_ecdh_key_id,
-            client_ecdh_pubkey: ephemeral_secret.public_key().to_sec1_bytes().to_vec(),
+            client_ecdh_pubkey: Some(ClientEcdhPubkey::Pem(ephemeral_secret.public_key().to_string())),
             ecdh_info: info.to_vec(),
             ecdh_salt: salt.to_vec(),
         }),
@@ -67,7 +81,7 @@ pub fn encrypt_and_sign_payload(inner_payload: Vec<u8>, is_handshake: bool, serv
     let signature: Signature = signing_key.sign(&p);
     Payload { 
         encrypted: p, 
-        signature: signature.to_vec(),
+        signature: signature.to_der().as_bytes().to_vec(),
         symmetric_key: key,
     }
 }
@@ -102,8 +116,37 @@ pub async fn decrypt_response(response: Response, symmetric_key: Key) -> Vec<u8>
         panic!("Response was not decodable: {}", &String::from_utf8(body.as_ref().to_vec()).unwrap());
     };
 
+    // write the next key to a local file so that we can test new keys to see if
+    // they work or not
+    let mut file = File::create(NEXT_KEY_FILE_PATH).unwrap();
+    file.write_all(&resp.next_ecdh_key.unwrap().encode_length_delimited_to_vec()).unwrap();
+
     let decryptor = ChaCha20Poly1305::new(&symmetric_key);
     let nonce: &Nonce = Nonce::from_slice(&resp.data[..12]);
     let decrypted = decryptor.decrypt(nonce, &resp.data[12..]).unwrap();
     decrypted
+}
+
+#[cfg(test)]
+mod tests {
+    use utils::base64::Base64String;
+
+    use super::*;
+
+    #[test]
+    fn signature_format() {
+        let sig_b64 = "MGUCMQD3mB/dwTvyuM+tjcxaynBEwuHhuVoJGFjSLgm6MenfY1SfeIHRQQE5Kv2CFRl8QZkCMFguuci+Uo9VMopQ28yQq7x9bcfdsrVneg2kO5jkjIneX2yVwNVE2h9Aw6dEpKnu6w";
+        let sig = sig_b64.from_base64().unwrap();
+        let s: Result<Signature, _> = Signature::from_der(&sig);
+        //let s: Result<SignatureBytes<NistP384>, _> = sig.as_slice().try_into();
+        assert!(s.is_ok(), "Signature was not valid; length = {}, bits = {}", sig.len(), sig.len() * 8);
+    }
+
+    #[test]
+    fn signature_format_2() {
+        let key = p384::ecdsa::SigningKey::random(&mut OsRng);
+        let sig: Signature = key.sign(&[3,2,1,3,4,3,23,1,3]);
+        let b = sig.to_bytes();
+        println!("Signature bytes length = {}", b.len());
+    }
 }

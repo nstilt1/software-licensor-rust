@@ -33,8 +33,8 @@ fn check_licenses_db_proto(key_manager: &mut KeyManager, is_offline_attempt: boo
     debug_log!("In check_licenses_db_proto");
     let decrypted_proto: LicenseDbItem = key_manager.decrypt_db_proto(
         &LICENSES_TABLE.table_name, 
-        license_item.get_item(LICENSES_TABLE.id)?.as_ref(), 
-        license_item.get_item(LICENSES_TABLE.protobuf_data)?.as_ref()
+        license_item.get_item(&LICENSES_TABLE.id)?.as_ref(), 
+        license_item.get_item(&LICENSES_TABLE.protobuf_data)?.as_ref()
     )?;
     debug_log!("Decrypted LicenseDbItem");
     if is_offline_attempt {
@@ -56,11 +56,11 @@ fn update_lists(updated: &mut bool, license_product_item: &mut AttributeValueHas
     debug_log!("In update_lists");
     //let mut product_map = license_product_map.to_owned();
     if let Some(online_machines) = online_list {
-        license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines, online_machines);
+        license_product_item.insert_item(&LICENSES_TABLE.products_map_item.fields.online_machines, online_machines);
         *updated = true;
     }
     if let Some(offline_machines) = offline_list {
-        license_product_item.insert_item(LICENSES_TABLE.products_map_item.fields.offline_machines, offline_machines);
+        license_product_item.insert_item(&LICENSES_TABLE.products_map_item.fields.offline_machines, offline_machines);
         *updated = true;
     }
 }
@@ -69,13 +69,13 @@ fn update_lists(updated: &mut bool, license_product_item: &mut AttributeValueHas
 macro_rules! insert_keys {
     ($stats_map:expr, $stats:expr, $keys:expr, ($($string:ident),*), ($($number:ident),*), ($($bools:ident),*)) => {
         $(
-            $stats_map.insert_item($keys.$string, $stats.$string.clone());
+            $stats_map.insert_item(&$keys.$string, $stats.$string.clone());
         )*
         $(
-            $stats_map.insert_item($keys.$number, $stats.$number.to_string());
+            $stats_map.insert_item(&$keys.$number, $stats.$number.to_string());
         )*
         $(
-            $stats_map.insert_item($keys.$bools, $stats.$bools);
+            $stats_map.insert_item(&$keys.$bools, $stats.$bools);
         )*
     };
 }
@@ -106,13 +106,13 @@ fn insert_machine_into_machine_map(map: &mut AttributeValueHashMap, request: &Li
         let mut mach_map = AttributeValueHashMap::new(); 
         let mut truncated_name = s.os_name.clone();
         truncated_name.truncate(15);
-        mach_map.insert_item(MACHINE.os_name, truncated_name);
-        mach_map.insert_item(MACHINE.computer_name, s.computer_name.clone());
+        mach_map.insert_item(&MACHINE.os_name, truncated_name);
+        mach_map.insert_item(&MACHINE.computer_name, s.computer_name.clone());
         mach_map
     } else {
         let mut mach_map = AttributeValueHashMap::new();
-        mach_map.insert_item_into(MACHINE.os_name, "Not provided");
-        mach_map.insert_item_into(MACHINE.computer_name, "Not provided");
+        mach_map.insert_item_into(&MACHINE.os_name, "Not provided");
+        mach_map.insert_item_into(&MACHINE.computer_name, "Not provided");
         mach_map
     };
     map.insert_map(&request.machine_id, mach_map)
@@ -128,19 +128,19 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
             if let Some(s) = &request.hardware_stats {
                 debug_log!("Hardware stats were provided by the user");
                 // hardware stats were provided by the user
-                if machine_item.is_null(MACHINES_TABLE.protobuf_data)? {
+                if machine_item.is_null(&MACHINES_TABLE.protobuf_data)? {
                     debug_log!("Inserting machine info into table");
                     // info needs to be entered
                     let mut stats_map = AttributeValueHashMap::new();
                     insert_stats(&mut stats_map, s);
-                    machine_item.insert_item_into(MACHINES_TABLE.stats, stats_map);
+                    machine_item.insert_item_into(&MACHINES_TABLE.stats, stats_map);
                     Ok(true)
                 } else {
                     debug_log!("Checking if machine stats in the request and in the table are equal");
                     // stats have already been set; check if they are equal
-                    let (mut existing_stats_map, mut_attribute_value) = machine_item.get_item_mut(MACHINES_TABLE.stats)?;
-                    let cpu = existing_stats_map.get_item(MACHINES_TABLE.stats.fields.cpu_model)?;
-                    let ram = existing_stats_map.get_item(MACHINES_TABLE.stats.fields.ram_mb)?;
+                    let (mut existing_stats_map, mut_attribute_value) = machine_item.get_item_mut(&MACHINES_TABLE.stats)?;
+                    let cpu = existing_stats_map.get_item(&MACHINES_TABLE.stats.fields.cpu_model)?;
+                    let ram = existing_stats_map.get_item(&MACHINES_TABLE.stats.fields.ram_mb)?;
                     if cpu.ne(&s.cpu_model) || ram.ne(&s.ram_mb.to_string()) {
                         debug_log!("Machine stats were not the same; updating stats");
                         insert_stats(&mut existing_stats_map, s);
@@ -153,10 +153,10 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
                 // stats have not been provided; erase stats and computer 
                 // name
                 debug_log!("Machine stats were not provided");
-                if !machine_item.is_null(MACHINES_TABLE.stats)? {
+                if !machine_item.is_null(&MACHINES_TABLE.stats)? {
                     debug_log!("Overwriting existing stats with null values.");
-                    machine_item.insert_null(MACHINES_TABLE.stats);
-                    machine_item.insert_null(MACHINES_TABLE.protobuf_data);
+                    machine_item.insert_null(&MACHINES_TABLE.stats);
+                    machine_item.insert_null(&MACHINES_TABLE.protobuf_data);
                     return Ok(true)
                 }
                 Ok(false)
@@ -170,12 +170,12 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
                 // stats were provided by the user
                 let mut stats_map = AttributeValueHashMap::new();
                 insert_stats(&mut stats_map, &s);
-                machine_item.insert_item(MACHINES_TABLE.stats, stats_map);
+                machine_item.insert_item(&MACHINES_TABLE.stats, stats_map);
             } else {
                 debug_log!("Machine stats were not provided by the user; setting values to null");
                 // stats were not provided by the user
-                machine_item.insert_null(MACHINES_TABLE.stats);
-                machine_item.insert_null(MACHINES_TABLE.protobuf_data);
+                machine_item.insert_null(&MACHINES_TABLE.stats);
+                machine_item.insert_null(&MACHINES_TABLE.protobuf_data);
             }
             Ok(true)
         }
@@ -192,8 +192,8 @@ impl_function_handler!(
 async fn process_request<D: Digest + FixedOutput>(
     key_manager: &mut KeyManager, 
     request: &mut LicenseActivationRequest, 
-    _hasher: D, 
-    _signature: Vec<u8>
+    hasher: D, 
+    signature: Vec<u8>
 ) -> Result<LicenseActivationResponse, ApiError> {
     debug_log!("Inside process_request");
     let client = init_dynamodb_client!();
@@ -230,7 +230,7 @@ async fn process_request<D: Digest + FixedOutput>(
 
     let mut store_item = AttributeValueHashMap::new();
     let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
-    store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
+    store_item.insert_item(&STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
     request_items.insert(
         STORES_TABLE.table_name.to_string(), 
         KeysAndAttributes::builder()
@@ -249,7 +249,7 @@ async fn process_request<D: Digest + FixedOutput>(
 
     let mut license_item = AttributeValueHashMap::new();
     let hashed_license_id = salty_hash(&[store_id.binary_id.as_ref(), license_id.binary_id.as_ref()], &LICENSE_DB_SALT);
-    license_item.insert_item(LICENSES_TABLE.id, Blob::new(hashed_license_id.to_vec()));
+    license_item.insert_item(&LICENSES_TABLE.id, Blob::new(hashed_license_id.to_vec()));
     request_items.insert(
         LICENSES_TABLE.table_name.to_string(), 
         KeysAndAttributes::builder()
@@ -259,7 +259,7 @@ async fn process_request<D: Digest + FixedOutput>(
     );
 
     let mut machine_item = AttributeValueHashMap::new();
-    machine_item.insert_item(MACHINES_TABLE.id, request.machine_id.clone());
+    machine_item.insert_item(&MACHINES_TABLE.id, request.machine_id.clone());
     request_items.insert(
         MACHINES_TABLE.table_name.to_string(), 
         KeysAndAttributes::builder()
@@ -289,6 +289,8 @@ async fn process_request<D: Digest + FixedOutput>(
         return Err(ApiError::NotFound)
     };
 
+    let signature_verified = verify_signature(&store_item, hasher, &signature).is_ok();
+
     let mut metrics_item = if let Some(s) = tables.get(METRICS_TABLE.table_name) {
         if s.len() != 1 {
             return Err(ApiError::NotFound)
@@ -301,7 +303,7 @@ async fn process_request<D: Digest + FixedOutput>(
     let store_item_protobuf_data: StoreDbItem = key_manager.decrypt_db_proto(
         &STORES_TABLE.table_name, 
         store_id.binary_id.as_ref(), 
-        store_item.get_item(STORES_TABLE.protobuf_data)?.as_ref()
+        store_item.get_item(&STORES_TABLE.protobuf_data)?.as_ref()
     )?;
     let store_configs = if let Some(c) = &store_item_protobuf_data.configs {
         c
@@ -326,10 +328,11 @@ async fn process_request<D: Digest + FixedOutput>(
     // the `deactivate_machines` method
 
     // check if machine has been deactivated
-    match license_item.get_item(LICENSES_TABLE.machines_to_deactivate) {
-        Ok(v) => {
-            if v.contains_key(&request.machine_id) {
-                license_item.remove(&request.machine_id);
+    match license_item.get_item_mut(&LICENSES_TABLE.machines_to_deactivate) {
+        Ok((mut deactivated_machines, mut_deactivated_machines)) => {
+            if deactivated_machines.contains_key(&request.machine_id) {
+                deactivated_machines.remove(&request.machine_id);
+                *mut_deactivated_machines = AttributeValue::M(deactivated_machines);
                 metrics_item.increase_number(&METRICS_TABLE.num_license_activations, 1)?;
                 
                 client.batch_write_item()
@@ -362,17 +365,16 @@ async fn process_request<D: Digest + FixedOutput>(
             // this can happen if a machine has broken or was sold or surplussed
             // yes, surplussed can be spelt with 2-3 `s`'s for some reason. It's
             // a weird word, more weird than "weird"
-            let mut deactivated_machines = v.to_owned();
             let now = now_as_seconds();
-            for (k, value) in v {
+            for (k, value) in deactivated_machines.to_owned() {
                 let timestamp = value.as_n().expect("Deactivated Machines' values should be numbers").parse::<u64>()?;
                 if now - timestamp > years_to_seconds(1) {
-                    deactivated_machines.remove(k);
+                    deactivated_machines.remove(&k);
+                    updated_license = true;
                 }
             }
-            if deactivated_machines.len() < v.len() {
-                license_item.insert_item(LICENSES_TABLE.machines_to_deactivate, deactivated_machines);
-                updated_license = true;
+            if updated_license {
+                *mut_deactivated_machines = AttributeValue::M(deactivated_machines);
             }
         },
         Err(_) => ()
@@ -396,7 +398,7 @@ async fn process_request<D: Digest + FixedOutput>(
     let (first_name, last_name, email) = check_licenses_db_proto(key_manager, is_offline_attempt, &offline_license_code, &license_item)?;
 
     let success_message = {
-        let custom_message = license_item.get_item(LICENSES_TABLE.custom_success_message)?;
+        let custom_message = license_item.get_item(&LICENSES_TABLE.custom_success_message)?;
         if custom_message.len() > 0 {
             custom_message.clone()
         } else {
@@ -407,27 +409,30 @@ async fn process_request<D: Digest + FixedOutput>(
     // all items are present in the database
     // validate the license
 
-    let (mut products_map, mut_products_map) = license_item.get_item_mut(LICENSES_TABLE.products_map_item)?;
+    let (mut products_map, mut_products_map) = license_item.get_item_mut(&LICENSES_TABLE.products_map_item)?;
     let mut key_files: HashMap<String, LicenseKeyFile> = HashMap::new();
     let mut key_file_signatures: HashMap<String, Vec<u8>> = HashMap::new();
-    let mut licensing_errors: HashMap<String, String> = HashMap::new();
+    let mut licensing_errors: HashMap<String, u32> = HashMap::new();
 
     for product_id in product_ids {
         debug_log!("In product_ids loop");
+
+        let mut machine_granted_offline_license: bool = false;
+
         let (mut license_product_map, mut_license_product_map) = products_map.get_mut_map_by_str(&product_id.encoded_id)?;
-        let max_machines = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.machines_allowed)?.parse::<usize>()?;
-        let mut offline_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.offline_machines)?.to_owned();
-        let mut online_machines_map = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.online_machines)?.to_owned();
+        let max_machines = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.machines_allowed)?.parse::<usize>()?;
+        let mut offline_machines_map = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.offline_machines)?.to_owned();
+        let mut online_machines_map = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.online_machines)?.to_owned();
         let current_machine_count = offline_machines_map.keys().len() + online_machines_map.keys().len();
         
         let exists_in_machine_list = offline_machines_map.contains_key(&request.machine_id) || online_machines_map.contains_key(&request.machine_id);
 
-        let expiry_time = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time).unwrap_or(&0.to_string()).parse::<u64>()?;
-        let license_type = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
+        let expiry_time = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.expiry_time).unwrap_or(&0.to_string()).parse::<u64>()?;
+        let license_type = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
 
-        let license_is_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_license_active)?;
+        let license_is_active = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.is_license_active)?;
         if !license_is_active {
-            licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.to_string());
+            licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.get_licensing_error_number());
             continue;
         }
         debug_log!("Got license_is_active");
@@ -436,8 +441,6 @@ async fn process_request<D: Digest + FixedOutput>(
 
         let mut key_file = LicenseKeyFile {
             product_id: product_id.encoded_id.clone(),
-            customer_first_name: "".into(),
-            customer_last_name: "".into(),
             product_version: store_product_info.version.clone(),
             license_code: request.license_code.clone(),
             license_type: license_type.clone(),
@@ -447,8 +450,7 @@ async fn process_request<D: Digest + FixedOutput>(
             check_back_timestamp: 0,
             message: "".into(),
             message_code: 1,
-            post_expiration_message: "".into(),
-            customer_email: email.clone(),
+            post_expiration_error_code: 0,
         };
         
         // doing an OR operation instead of `.ne(license_types::PERPETUAL)` in case other license types get added
@@ -458,11 +460,11 @@ async fn process_request<D: Digest + FixedOutput>(
             // expiry time has been reached
             match license_type.as_str() {
                 license_types::TRIAL => {
-                    licensing_errors.insert(product_id.encoded_id, ApiError::TrialEnded.to_string());
+                    licensing_errors.insert(product_id.encoded_id, ApiError::TrialEnded.get_licensing_error_number());
                     continue;
                 },
                 license_types::SUBSCRIPTION => {
-                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.to_string());
+                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.get_licensing_error_number());
                     continue;
                 },
                 _ => unreachable!()
@@ -478,7 +480,8 @@ async fn process_request<D: Digest + FixedOutput>(
                 // add 1 to total machines
                 metrics_item.increase_number(&METRICS_TABLE.num_licensed_machines, 1)?;
                 // success response, update tables
-                if is_offline_attempt && product_allows_offline {
+                if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) && signature_verified {
+                    machine_granted_offline_license = true;
                     insert_machine_into_machine_map(&mut offline_machines_map, &request);
                     // add 1 to total offline machines
                     metrics_item.increase_number(&METRICS_TABLE.num_offline_machines, 1)?;
@@ -489,13 +492,13 @@ async fn process_request<D: Digest + FixedOutput>(
                 }
             } else {
                 // machine limit reached
-                licensing_errors.insert(product_id.encoded_id, ApiError::OverMaxMachines.to_string());
+                licensing_errors.insert(product_id.encoded_id, ApiError::OverMaxMachines.get_licensing_error_number());
                 continue;
             }
         } else {
             debug_log!("The machine has already activated this license previously");
             // machine exists in machine lists
-            if is_offline_attempt && product_allows_offline {
+            if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) && signature_verified {
                 // remove machine from online machines list if it is there, then add it to offline machines list
                 if online_machines_map.contains_key(&request.machine_id) {
                     online_machines_map.remove(&request.machine_id);
@@ -503,6 +506,7 @@ async fn process_request<D: Digest + FixedOutput>(
                     update_lists(&mut updated_license, &mut license_product_map,
                     Some(online_machines_map), Some(offline_machines_map));
                 } 
+                machine_granted_offline_license = true;
             }
         }
         
@@ -514,34 +518,35 @@ async fn process_request<D: Digest + FixedOutput>(
                     // trial license is being activated; set the expiry time accordingly
                     let expire_time = now + (store_configs.trial_license_expiration_days as u64 * 24 * 60 * 60);
                     license_product_map.insert_item(
-                        LICENSES_TABLE.products_map_item.fields.expiry_time,
+                        &LICENSES_TABLE.products_map_item.fields.expiry_time,
                         expire_time.to_string());
                     updated_license = true;
                     expire_time
                 } else {
-                    license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.expiry_time)?.parse::<u64>()?
+                    expiry_time
                 };
                 let mut check_up_time = now + (store_configs.trial_license_frequency_hours as u64 * 60 * 60);
                 check_up_time = check_up_time.min(expire_time);
-                key_file.post_expiration_message = ApiError::TrialEnded.to_string();
+                key_file.post_expiration_error_code = ApiError::TrialEnded.to_string().parse::<u32>().unwrap();
                 (expire_time, check_up_time)
             },
             license_types::SUBSCRIPTION => {
                 debug_log!("Handling subscription license activation");
-                let is_subscription_active = license_product_map.get_item(LICENSES_TABLE.products_map_item.fields.is_subscription_active)?;
+                let is_subscription_active = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.is_subscription_active)?;
                 if !is_subscription_active {
-                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.to_string());
+                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.get_licensing_error_number());
                     continue;
                 }
-                let expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
+                let mut expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
                 let mut check_up_time = now + (store_configs.subscription_license_frequency_hours as u64 * 60 * 60);
+                expire_time = expire_time.min(expiry_time);
                 check_up_time = check_up_time.min(expire_time);
-                key_file.post_expiration_message = ApiError::LicenseNoLongerActive.to_string();
+                key_file.post_expiration_error_code = ApiError::LicenseNoLongerActive.to_string().parse::<u32>().unwrap();
                 (expire_time, check_up_time)
             },
             license_types::PERPETUAL => {
                 debug_log!("Handling perpetual license activation");
-                let expire_time = if is_offline_attempt && product_allows_offline {
+                let expire_time = if is_offline_attempt && product_allows_offline && machine_granted_offline_license {
                     u64::MAX
                 } else {
                     now + (store_configs.perpetual_license_expiration_days as u64 * 24 * 60 * 60)
@@ -551,7 +556,7 @@ async fn process_request<D: Digest + FixedOutput>(
                 (expire_time, check_up_time)
             },
             _ => {
-                licensing_errors.insert(product_id.encoded_id, ApiError::InvalidDbSchema("Invalid license type".into()).to_string());
+                licensing_errors.insert(product_id.encoded_id, ApiError::InvalidDbSchema("Invalid license type".into()).get_licensing_error_number());
                 continue;
             }
         };
@@ -563,8 +568,6 @@ async fn process_request<D: Digest + FixedOutput>(
         // set expire time and check-up time, then fill remaining fields
         key_file.expiration_timestamp = local_expire_time;
         key_file.check_back_timestamp = check_up_time;
-        key_file.customer_first_name = first_name.clone();
-        key_file.customer_last_name = last_name.clone();
         key_file.message = success_message.clone();
 
         key_files.insert(product_id.encoded_id.clone(), key_file.clone());
@@ -623,6 +626,9 @@ async fn process_request<D: Digest + FixedOutput>(
         key_files,
         key_file_signatures,
         licensing_errors,
+        customer_first_name: first_name,
+        customer_last_name: last_name,
+        customer_email: email,
     };
 
     Ok(response)

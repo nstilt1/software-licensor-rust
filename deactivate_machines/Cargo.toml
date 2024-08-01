@@ -30,4 +30,5 @@ panic = "abort"
 utils = { path = "../utils", features = ["get_license"] }
 
 [features]
+logging = ["utils/logging"]
 zeroize = ["utils/zeroize"]

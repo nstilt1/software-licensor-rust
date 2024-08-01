@@ -18,7 +18,7 @@ pub use p384;
 pub use chacha20poly1305;
 pub use http_private_key_manager;
 use http_private_key_manager::prelude::*;
-use proto::prost::Message;
+use proto::{prost::Message, protos::register_store_request::register_store_request::PublicSigningKey};
 pub use sha2;
 use sha3::Sha3_512;
 pub use aes_gcm::{Aes128Gcm, Aes256Gcm};
@@ -83,7 +83,7 @@ impl ExtractPublicKey for AttributeValueHashMap {
     #[inline]
     fn extract_public_key(&self) -> Result<PublicKey, ApiError> {
         Ok(PublicKey::from_sec1_bytes(
-            &self.get_item(STORES_TABLE.public_key)?.as_ref()
+            &self.get_item(&STORES_TABLE.public_key)?.as_ref()
         )?)
     }
 }
@@ -93,7 +93,15 @@ impl ExtractPublicKey for proto::protos::register_store_request::RegisterStoreRe
     #[inline]
     fn extract_public_key(&self) -> Result<PublicKey, ApiError> {
         Ok(PublicKey::from_sec1_bytes(
-            &self.public_signing_key
+            match &self.public_signing_key {
+                Some(value) => match value {
+                    PublicSigningKey::Der(v) => &v,
+                    // this is ensured in register_store_refactor prior to 
+                    // verify_signature() being called
+                    _ => unreachable!()
+                },
+                None => return Err(ApiError::InvalidRequest("Missing Public key".into()))
+            }
         )?)
     }
 }
@@ -108,7 +116,7 @@ where
 {
     let pubkey = public_key_container.extract_public_key()?;
     let verifier = VerifyingKey::from(pubkey);
-    let signature: Signature = Signature::from_bytes(signature.try_into().unwrap())?;
+    let signature: Signature = Signature::from_der(signature)?;
     verifier.verify_digest(hasher, &signature)?;
     Ok(())
 }

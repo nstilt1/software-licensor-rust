@@ -30,7 +30,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let hashed_store_id = salty_hash(&[key_manager.get_store_id()?.binary_id.as_ref()], &STORE_DB_SALT);
 
     let mut store_item = AttributeValueHashMap::new();
-    store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
+    store_item.insert_item(&STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
 
     let mut metrics_item = store_item.clone();
 
@@ -75,11 +75,11 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     let mut old_license_key = AttributeValueHashMap::new();
     old_license_key.insert_item(
-        LICENSES_TABLE.id,
-        old_license_item.get_item(LICENSES_TABLE.id)?.to_owned()
+        &LICENSES_TABLE.id,
+        old_license_item.get_item(&LICENSES_TABLE.id)?.to_owned()
     );
 
-    match old_license_item.get_item(LICENSES_TABLE.last_license_regen) {
+    match old_license_item.get_item(&LICENSES_TABLE.last_license_regen) {
         Ok(v) => {
             let cooled_down_time = v.parse::<u64>()? + days_to_seconds(14);
             if now_as_seconds() < cooled_down_time {
@@ -94,7 +94,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         None => return Err(ApiError::NotFound)
     };
 
-    let mut new_products_map = old_license_item.get_item(LICENSES_TABLE.products_map_item)?.clone();
+    let mut new_products_map = old_license_item.get_item(&LICENSES_TABLE.products_map_item)?.clone();
 
     let product_keys: Vec<String> = new_products_map.keys().cloned().collect();
 
@@ -102,13 +102,13 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     for k in product_keys.iter() {
         let mut product_map = new_products_map.get_map_by_str(k)?.clone();
 
-        product_map.insert_item(LICENSES_TABLE.products_map_item.fields.online_machines, AttributeValueHashMap::new());
+        product_map.insert_item(&LICENSES_TABLE.products_map_item.fields.online_machines, AttributeValueHashMap::new());
         new_products_map.insert_map(&k, product_map);
     }
 
     let mut new_license_item = old_license_item.clone();
-    new_license_item.insert_item(LICENSES_TABLE.products_map_item, new_products_map);
-    new_license_item.insert_item(LICENSES_TABLE.last_license_regen, now_as_seconds().to_string());
+    new_license_item.insert_item(&LICENSES_TABLE.products_map_item, new_products_map);
+    new_license_item.insert_item(&LICENSES_TABLE.last_license_regen, now_as_seconds().to_string());
 
     init_license(&client, key_manager, None, &mut new_license_item, &store_id).await?;
 

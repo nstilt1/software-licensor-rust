@@ -1,8 +1,12 @@
 # Power Tuning
 
-This is a repo for determining how much RAM to use for the Lambda Functions.
+This is a rust project for determining how much RAM to use for the Lambda Functions, and it can also be used for testing.
 
-Unfortunately, it would not have been possible to use the official Lambda Power Tuner, as it does not appear to support custom Protobuf requests with custom cryptography. This will have to do.
+Unfortunately, it would not have been possible to use the official Lambda Power Tuner, as it does not appear to support custom Protobuf requests with custom cryptography/headers. This will have to do.
+
+## Testing with different Store IDs
+
+Delete `next_key.bin` when switching Store/Client IDs in `server_requests_and_responses`, because that is where the `NextKey` protobuf message is stored. Those keys are made for specific stores to use, and cannot be used by other stores (unless there's a 1 in a trillion MAC collision AND a 1 in a gazillion identical HKDF output for the private key).
 
 # Register Store Refactor Results
 

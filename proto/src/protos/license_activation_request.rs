@@ -95,12 +95,6 @@ pub struct Stats {
 pub struct LicenseKeyFile {
     #[prost(string, tag = "1")]
     pub product_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub customer_first_name: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub customer_last_name: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub customer_email: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub product_version: ::prost::alloc::string::String,
     #[prost(string, tag = "10")]
@@ -133,11 +127,12 @@ pub struct LicenseKeyFile {
     /// 64: Offline codes are not allowed for this product
     /// 128: Invalid License Code
     /// 256: Machine Deactivated
+    /// 512: Invalid License Type (should not happen)
     #[prost(uint32, tag = "31")]
     pub message_code: u32,
     /// the message to show if the license ever expires on the user
-    #[prost(string, tag = "35")]
-    pub post_expiration_message: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "35")]
+    pub post_expiration_error_code: u32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -148,11 +143,17 @@ pub struct LicenseActivationResponse {
         ::prost::alloc::string::String,
         LicenseKeyFile,
     >,
+    #[prost(string, tag = "6")]
+    pub customer_first_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub customer_last_name: ::prost::alloc::string::String,
+    #[prost(string, tag = "8")]
+    pub customer_email: ::prost::alloc::string::String,
     /// map of product ids to licensing errors
-    #[prost(map = "string, string", tag = "2")]
+    #[prost(map = "string, uint32", tag = "2")]
     pub licensing_errors: ::std::collections::HashMap<
         ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
+        u32,
     >,
     /// map of product ids to key file signature
     #[prost(map = "string, bytes", tag = "5")]

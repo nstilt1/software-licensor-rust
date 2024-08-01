@@ -9,26 +9,31 @@ pub struct RegisterStoreRequest {
     pub contact_last_name: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub contact_email: ::prost::alloc::string::String,
-    #[prost(string, tag = "5")]
-    pub store_name: ::prost::alloc::string::String,
-    #[prost(string, tag = "6")]
-    pub store_url: ::prost::alloc::string::String,
     #[prost(string, tag = "10")]
     pub discord_username: ::prost::alloc::string::String,
-    #[prost(string, tag = "27")]
-    pub state: ::prost::alloc::string::String,
     #[prost(string, tag = "29")]
     pub country: ::prost::alloc::string::String,
-    #[prost(bytes = "vec", tag = "30")]
-    pub public_signing_key: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "35")]
     pub configs: ::core::option::Option<Configs>,
+    #[prost(oneof = "register_store_request::PublicSigningKey", tags = "37, 38")]
+    pub public_signing_key: ::core::option::Option<
+        register_store_request::PublicSigningKey,
+    >,
+}
+/// Nested message and enum types in `RegisterStoreRequest`.
+pub mod register_store_request {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum PublicSigningKey {
+        #[prost(string, tag = "37")]
+        Pem(::prost::alloc::string::String),
+        #[prost(bytes, tag = "38")]
+        Der(::prost::alloc::vec::Vec<u8>),
+    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Configs {
-    #[prost(uint32, tag = "60")]
-    pub max_machines_per_license: u32,
     /// some notes about "frequency" and "expiration":
     ///
     /// the frequency dictates the minimum amount of time that must pass before a

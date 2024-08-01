@@ -54,9 +54,6 @@ message Stats {
 
 message LicenseKeyFile {
     string product_id = 1;
-    string customer_first_name = 2;
-    string customer_last_name = 3;
-    string customer_email = 4;
     string product_version = 5;
     string license_code = 10;
     string license_type = 11;
@@ -81,16 +78,20 @@ message LicenseKeyFile {
     // 64: Offline codes are not allowed for this product
     // 128: Invalid License Code
     // 256: Machine Deactivated
+    // 512: Invalid License Type (should not happen)
     uint32 message_code = 31;
     // the message to show if the license ever expires on the user
-    string post_expiration_message = 35;
+    uint32 post_expiration_error_code = 35;
 }
 
 message LicenseActivationResponse {
     // map of product ids to license key files
     map<string, LicenseKeyFile> key_files = 1;
+    string customer_first_name = 6;
+    string customer_last_name = 7;
+    string customer_email = 8;
     // map of product ids to licensing errors
-    map<string, string> licensing_errors = 2;
+    map<string, uint32> licensing_errors = 2;
     // map of product ids to key file signature
     map<string, bytes> key_file_signatures = 5;
 }

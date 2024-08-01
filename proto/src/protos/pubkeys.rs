@@ -11,6 +11,8 @@ pub struct ExpiringEcdhKey {
     pub ecdh_key_id: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes = "vec", tag = "2")]
     pub ecdh_public_key: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "3")]
+    pub ecdh_public_key_pem: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -19,6 +21,8 @@ pub struct ExpiringEcdsaKey {
     pub ecdsa_key_id: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes = "vec", tag = "2")]
     pub ecdsa_public_key: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "4")]
+    pub ecdsa_public_key_pem: ::prost::alloc::string::String,
     #[prost(uint64, tag = "3")]
     pub expiration: u64,
 }

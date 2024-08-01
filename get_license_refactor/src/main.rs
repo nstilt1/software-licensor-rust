@@ -25,7 +25,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
     let mut store_item = AttributeValueHashMap::new();
     let store_id = key_manager.get_store_id()?;
     let hashed_store_id = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT);
-    store_item.insert_item(STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
+    store_item.insert_item(&STORES_TABLE.id, Blob::new(hashed_store_id.to_vec()));
 
     let get_output = client.get_item()
         .table_name(STORES_TABLE.table_name)
@@ -40,7 +40,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         // hashing were to change... in which case, it would happen every time
         None => return Err(ApiError::NotFound)
     };
-    
+
     // verify signature with public key
     verify_signature(&store_item, hasher, &signature)?;
 

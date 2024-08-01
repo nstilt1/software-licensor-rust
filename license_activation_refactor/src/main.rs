@@ -192,8 +192,8 @@ impl_function_handler!(
 async fn process_request<D: Digest + FixedOutput>(
     key_manager: &mut KeyManager, 
     request: &mut LicenseActivationRequest, 
-    _hasher: D, 
-    _signature: Vec<u8>
+    hasher: D, 
+    signature: Vec<u8>
 ) -> Result<LicenseActivationResponse, ApiError> {
     debug_log!("Inside process_request");
     let client = init_dynamodb_client!();
@@ -288,6 +288,8 @@ async fn process_request<D: Digest + FixedOutput>(
     } else {
         return Err(ApiError::NotFound)
     };
+
+    let signature_verified = verify_signature(&store_item, hasher, &signature).is_ok();
 
     let mut metrics_item = if let Some(s) = tables.get(METRICS_TABLE.table_name) {
         if s.len() != 1 {
@@ -414,6 +416,9 @@ async fn process_request<D: Digest + FixedOutput>(
 
     for product_id in product_ids {
         debug_log!("In product_ids loop");
+
+        let mut machine_granted_offline_license: bool = false;
+
         let (mut license_product_map, mut_license_product_map) = products_map.get_mut_map_by_str(&product_id.encoded_id)?;
         let max_machines = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.machines_allowed)?.parse::<usize>()?;
         let mut offline_machines_map = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.offline_machines)?.to_owned();
@@ -475,7 +480,8 @@ async fn process_request<D: Digest + FixedOutput>(
                 // add 1 to total machines
                 metrics_item.increase_number(&METRICS_TABLE.num_licensed_machines, 1)?;
                 // success response, update tables
-                if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) {
+                if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) && signature_verified {
+                    machine_granted_offline_license = true;
                     insert_machine_into_machine_map(&mut offline_machines_map, &request);
                     // add 1 to total offline machines
                     metrics_item.increase_number(&METRICS_TABLE.num_offline_machines, 1)?;
@@ -492,7 +498,7 @@ async fn process_request<D: Digest + FixedOutput>(
         } else {
             debug_log!("The machine has already activated this license previously");
             // machine exists in machine lists
-            if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) {
+            if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) && signature_verified {
                 // remove machine from online machines list if it is there, then add it to offline machines list
                 if online_machines_map.contains_key(&request.machine_id) {
                     online_machines_map.remove(&request.machine_id);
@@ -500,6 +506,7 @@ async fn process_request<D: Digest + FixedOutput>(
                     update_lists(&mut updated_license, &mut license_product_map,
                     Some(online_machines_map), Some(offline_machines_map));
                 } 
+                machine_granted_offline_license = true;
             }
         }
         
@@ -539,7 +546,7 @@ async fn process_request<D: Digest + FixedOutput>(
             },
             license_types::PERPETUAL => {
                 debug_log!("Handling perpetual license activation");
-                let expire_time = if is_offline_attempt && product_allows_offline {
+                let expire_time = if is_offline_attempt && product_allows_offline && machine_granted_offline_license {
                     u64::MAX
                 } else {
                     now + (store_configs.perpetual_license_expiration_days as u64 * 24 * 60 * 60)

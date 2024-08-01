@@ -11,4 +11,4 @@ prost = "0.13.1"
 zeroize = { version = "1", optional = true}
 
 [build-dependencies]
-prost-build = { version = "0.12.4" }
+prost-build = { version = "0.13.1" }

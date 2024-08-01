@@ -26,7 +26,7 @@ pub struct CreateLicenseRequest {
 }
 /// license-type-specific product information
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct ProductInfo {
     #[prost(oneof = "product_info::LicenseType", tags = "1, 2, 3")]
     pub license_type: ::core::option::Option<product_info::LicenseType>,
@@ -34,7 +34,7 @@ pub struct ProductInfo {
 /// Nested message and enum types in `ProductInfo`.
 pub mod product_info {
     #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[derive(Clone, Copy, PartialEq, ::prost::Oneof)]
     pub enum LicenseType {
         #[prost(message, tag = "1")]
         Subscription(super::SubscriptionLicense),
@@ -45,13 +45,13 @@ pub mod product_info {
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct PerpetualLicense {
     #[prost(uint32, tag = "2")]
     pub quantity: u32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct SubscriptionLicense {
     /// for flexibility, there are two ways that subscription end times can get
     /// updated
@@ -65,7 +65,7 @@ pub mod subscription_license {
     /// for flexibility, there are two ways that subscription end times can get
     /// updated
     #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    #[derive(Clone, Copy, PartialEq, ::prost::Oneof)]
     pub enum SubscriptionPeriod {
         /// Setting this value will result in Software Licensor adding this many
         /// seconds to either their current end date, or adding it to `now` if the
@@ -79,7 +79,7 @@ pub mod subscription_license {
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct TrialLicense {}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

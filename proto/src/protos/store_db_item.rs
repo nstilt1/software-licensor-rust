@@ -40,7 +40,7 @@ pub struct ProductInfo {
     pub max_machines_per_license: u32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Configs {
     /// some notes about "frequency" and "expiration":
     ///

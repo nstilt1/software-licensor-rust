@@ -100,7 +100,9 @@ fn insert_stats(stats_map: &mut AttributeValueHashMap, stats: &Stats) {
     );
 }
 
-fn insert_machine_into_machine_map(map: &mut AttributeValueHashMap, request: &LicenseActivationRequest) {
+/// Inserts a machine into a License's machines hashmap. Returns whether the 
+/// hashmap changed or not.
+fn insert_machine_into_machine_map(map: &mut AttributeValueHashMap, request: &LicenseActivationRequest) -> bool {
     debug_log!("In insert_machine_into_machine_map");
     let mach_map = if let Some(s) = &request.hardware_stats {
         let mut mach_map = AttributeValueHashMap::new(); 
@@ -115,7 +117,12 @@ fn insert_machine_into_machine_map(map: &mut AttributeValueHashMap, request: &Li
         mach_map.insert_item_into(&MACHINE.computer_name, "Not provided");
         mach_map
     };
-    map.insert_map(&request.machine_id, mach_map)
+    let previous_value = map.insert_map(&request.machine_id, mach_map.clone());
+    if let Some(p) = previous_value {
+        p.as_m() != Ok(&mach_map)
+    } else {
+        true
+    }
 }
 
 /// Initializes and updates a machine item.
@@ -501,11 +508,11 @@ async fn process_request<D: Digest + FixedOutput>(
 
             // ensure that the license in the db has the most up-to-date machine info
             if online_machines_map.contains_key(&request.machine_id) {
-                insert_machine_into_machine_map(&mut online_machines_map, &request);
+                updated_license |= insert_machine_into_machine_map(&mut online_machines_map, &request);
             } else if offline_machines_map.contains_key(&request.machine_id) {
-                insert_machine_into_machine_map(&mut offline_machines_map, &request);
+                updated_license |= insert_machine_into_machine_map(&mut offline_machines_map, &request);
             }
-            
+
             if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) && signature_verified {
                 // remove machine from online machines list if it is there, then add it to offline machines list
                 if online_machines_map.contains_key(&request.machine_id) {

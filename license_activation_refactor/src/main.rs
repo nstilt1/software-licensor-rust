@@ -498,6 +498,14 @@ async fn process_request<D: Digest + FixedOutput>(
         } else {
             debug_log!("The machine has already activated this license previously");
             // machine exists in machine lists
+
+            // ensure that the license in the db has the most up-to-date machine info
+            if online_machines_map.contains_key(&request.machine_id) {
+                insert_machine_into_machine_map(&mut online_machines_map, &request);
+            } else if offline_machines_map.contains_key(&request.machine_id) {
+                insert_machine_into_machine_map(&mut offline_machines_map, &request);
+            }
+            
             if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) && signature_verified {
                 // remove machine from online machines list if it is there, then add it to offline machines list
                 if online_machines_map.contains_key(&request.machine_id) {

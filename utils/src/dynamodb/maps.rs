@@ -35,7 +35,9 @@ pub trait Maps {
     /// Supply it with a vec of (PrimaryKeyId, PrimaryKeyValue)
     fn insert_strings(&mut self, keys: Vec<(&str, &str)>) -> Self;
 
-    fn insert_map(&mut self, key: &str, map: AttributeValueHashMap);
+    /// Inserts a hashmap into a hashmap. Returns the value of what was replaced,
+    /// if something was replaced.
+    fn insert_map(&mut self, key: &str, map: AttributeValueHashMap) -> Option<AttributeValue>;
 
     fn new_map(keys: Vec<(&str, &str)>) -> Self;
 
@@ -60,11 +62,11 @@ impl<T> GetOrMutateHashmap<T> for HashMap<String, T> {
 }
 
 impl Maps for HashMap<String, AttributeValue> {
-    fn insert_map(&mut self, key: &str, map: AttributeValueHashMap) {
+    fn insert_map(&mut self, key: &str, map: AttributeValueHashMap) -> Option<AttributeValue> {
         self.insert(
             key.to_string(),
             AttributeValue::M(map)
-        );
+        )
     }
     fn increase_float(&mut self, key: &str, to_add: &str) -> Result<(), ApiError> {
         // inserting data returns the current value, which works well for incrementing

@@ -63,7 +63,19 @@ pub fn generate_create_license_payload() -> Vec<u8> {
     //     subtotal: "0".into()
     // });
     product_info.insert(
-        "TestCq16-Ozuwedx/Dda_ILA4wGzTNzTJ".into(), 
+        "TestCq16-GntSNzpb4pMv1MTpNMygwvPI".into(), 
+        ProductInfo {
+            license_type: Some(
+                LicenseType::PerpetualLicense(
+                    PerpetualLicense {
+                        quantity: 1,
+                    }
+                )
+            ),
+        }
+    );
+    product_info.insert(
+        "TestCq16-HlzFtdmTJfFMnBfLryBzbmpv".into(), 
         ProductInfo {
             license_type: Some(
                 LicenseType::PerpetualLicense(

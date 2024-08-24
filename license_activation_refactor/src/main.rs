@@ -135,7 +135,7 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
             if let Some(s) = &request.hardware_stats {
                 debug_log!("Hardware stats were provided by the user");
                 // hardware stats were provided by the user
-                if machine_item.is_null(&MACHINES_TABLE.protobuf_data)? {
+                if machine_item.is_null(&MACHINES_TABLE.stats)? {
                     debug_log!("Inserting machine info into table");
                     // info needs to be entered
                     let mut stats_map = AttributeValueHashMap::new();
@@ -163,7 +163,6 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
                 if !machine_item.is_null(&MACHINES_TABLE.stats)? {
                     debug_log!("Overwriting existing stats with null values.");
                     machine_item.insert_null(&MACHINES_TABLE.stats);
-                    machine_item.insert_null(&MACHINES_TABLE.protobuf_data);
                     return Ok(true)
                 }
                 Ok(false)
@@ -182,7 +181,6 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
                 debug_log!("Machine stats were not provided by the user; setting values to null");
                 // stats were not provided by the user
                 machine_item.insert_null(&MACHINES_TABLE.stats);
-                machine_item.insert_null(&MACHINES_TABLE.protobuf_data);
             }
             Ok(true)
         }

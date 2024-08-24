@@ -7,8 +7,6 @@ pub struct MachinesTable {
     pub table_name: &'static str,
     /// primary index
     pub id: PrimaryHashKey<S>,
-    /// computer_name
-    pub protobuf_data: Item<B>,
     /// Some hardware stats. This field will be null if the user doesn't provide
     /// any data
     pub stats: MapItem<Stats>,
@@ -54,7 +52,6 @@ pub struct Stats {
 pub const MACHINES_TABLE: MachinesTable = MachinesTable {
     table_name: "MACHINES-wbjyZs9LFVNrQaLT9aI-wAh6N4q_HTnh_CPv0oKDvXeMozio40MSyXVl",
     id: PrimaryHashKey { item: Item::new("id") },
-    protobuf_data: Item::new("data"),
     stats: MapItem { 
         key: Item::new("stats"), 
         fields: Stats { 

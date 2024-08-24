@@ -1,3 +1,4 @@
+use base64::prelude::{Engine as _, BASE64_STANDARD};
 use reqwest::Response;
 use utils::{base64::Base64Vec, crypto::chacha20poly1305::Key, prelude::proto::{prost::Message, protos::{self, pubkeys::{ExpiringEcdhKey, ExpiringEcdsaKey}}}};
 use crate::Error;
@@ -13,8 +14,9 @@ pub async fn test_create_product(req_client: &reqwest::Client, server_keys: (Exp
         .send()
         .await.unwrap();
 
-    let product_id = get_product_id(response, payload.symmetric_key).await;
+    let (product_id, pubkey) = get_product_id(response, payload.symmetric_key).await;
     println!("Product ID: {}", product_id);
+    println!("Public Key: {}", pubkey);
     Ok(())
 }
 
@@ -30,9 +32,11 @@ pub fn generate_create_product_payload() -> Vec<u8> {
     req.encode_length_delimited_to_vec()
 }
 
-pub async fn get_product_id(response: Response, symmetric_key: Key) -> String {
+pub async fn get_product_id(response: Response, symmetric_key: Key) -> (String, String) {
     let decrypted = decrypt_response(response, symmetric_key).await;
     use protos::create_product_request::CreateProductResponse;
     let r = CreateProductResponse::decode_length_delimited(decrypted.as_slice()).unwrap();
-    r.product_id.clone()
+    let pubkey_bytes = &r.product_public_key;
+    let encoded_pubkey = BASE64_STANDARD.encode(pubkey_bytes);
+    (r.product_id.clone(), encoded_pubkey)
 }

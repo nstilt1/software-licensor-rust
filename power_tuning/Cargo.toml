@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+base64 = "0.22"
 rand_chacha = "0.3"
 reqwest = "0.12.4"
 utils = { path = "../utils", default-features = false, features = ["local", "lambda"] }

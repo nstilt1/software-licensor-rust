@@ -117,6 +117,7 @@ fn insert_machine_into_machine_map(map: &mut AttributeValueHashMap, request: &Li
         mach_map.insert_item_into(&MACHINE.computer_name, "Not provided");
         mach_map
     };
+    // determine if there was a change to the map
     let previous_value = map.insert_map(&request.machine_id, mach_map.clone());
     if let Some(p) = previous_value {
         p.as_m() != Ok(&mach_map)
@@ -135,13 +136,13 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
             if let Some(s) = &request.hardware_stats {
                 debug_log!("Hardware stats were provided by the user");
                 // hardware stats were provided by the user
-                if machine_item.is_null(&MACHINES_TABLE.stats)? {
-                    debug_log!("Inserting machine info into table");
+                if machine_item.is_null(&MACHINES_TABLE.stats) {
+                    debug_log!("Inserting machine info into table; stats were null");
                     // info needs to be entered
                     let mut stats_map = AttributeValueHashMap::new();
-                    insert_stats(&mut stats_map, s);
-                    machine_item.insert_item_into(&MACHINES_TABLE.stats, stats_map);
-                    Ok(true)
+                    insert_stats(&mut stats_map, &s);
+                    machine_item.insert_item(&MACHINES_TABLE.stats, stats_map);
+                    return Ok(true)
                 } else {
                     debug_log!("Checking if machine stats in the request and in the table are equal");
                     // stats have already been set; check if they are equal
@@ -154,18 +155,18 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
                         *mut_attribute_value = AttributeValue::M(existing_stats_map);
                         return Ok(true)
                     }
-                    Ok(false)
+                    return Ok(false)
                 }
             } else {
                 // stats have not been provided; erase stats and computer 
                 // name
                 debug_log!("Machine stats were not provided");
-                if !machine_item.is_null(&MACHINES_TABLE.stats)? {
+                if !machine_item.is_null(&MACHINES_TABLE.stats) {
                     debug_log!("Overwriting existing stats with null values.");
                     machine_item.insert_null(&MACHINES_TABLE.stats);
                     return Ok(true)
                 }
-                Ok(false)
+                return Ok(false)
             }
         },
         false => {
@@ -182,7 +183,7 @@ fn init_machine_item(request: &LicenseActivationRequest, machine_item: &mut Attr
                 // stats were not provided by the user
                 machine_item.insert_null(&MACHINES_TABLE.stats);
             }
-            Ok(true)
+            return Ok(true)
         }
     }
 }
@@ -392,7 +393,8 @@ async fn process_request<D: Digest + FixedOutput>(
             // make new machine item
             init_machine_item(&request, &mut machine_item, false)
         } else {
-            init_machine_item(&request, &mut m[0].to_owned(), true)
+            machine_item = m[0].to_owned();
+            init_machine_item(&request, &mut machine_item, true)
         }
     } else {
         // make new machine item
@@ -618,6 +620,7 @@ async fn process_request<D: Digest + FixedOutput>(
     );
 
     if machine_needs_update {
+        debug_log!("Updating the machine in the database.");
         write_requests.insert(
             MACHINES_TABLE.table_name.to_string(),
             vec![WriteRequest::builder()

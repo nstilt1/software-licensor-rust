@@ -231,7 +231,7 @@ pub trait NullableFields {
     /// * SS (String Set)
     fn get_potential_null<D: DynamoDBAttributeValue>(&self, key: &D) -> Result<String, ApiError>;
     /// Returns true if the item is null
-    fn is_null<D: DynamoDBAttributeValue>(&self, key: &D) -> Result<bool, ApiError>;
+    fn is_null<D: DynamoDBAttributeValue>(&self, key: &D) -> bool;
 }
 
 impl NullableFields for AttributeValueHashMap {
@@ -256,12 +256,14 @@ impl NullableFields for AttributeValueHashMap {
         }
     }
     #[inline]
-    fn is_null<D: DynamoDBAttributeValue>(&self, key: &D) -> Result<bool, ApiError> {
+    fn is_null<D: DynamoDBAttributeValue>(&self, key: &D) -> bool {
         let attr_val = match self.get(key.get_key()) {
             Some(x) => x,
-            None => return Err(ApiError::InvalidDbSchema(format!("Key `{}` was not in the hashmap", key.get_key())))
+            None => {
+                return true
+            }
         };
-        Ok(attr_val.is_null())
+        attr_val.is_null()
     }
 }
 

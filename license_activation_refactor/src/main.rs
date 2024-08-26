@@ -105,6 +105,7 @@ fn insert_stats(stats_map: &mut AttributeValueHashMap, stats: &Stats) {
 fn insert_machine_into_machine_map(map: &mut AttributeValueHashMap, request: &LicenseActivationRequest) -> bool {
     debug_log!("In insert_machine_into_machine_map");
     let mach_map = if let Some(s) = &request.hardware_stats {
+        debug_log!("Inserting computer name into mach_map");
         let mut mach_map = AttributeValueHashMap::new(); 
         let mut truncated_name = s.os_name.clone();
         truncated_name.truncate(15);
@@ -112,6 +113,7 @@ fn insert_machine_into_machine_map(map: &mut AttributeValueHashMap, request: &Li
         mach_map.insert_item(&MACHINE.computer_name, s.computer_name.clone());
         mach_map
     } else {
+        debug_log!("Inserting 'Not Provided' into mach_map");
         let mut mach_map = AttributeValueHashMap::new();
         mach_map.insert_item_into(&MACHINE.os_name, "Not provided");
         mach_map.insert_item_into(&MACHINE.computer_name, "Not provided");
@@ -120,8 +122,16 @@ fn insert_machine_into_machine_map(map: &mut AttributeValueHashMap, request: &Li
     // determine if there was a change to the map
     let previous_value = map.insert_map(&request.machine_id, mach_map.clone());
     if let Some(p) = previous_value {
-        p.as_m() != Ok(&mach_map)
+        let is_value_different = p.as_m() != Ok(&mach_map);
+        if is_value_different {
+            debug_log!("Machine insertion was different");
+            is_value_different
+        } else {
+            debug_log!("Machine insertion was the same");
+            is_value_different
+        }
     } else {
+        debug_log!("Machine insertion did not replace anything");
         true
     }
 }
@@ -489,12 +499,12 @@ async fn process_request<D: Digest + FixedOutput>(
                 // success response, update tables
                 if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) && signature_verified {
                     machine_granted_offline_license = true;
-                    insert_machine_into_machine_map(&mut offline_machines_map, &request);
+                    updated_license |= insert_machine_into_machine_map(&mut offline_machines_map, &request);
                     // add 1 to total offline machines
                     metrics_item.increase_number(&METRICS_TABLE.num_offline_machines, 1)?;
                     update_lists(&mut updated_license, &mut license_product_map, None, Some(offline_machines_map));
                 } else {
-                    insert_machine_into_machine_map(&mut online_machines_map, &request);
+                    updated_license |= insert_machine_into_machine_map(&mut online_machines_map, &request);
                     update_lists(&mut updated_license, &mut license_product_map, Some(online_machines_map), None);
                 }
             } else {
@@ -509,8 +519,12 @@ async fn process_request<D: Digest + FixedOutput>(
             // ensure that the license in the db has the most up-to-date machine info
             if online_machines_map.contains_key(&request.machine_id) {
                 updated_license |= insert_machine_into_machine_map(&mut online_machines_map, &request);
+                // update_lists does not determine whether a change has occurred,
+                // so I will pass in a temporary bool
+                update_lists(&mut false, &mut license_product_map, Some(online_machines_map.clone()), None);
             } else if offline_machines_map.contains_key(&request.machine_id) {
                 updated_license |= insert_machine_into_machine_map(&mut offline_machines_map, &request);
+                update_lists(&mut false, &mut license_product_map, None, Some(offline_machines_map.clone()));
             }
 
             if is_offline_attempt && product_allows_offline && license_type.eq(license_types::PERPETUAL) && signature_verified {
@@ -520,6 +534,7 @@ async fn process_request<D: Digest + FixedOutput>(
                     insert_machine_into_machine_map(&mut offline_machines_map, &request);
                     update_lists(&mut updated_license, &mut license_product_map,
                     Some(online_machines_map), Some(offline_machines_map));
+                    updated_license = true;
                 } 
                 machine_granted_offline_license = true;
             }
@@ -595,6 +610,7 @@ async fn process_request<D: Digest + FixedOutput>(
     let mut write_requests: HashMap<String, Vec<WriteRequest>> = HashMap::new();
 
     if updated_license {
+        debug_log!("updated_license was true; updating the license info");
         write_requests.insert(
             LICENSES_TABLE.table_name.to_string(),
             vec![WriteRequest::builder()

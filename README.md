@@ -25,7 +25,7 @@ There are a few ways to address this issue:
 * disallow offline licenses
   * it is possible to not have any Offline licenses for a product. It is an option in the `create_product` API method
 
-There is also another policy that tries to limit this problem with malicious actors. In order to activate an offline license, the user needs to put `-offline-[4-hexadigit offline code]` at the end of their license code. If a legitimate customer shared a license code with someone, and that someone activated an offline license that *could not be removed/deactivated*, then the legitimate customer would permanently lose a machine slot on their license... or more, if someone were to do this with multiple computers.
+There was a plan to allow offline activations by having the user type in their license code followed by `-offline-XXXX`, but it has since been changed in #43. To activate an offline computer, we now require some server-side code to sign a `license_activation_refactor` request with the store's private key.
 
 ## Subscription license limitations
 

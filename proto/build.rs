@@ -5,6 +5,7 @@ fn main() {
             &[
                 "src/request_protos/request.proto",
                 "src/request_protos/response.proto",
+                "src/request_protos/create_store.proto",
                 "src/request_protos/register_store.proto",
                 "src/request_protos/create_product.proto",
                 "src/request_protos/create_license.proto",

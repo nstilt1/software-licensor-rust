@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "create_store",
     "create_license_refactor",
     "create_plugin_refactor",
     "deactivate_machines",

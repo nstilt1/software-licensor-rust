@@ -20,7 +20,6 @@ pub mod deactivate_machines;
 
 pub mod regenerate_license_code;
 
-use license_activation_request::LicenseActivationResponse;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -28,12 +27,13 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use self::{
     create_product_request::{CreateProductRequest, CreateProductResponse}, 
     create_license_request::CreateLicenseRequest,
-    register_store_request::{RegisterStoreRequest, RegisterStoreResponse}, 
+    register_store_request::RegisterStoreResponse, 
     store_db_item::StoreDbItem,
     license_db_item::LicenseDbItem,
     product_db_item::ProductDbItem,
     license_activation_request::{LicenseActivationRequest, Stats, LicenseKeyFile},
     get_license_request::{GetLicenseRequest, GetLicenseResponse},
+    license_activation_request::LicenseActivationResponse
 };
 
 
@@ -59,15 +59,6 @@ macro_rules! impl_zeroize_on_drop_for_struct {
         impl ZeroizeOnDrop for $proto {}
     };
 }
-
-impl_zeroize_on_drop_for_struct!(
-    RegisterStoreRequest, 
-    contact_first_name,
-    contact_last_name,
-    contact_email,
-    country,
-    discord_username
-);
 
 impl_zeroize_on_drop_for_struct!(RegisterStoreResponse, store_id);
 

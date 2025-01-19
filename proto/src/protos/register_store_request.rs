@@ -3,18 +3,11 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RegisterStoreRequest {
-    #[prost(string, tag = "1")]
-    pub contact_first_name: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub contact_last_name: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub contact_email: ::prost::alloc::string::String,
-    #[prost(string, tag = "10")]
-    pub discord_username: ::prost::alloc::string::String,
-    #[prost(string, tag = "29")]
-    pub country: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "35")]
-    pub configs: ::core::option::Option<Configs>,
+    /// string contact_first_name = 1;
+    /// string contact_last_name = 2;
+    /// string contact_email = 3;
+    /// string discord_username = 10;
+    /// string country = 29;
     #[prost(oneof = "register_store_request::PublicSigningKey", tags = "37, 38")]
     pub public_signing_key: ::core::option::Option<
         register_store_request::PublicSigningKey,
@@ -22,6 +15,11 @@ pub struct RegisterStoreRequest {
 }
 /// Nested message and enum types in `RegisterStoreRequest`.
 pub mod register_store_request {
+    /// string contact_first_name = 1;
+    /// string contact_last_name = 2;
+    /// string contact_email = 3;
+    /// string discord_username = 10;
+    /// string country = 29;
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum PublicSigningKey {

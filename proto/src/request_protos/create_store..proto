@@ -1,19 +1,19 @@
 syntax = "proto3";
 
-package register_store_request;
+package create_store_request;
 
-// A store registration request
-message RegisterStoreRequest {
-    //string contact_first_name = 1;
-    //string contact_last_name = 2;
-    //string contact_email = 3;
-    //string discord_username = 10;
-    //string country = 29;
-    oneof public_signing_key {
-        string pem = 37;
-        bytes der = 38;
-    }
-    //Configs configs = 35;
+message CreateStoreRequest {
+    string id_prefix = 1;
+    string contact_first_name = 2;
+    string contact_last_name = 3;
+    string contact_email = 4;
+    string discord_username = 5;
+    string country = 6;
+    Configs configs = 10;
+}
+
+message CreateStoreResponse {
+    string api_key = 1;
 }
 
 message Configs {
@@ -45,8 +45,4 @@ message Configs {
 
     uint32 trial_license_expiration_days = 130;
     uint32 trial_license_frequency_hours = 140;
-}
-
-message RegisterStoreResponse {
-    string store_id = 1;
 }

@@ -36,22 +36,7 @@ pub fn generate_register_store_payload() -> Vec<u8> {
             .to_encoded_point(true)
     ).unwrap();
     let result = RegisterStoreRequest {
-        contact_first_name: "Test First Name".into(),
-        contact_last_name: "Test Last Name".into(),
-        contact_email: "Testemail@gmail.com".into(),
-        discord_username: "testing".into(),
-        country: "Test".into(),
         public_signing_key: Some(PublicSigningKey::Pem(pubkey.to_string())),
-        configs: Some(Configs {
-            offline_license_frequency_hours: 20,
-            perpetual_license_expiration_days: 20,
-            perpetual_license_frequency_hours: 20,
-            subscription_license_expiration_days: 20,
-            subscription_license_expiration_leniency_hours: 20,
-            subscription_license_frequency_hours: 20,
-            trial_license_expiration_days: 20,
-            trial_license_frequency_hours: 20,
-        }),
     };
     result.encode_length_delimited_to_vec()
 }

@@ -1,13 +1,13 @@
 //! A plugin creation API method for a licensing service.
 
 use std::collections::HashMap;
-use proto::protos::store_db_item::ProductInfo;
+use proto::protos::create_store_request::ProductInfo;
 use utils::aws_config::meta::region::RegionProviderChain;
 use utils::aws_sdk_dynamodb::types::{KeysAndAttributes, PutRequest, WriteRequest};
 use utils::aws_sdk_dynamodb::Client;
 use utils::dynamodb::maps::Maps;
 use proto::protos::create_product_request::{CreateProductRequest, CreateProductResponse};
-use utils::prelude::proto::protos::store_db_item::StoreDbItem;
+use utils::prelude::proto::protos::create_store_request::StoreDbItem;
 use utils::tables::metrics::METRICS_TABLE;
 use utils::{impl_function_handler, prelude::*};
 use utils::tables::stores::STORES_TABLE;

@@ -18,6 +18,9 @@ use substring::Substring;
 pub use http_private_key_manager::utils::StringSanitization;
 pub use aws_config;
 
+#[cfg(feature = "cognito")]
+pub use aws_sdk_cognitoidentityprovider;
+
 #[cfg(feature = "dynamodb")]
 pub use aws_sdk_dynamodb;
 

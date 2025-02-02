@@ -16,6 +16,7 @@ pub enum ApiError {
     ServerError(String),
     NotFound,
     ThroughputError,
+    StoreAlreadyRegistered,
     // licensing errors:
     IncorrectOfflineCode,
     LicenseNoLongerActive,
@@ -42,6 +43,7 @@ impl ApiError {
             Self::ServerError(_) => 500,
             Self::NotFound => 404,
             Self::ThroughputError => 500,
+            Self::StoreAlreadyRegistered => 401,
             // licensing errors
             Self::IncorrectOfflineCode => 403,
             Self::LicenseNoLongerActive => 403,
@@ -93,6 +95,7 @@ impl std::fmt::Display for ApiError {
                 Self::ServerError(x) => write_fmt!(f, "Internal server error: {}", x),
                 Self::NotFound => f.write_str("Not found; perhaps the resource was not in the database."),
                 Self::ThroughputError => f.write_str("There was a throughput error. Try again in a few minutes"),
+                Self::StoreAlreadyRegistered => f.write_str("The store's public key's length is not equal to 0 in the database."),
                 // licensing errors
                 Self::IncorrectOfflineCode => f.write_str("32"),
                 Self::LicenseNoLongerActive => f.write_str("16"),
@@ -118,6 +121,7 @@ impl std::fmt::Display for ApiError {
                 Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
                 Self::NotFound => f.write_str("Not Found"),
                 Self::ThroughputError => f.write_str("The servers are a bit busy at the momement. Try again in a few minutes"),
+                Self::StoreAlreadyRegistered => f.write_str("This API key is already in use"),
                 // licensing errors
                 Self::IncorrectOfflineCode => f.write_str("32"),
                 Self::LicenseNoLongerActive => f.write_str("16"),

@@ -14,7 +14,7 @@ use proto::protos::{
         Stats,
     },
 };
-use utils::prelude::proto::protos::store_db_item::StoreDbItem;
+use utils::prelude::proto::protos::create_store_request::StoreDbItem;
 use utils::tables::machines::MACHINES_TABLE;
 use utils::tables::metrics::METRICS_TABLE;
 use utils::{now_as_seconds, prelude::*};

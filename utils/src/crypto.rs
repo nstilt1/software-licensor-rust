@@ -250,14 +250,9 @@ pub trait DigitalLicensingThemedKeymanager {
     /// 
     /// This method will sanitize and trim the prefix.
     /// 
-    /// # Deprecated
-    /// 
-    /// Note that the store ID is generated automatically since we have set the `StoreId` as the `ClientId` type in the `HttpPrivateKeyManager`. Use `get_store_id()` to retrieve it, and use `regenerate_store_id()` to regenerate it in the event that there is a collision in the database.
-    /// 
     /// # Arguments
     /// 
     /// * `prefix` - the desired prefix. This should be UTF-8 encoded
-    #[deprecated]
     fn generate_store_id(&mut self, prefix: &str) -> Result<Id<StoreId>, ApiError>;
 
     /// Gets the Store ID from a request.

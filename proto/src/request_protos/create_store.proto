@@ -74,12 +74,12 @@ message ProductInfo {
     uint32 max_machines_per_license = 3;
 }
 
-// to be used by update_metrics
-message UpdateMetricsRequest {
+// to be used by update_settings
+message UpdateSettingsRequest {
     string store_id = 1;
     Configs configs = 2;
 }
 
-message UpdateMetricsResponse {
+message UpdateSettingsResponse {
     Configs configs = 1;
 }

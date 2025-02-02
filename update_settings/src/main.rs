@@ -13,6 +13,24 @@ fn error_resp(status: u16, contents: &str) -> Result<Response<Body>, Error> {
 /// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
 async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     // Extract some useful information from the request
+    let request_context = event.request_context();
+    let user_sub = request_context
+        .authorizer()
+        .and_then(|auth| auth.jwt.clone())
+        .and_then(|jwt| Some(jwt.claims))
+        .and_then(|claims| claims.get("sub").cloned())
+        .unwrap_or_default();
+
+    if user_sub.is_empty() {
+        return error_resp(401, "Unauthorized: Missing sub claim")
+    }
+
+    let body = match event.body() {
+        Body::Binary(b) => b,
+        _ => return error_resp(400, "Invalid protobuf request body")
+    };
+
+    let config = aws_config::load_from_env().await;
     let who = event
         .query_string_parameters_ref()
         .and_then(|params| params.first("name"))

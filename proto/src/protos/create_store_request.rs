@@ -104,10 +104,10 @@ pub struct ProductInfo {
     #[prost(uint32, tag = "3")]
     pub max_machines_per_license: u32,
 }
-/// to be used by update_metrics
+/// to be used by update_settings
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateMetricsRequest {
+pub struct UpdateSettingsRequest {
     #[prost(string, tag = "1")]
     pub store_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "2")]
@@ -115,7 +115,7 @@ pub struct UpdateMetricsRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct UpdateMetricsResponse {
+pub struct UpdateSettingsResponse {
     #[prost(message, optional, tag = "1")]
     pub configs: ::core::option::Option<Configs>,
 }

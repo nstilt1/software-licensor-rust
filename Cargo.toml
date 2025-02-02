@@ -12,7 +12,7 @@ members = [
     "regenerate_license_code",
     "register_store_refactor",
     "utils",
-    "update_metrics"
+    "update_settings"
 ]
 
 [profile.release]

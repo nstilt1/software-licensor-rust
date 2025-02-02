@@ -29,7 +29,7 @@ use self::{
     create_product_request::{CreateProductRequest, CreateProductResponse}, 
     create_license_request::CreateLicenseRequest,
     register_store_request::RegisterStoreResponse, 
-    create_store_request::{StoreDbItem, UpdateMetricsRequest},
+    create_store_request::{StoreDbItem, UpdateSettingsRequest},
     license_db_item::LicenseDbItem,
     product_db_item::ProductDbItem,
     license_activation_request::{LicenseActivationRequest, Stats, LicenseKeyFile},
@@ -61,7 +61,7 @@ macro_rules! impl_zeroize_on_drop_for_struct {
     };
 }
 
-impl_zeroize_on_drop_for_struct!(UpdateMetricsRequest, store_id);
+impl_zeroize_on_drop_for_struct!(UpdateSettingsRequest, store_id);
 impl_zeroize_on_drop_for_struct!(RegisterStoreResponse, store_id);
 
 impl_zeroize_on_drop_for_struct!(

@@ -13,7 +13,8 @@ members = [
     "register_store_refactor",
     "utils",
     "update_settings",
-    "get_metrics"
+    "get_metrics",
+    "link_store_admin"
 ]
 
 [profile.release]

@@ -504,6 +504,9 @@ async fn process_request<D: Digest + FixedOutput>(
                     metrics_item.increase_number(&METRICS_TABLE.num_offline_machines, 1)?;
                     update_lists(&mut updated_license, &mut license_product_map, None, Some(offline_machines_map));
                 } else {
+                    // add 1 to total online machines
+                    metrics_item.increase_number(&METRICS_TABLE.num_online_machines, 1)?;
+                    
                     updated_license |= insert_machine_into_machine_map(&mut online_machines_map, &request);
                     update_lists(&mut updated_license, &mut license_product_map, Some(online_machines_map), None);
                 }

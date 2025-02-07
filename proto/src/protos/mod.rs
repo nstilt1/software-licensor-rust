@@ -21,6 +21,10 @@ pub mod regenerate_license_code;
 
 pub mod create_store_request;
 
+pub mod get_metrics_request;
+
+pub mod link_store_request;
+
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 

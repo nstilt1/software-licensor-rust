@@ -16,6 +16,7 @@ pub struct LicenseActivationRequest {
     #[prost(string, repeated, tag = "5")]
     pub product_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+/// Optional hardware statistics
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Stats {
@@ -35,6 +36,8 @@ pub struct Stats {
     pub num_physical_cores: u32,
     #[prost(uint32, tag = "8")]
     pub cpu_freq_mhz: u32,
+    #[prost(string, tag = "40")]
+    pub cpu_architecture: ::prost::alloc::string::String,
     #[prost(uint32, tag = "34")]
     pub ram_mb: u32,
     #[prost(uint32, tag = "35")]

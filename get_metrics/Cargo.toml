@@ -17,6 +17,7 @@ path = "src/main.rs"# Starting in Rust 1.62 you can use `cargo add` to add depen
 # and it will keep the alphabetic ordering for you.
 
 [dependencies]
+serde = { version = "1", features = ["derive"] }
 utils = { path = "../utils", features = ["cognito"] }
 
 tokio = { version = "1", features = ["macros"] }

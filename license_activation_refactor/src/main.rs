@@ -88,7 +88,7 @@ fn insert_stats(stats_map: &mut AttributeValueHashMap, stats: &Stats) {
         stats,
         MACHINES_TABLE.stats.fields,
         // strings
-        (cpu_model, cpu_vendor, os_name, users_language, display_language),
+        (cpu_model, cpu_vendor, os_name, users_language, display_language, cpu_architecture),
         // numbers
         (cpu_freq_mhz, num_logical_cores, num_physical_cores, ram_mb, page_size),
         // bools

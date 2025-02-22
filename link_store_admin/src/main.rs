@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use utils::{
-    aws_config, aws_sdk_cognitoidentityprovider::{types::AttributeType, Client as CognitoClient}, aws_sdk_dynamodb::Client as DbClient, crypto::{init_key_manager, salty_hash, DigitalLicensingThemedKeymanager, STORE_DB_SALT}, prelude::{
+    aws_config, aws_sdk_cognitoidentityprovider::{types::AttributeType, Client as CognitoClient}, aws_sdk_dynamodb::{types::KeysAndAttributes, Client as DbClient}, crypto::{init_key_manager, salty_hash, DigitalLicensingThemedKeymanager, STORE_DB_SALT}, prelude::{
         lambda_http::{
             run, service_fn, tracing, Body, Error, Request, RequestExt, Response
-        }, proto::protos::{get_metrics_request::Metrics, link_store_request::LinkStoreRequest}, AttributeValueHashMap, Blob, ItemIntegration, Message
-    }, serde_json, tables::metrics::METRICS_TABLE
+        }, proto::protos::create_store_request::StoreDbItem, AttributeValueHashMap, Blob, ItemIntegration
+    }, serde_json, tables::{metrics::METRICS_TABLE, stores::STORES_TABLE}
 };
 
 fn error_resp(status: u16, contents: &str) -> Result<Response<Body>, Error> {
@@ -11,6 +13,42 @@ fn error_resp(status: u16, contents: &str) -> Result<Response<Body>, Error> {
         .status(status)
         .body(Body::Text(contents.to_string()))
         .unwrap())
+}
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize, Debug)]
+struct LinkStoreRequest {
+    store_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct LinkStoreResponse {
+    metrics: StoreMetricsJSON,
+    configs: Configs
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct Configs {
+    offline_license_frequency_hours: u32,
+    perpetual_license_expiration_days: u32,
+    perpetual_license_frequency_hours: u32,
+    subscription_license_expiration_days: u32,
+    subscription_license_expiration_leniency_hours: u32,
+    subscription_license_frequency_hours: u32,
+    trial_license_expiration_days: u32,
+    trial_license_frequency_hours: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct StoreMetricsJSON {
+    num_products: u32,
+    num_licenses: u32,
+    num_licensed_machines: u32,
+    num_offline_machines: u32,
+    num_online_machines: u32,
+    num_license_activations: u32,
+    num_license_regens: u32,
+    num_machine_deactivations: u32,
 }
 
 /// This is the main body for the function.
@@ -32,13 +70,13 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     }
 
     let body = match event.body() {
-        Body::Binary(b) => b,
+        Body::Text(b) => b,
         _ => return error_resp(400, "Invalid request body")
     };
 
-    let request = match LinkStoreRequest::decode(body.as_slice()) {
+    let request: LinkStoreRequest = match serde_json::from_str(&body) {
         Ok(v) => v,
-        Err(_e) => return error_resp(400, "Invalid protobuf request body")
+        Err(e) => return error_resp(400, &format!("Invalid request body: {:?}", e))
     };
 
     let config = aws_config::load_from_env().await;
@@ -93,45 +131,76 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     let store_index = salty_hash(&[store_id.binary_id.as_ref()], &STORE_DB_SALT).to_vec();
     metrics_item.insert_item(&METRICS_TABLE.store_id, Blob::new(store_index));
     
-    let get_output = db_client
-        .get_item()
-        .table_name(METRICS_TABLE.table_name)
-        .set_key(Some(metrics_item))
+    let keys_and_attributes = KeysAndAttributes::builder()
         .set_consistent_read(Some(false))
+        .keys(metrics_item)
+        .build()?;
+    let mut request_items: HashMap<String, KeysAndAttributes> = HashMap::with_capacity(2);
+    request_items.insert(METRICS_TABLE.table_name.to_string(), keys_and_attributes.clone());
+    request_items.insert(STORES_TABLE.table_name.to_string(), keys_and_attributes);
+
+    let batch_get_item_output = db_client
+        .batch_get_item()
+        .set_request_items(Some(request_items))
         .send()
         .await?;
 
-    let metrics_result = if get_output.item.is_none() {
-        Metrics {
-            num_products: 0,
-            num_licenses: 0,
-            num_licensed_machines: 0,
-            num_offline_machines: 0,
-            num_online_machines: 0,
-            num_license_activations: 0,
-            num_license_regens: 0,
-            num_machine_deactivations: 0,
+    let metrics_result = if let Some(v) = &batch_get_item_output.responses.as_ref().and_then(|responses| responses.get(METRICS_TABLE.table_name).cloned()) {
+        if v.is_empty() {
+            StoreMetricsJSON::default()
+        } else {
+            let m = &v[0];
+            StoreMetricsJSON {
+                num_products: m.get_item(&METRICS_TABLE.num_products).unwrap_or(&"0".to_string()).parse::<u32>()?,
+                num_licenses: m.get_item(&METRICS_TABLE.num_licenses).unwrap_or(&"0".to_string()).parse::<u32>()?,
+                num_licensed_machines: m.get_item(&METRICS_TABLE.num_licensed_machines).unwrap_or(&"0".to_string()).parse::<u32>()?,
+                num_offline_machines: m.get_item(&METRICS_TABLE.num_offline_machines).unwrap_or(&"0".to_string()).parse::<u32>()?,
+                num_online_machines: m.get_item(&METRICS_TABLE.num_online_machines).unwrap_or(&"0".to_string()).parse::<u32>()?,
+                num_license_activations: m.get_item(&METRICS_TABLE.num_license_activations).unwrap_or(&"0".to_string()).parse::<u32>()?,
+                num_license_regens: m.get_item(&METRICS_TABLE.num_license_regens).unwrap_or(&"0".to_string()).parse::<u32>()?,
+                num_machine_deactivations: m.get_item(&METRICS_TABLE.num_machine_deactivations).unwrap_or(&"0".to_string()).parse::<u32>()?,
+            }
         }
     } else {
-        let m = get_output.item.unwrap();
-        Metrics {
-            num_products: m.get_item(&METRICS_TABLE.num_products).unwrap_or(&"0".to_string()).parse::<u32>()?,
-            num_licenses: m.get_item(&METRICS_TABLE.num_licenses).unwrap_or(&"0".to_string()).parse::<u32>()?,
-            num_licensed_machines: m.get_item(&METRICS_TABLE.num_licensed_machines).unwrap_or(&"0".to_string()).parse::<u32>()?,
-            num_offline_machines: m.get_item(&METRICS_TABLE.num_offline_machines).unwrap_or(&"0".to_string()).parse::<u32>()?,
-            num_online_machines: m.get_item(&METRICS_TABLE.num_online_machines).unwrap_or(&"0".to_string()).parse::<u32>()?,
-            num_license_activations: m.get_item(&METRICS_TABLE.num_license_activations).unwrap_or(&"0".to_string()).parse::<u32>()?,
-            num_license_regens: m.get_item(&METRICS_TABLE.num_license_regens).unwrap_or(&"0".to_string()).parse::<u32>()?,
-            num_machine_deactivations: m.get_item(&METRICS_TABLE.num_machine_deactivations).unwrap_or(&"0".to_string()).parse::<u32>()?,
-        }
+        StoreMetricsJSON::default()
     };
 
-    let resp = metrics_result.encode_to_vec();
+    let configs = if let Some(v) = batch_get_item_output.responses.and_then(|responses| responses.get(STORES_TABLE.table_name).cloned()) {
+        if v.is_empty() {
+            Configs::default()
+        } else {
+            let store_item = &v[0];
+            let encrypted_proto = store_item.get_item(&STORES_TABLE.protobuf_data)?;
+            let proto: StoreDbItem = key_manager.decrypt_db_proto(&STORES_TABLE.table_name, store_id.binary_id.as_ref(), encrypted_proto.as_ref())?;
+            if proto.configs.is_none() {
+                return error_resp(500, "Could not decrypt StoreDbItem");
+            }
+            let c = proto.configs.unwrap();
+            Configs {
+                offline_license_frequency_hours: c.offline_license_frequency_hours,
+                perpetual_license_expiration_days: c.perpetual_license_expiration_days,
+                perpetual_license_frequency_hours: c.perpetual_license_frequency_hours,
+                subscription_license_expiration_days: c.subscription_license_expiration_days,
+                subscription_license_expiration_leniency_hours: c.subscription_license_expiration_leniency_hours,
+                subscription_license_frequency_hours: c.subscription_license_frequency_hours,
+                trial_license_expiration_days: c.trial_license_expiration_days,
+                trial_license_frequency_hours: c.trial_license_frequency_hours,
+            }
+        }
+    } else {
+        Configs::default()
+    };
+
+    let response = LinkStoreResponse {
+        metrics: metrics_result,
+        configs,
+    };
+    let resp = serde_json::to_string(&response).expect("Failed to serialize JSON response");
 
     Ok(Response::builder()
         .status(200)
-        .header("Content-type", "application/x-protobuf")
-        .body(Body::Binary(resp))
+        .header("Content-type", "application/json")
+        .body(Body::Text(resp))
         .unwrap())
 }
 

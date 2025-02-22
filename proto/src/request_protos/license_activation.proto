@@ -14,6 +14,7 @@ message LicenseActivationRequest {
     repeated string product_ids = 5;
 }
 
+// Optional hardware statistics
 message Stats {
     string os_name = 1;
     string computer_name = 2;
@@ -23,6 +24,7 @@ message Stats {
     uint32 num_logical_cores = 6;
     uint32 num_physical_cores = 7;
     uint32 cpu_freq_mhz = 8;
+    string cpu_architecture = 40;
     uint32 ram_mb = 34;
     uint32 page_size = 35;
     string cpu_vendor = 9;

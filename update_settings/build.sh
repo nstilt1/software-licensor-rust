@@ -27,7 +27,7 @@ fi
 
 cross build --release ${features_flag} --target aarch64-unknown-linux-musl     && {
     timestamp=$(date '+%y-%m-%d-%H-%M-%S')
-    filename="${timestamp}_$1_update_metrics.zip"
+    filename="${timestamp}_$1_update_settings.zip"
     cd builds
     echo "creating $filename..."
     mv ../../target/aarch64-unknown-linux-musl/release/update_metrics "bootstrap"

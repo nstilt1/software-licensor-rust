@@ -10,7 +10,7 @@ use utils::aws_sdk_dynamodb::Client;
 use utils::dynamodb::maps::Maps;
 use proto::protos::{
     create_license_request::{CreateLicenseRequest, CreateLicenseResponse},
-    store_db_item::StoreDbItem,
+    create_store_request::StoreDbItem,
     license_db_item::LicenseDbItem,
 };
 use utils::get_license::construct_get_license_response_from_license_item;

@@ -250,14 +250,9 @@ pub trait DigitalLicensingThemedKeymanager {
     /// 
     /// This method will sanitize and trim the prefix.
     /// 
-    /// # Deprecated
-    /// 
-    /// Note that the store ID is generated automatically since we have set the `StoreId` as the `ClientId` type in the `HttpPrivateKeyManager`. Use `get_store_id()` to retrieve it, and use `regenerate_store_id()` to regenerate it in the event that there is a collision in the database.
-    /// 
     /// # Arguments
     /// 
     /// * `prefix` - the desired prefix. This should be UTF-8 encoded
-    #[deprecated]
     fn generate_store_id(&mut self, prefix: &str) -> Result<Id<StoreId>, ApiError>;
 
     /// Gets the Store ID from a request.
@@ -308,7 +303,6 @@ pub trait DigitalLicensingThemedKeymanager {
     /// # Notes
     /// 
     /// Some of the "user-supplied" data is actually going to be sent automatically by the client-side code, but it could be sent maliciously from a script, and as such, it is treated as "user-supplied" data.
-    #[deprecated]
     fn validate_store_id(&mut self, store_id: &str) -> Result<Id<StoreId>, ApiError>;
 
     /// Attempts to sign a key file.
@@ -358,7 +352,7 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
 
     #[inline]
     fn generate_store_id(&mut self, prefix: &str) -> Result<Id<StoreId>, ApiError> {
-        let mut id = self.generate_keyless_id::<StoreId>(prefix, b"Store ID", None, None)?;
+        let mut id = self.generate_keyless_id::<StoreId>(prefix, b"client ID", None, None)?;
         id.encoded_id.insert(StoreId::MAX_PREFIX_LEN / 3 * 4, '-');
         Ok(id)
     }
@@ -401,7 +395,13 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
 
     #[inline]
     fn validate_store_id(&mut self, store_id: &str) -> Result<Id<StoreId>, ApiError> {
-        Ok(self.validate_keyless_id::<StoreId>(store_id, b"Store ID", None)?)
+        return match self.validate_keyless_id::<StoreId>(store_id, b"client ID", None) {
+            Ok(v) => Ok(v),
+            Err(_) => match self.validate_keyless_id::<StoreId>(store_id, b"Store ID", None) {
+                Ok(v) => Ok(v),
+                Err(e) => Err(e.into())
+            }
+        };
     }
 
     #[inline]

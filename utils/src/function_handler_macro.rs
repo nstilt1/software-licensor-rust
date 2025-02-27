@@ -51,7 +51,7 @@ macro_rules! impl_function_handler {
                 .status(200)
                 .header("content-type", "application/x-protobuf")
                 .header("X-Signature-Info", "Algorithm: Sha2-384 + NIST-P384")
-                .header("X-Signature", signature.to_der().as_bytes().to_base64())
+                .header("X-Signature", signature.to_der().as_bytes().to_base64(false))
                 .body(encrypted.encode_length_delimited_to_vec().into())
                 .expect("Unable to build http::Response");
             debug_log!("Built response");

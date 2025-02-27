@@ -4,7 +4,6 @@ pub mod request;
 pub mod response;
 
 pub mod register_store_request;
-pub mod store_db_item;
 
 pub mod create_product_request;
 pub mod product_db_item;
@@ -20,7 +19,12 @@ pub mod deactivate_machines;
 
 pub mod regenerate_license_code;
 
-use license_activation_request::LicenseActivationResponse;
+pub mod create_store_request;
+
+pub mod get_metrics_request;
+
+pub mod link_store_request;
+
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -28,12 +32,13 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use self::{
     create_product_request::{CreateProductRequest, CreateProductResponse}, 
     create_license_request::CreateLicenseRequest,
-    register_store_request::{RegisterStoreRequest, RegisterStoreResponse}, 
-    store_db_item::StoreDbItem,
+    register_store_request::RegisterStoreResponse, 
+    create_store_request::{StoreDbItem, UpdateSettingsRequest},
     license_db_item::LicenseDbItem,
     product_db_item::ProductDbItem,
     license_activation_request::{LicenseActivationRequest, Stats, LicenseKeyFile},
     get_license_request::{GetLicenseRequest, GetLicenseResponse},
+    license_activation_request::LicenseActivationResponse
 };
 
 
@@ -60,15 +65,7 @@ macro_rules! impl_zeroize_on_drop_for_struct {
     };
 }
 
-impl_zeroize_on_drop_for_struct!(
-    RegisterStoreRequest, 
-    contact_first_name,
-    contact_last_name,
-    contact_email,
-    country,
-    discord_username
-);
-
+impl_zeroize_on_drop_for_struct!(UpdateSettingsRequest, store_id);
 impl_zeroize_on_drop_for_struct!(RegisterStoreResponse, store_id);
 
 impl_zeroize_on_drop_for_struct!(

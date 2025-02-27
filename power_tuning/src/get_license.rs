@@ -10,7 +10,7 @@ pub async fn test_get_license(req_client: &reqwest::Client, server_keys: (Expiri
     let inner_payload = generate_get_license_payload();
     let payload = encrypt_and_sign_payload(inner_payload, false, server_keys);
     let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/get_license_refactor")
-        .header("X-Signature", payload.signature.to_base64())
+        .header("X-Signature", payload.signature.to_base64(false))
         .body(payload.encrypted)
         .send()
         .await.unwrap();

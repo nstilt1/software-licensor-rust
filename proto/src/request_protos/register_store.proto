@@ -4,16 +4,16 @@ package register_store_request;
 
 // A store registration request
 message RegisterStoreRequest {
-    string contact_first_name = 1;
-    string contact_last_name = 2;
-    string contact_email = 3;
-    string discord_username = 10;
-    string country = 29;
+    //string contact_first_name = 1;
+    //string contact_last_name = 2;
+    //string contact_email = 3;
+    //string discord_username = 10;
+    //string country = 29;
     oneof public_signing_key {
         string pem = 37;
         bytes der = 38;
     }
-    Configs configs = 35;
+    //Configs configs = 35;
 }
 
 message Configs {

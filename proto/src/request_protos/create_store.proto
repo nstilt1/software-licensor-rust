@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package create_store_request;
+
+message CreateStoreRequest {
+    string id_prefix = 1;
+    string contact_first_name = 2;
+    string contact_last_name = 3;
+    string contact_email = 4;
+    string discord_username = 5;
+    string country = 6;
+    string store_name = 7;
+    string store_url = 8;
+}
+
+message CreateStoreResponse {
+    string api_key = 1;
+    Configs configs = 2;
+}
+
+message Configs {
+    // some notes about "frequency" and "expiration": 
+    //
+    // the frequency dictates the minimum amount of time that must pass before a
+    // client will reconnect with the server to check on the status of their 
+    // license(s). This is important in case the user tries to remove a machine 
+    // from their license, or if they were to refund their license purchase
+    //
+    // the expiration dictates how long the client will be able to go without 
+    // contacting the server. The expiration is important in the event that a
+    // user were to deactivate a computer on their license, and if the 
+    // "deactivated" client never reached back out to the server to find out 
+    // that it is supposed to be deactivated
+    uint32 offline_license_frequency_hours = 70;
+
+    uint32 perpetual_license_expiration_days = 80;
+    uint32 perpetual_license_frequency_hours = 90;
+
+    uint32 subscription_license_expiration_days = 100;
+    // these "leniency hours" get added onto the expiration date in case there's 
+    // a niche timing unalignment with any communicating servers, such as the 
+    // payment processor processing the subscription payment that has to be 
+    // hooked from the store's backend that has to send a request to the 
+    // licensing
+    uint32 subscription_license_expiration_leniency_hours = 110;
+    uint32 subscription_license_frequency_hours = 120;
+
+    uint32 trial_license_expiration_days = 130;
+    uint32 trial_license_frequency_hours = 140;
+}
+
+
+// Store DB Item
+
+// store database item. This is stored in a protobuf message so that its contents can be easily encrypted. The content in the encrypted message will not be able to be analyzed with tools such as AWS Athena.
+message StoreDbItem {
+    string contact_first_name = 1;
+    string contact_last_name = 2;
+    string store_name = 3;
+    string email = 4;
+    string store_url = 5;
+    string discord_username = 10;
+    string state = 27;
+    string country = 29;
+    Configs configs = 30;
+    // a map of product_ids that the store is licensing to customers
+    map<string, ProductInfo> product_ids = 35;
+}
+
+// Some data that was previously in the Product table's protobuf data
+message ProductInfo {
+    bool is_offline_allowed = 1;
+    string version = 2;
+    uint32 max_machines_per_license = 3;
+}
+
+// to be used by update_settings
+message UpdateSettingsRequest {
+    string store_id = 1;
+    Configs configs = 2;
+}
+
+message UpdateSettingsResponse {
+    Configs configs = 1;
+}

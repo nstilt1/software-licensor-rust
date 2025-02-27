@@ -21,8 +21,10 @@ pub struct MetricsTable {
     pub num_licenses: Item<N>,
     /// The total number of licensed machines.
     pub num_licensed_machines: Item<N>,
-    /// The total number of offline license activations.
+    /// The total number of offline license machines.
     pub num_offline_machines: Item<N>,
+    /// The total number of online license machines.
+    pub num_online_machines: Item<N>,
     /// The total number of license activations
     pub num_license_activations: Item<N>,
     /// The number of times that a user has regenerated their license
@@ -44,6 +46,7 @@ pub const METRICS_TABLE: MetricsTable = MetricsTable {
     num_licenses: Item::new("num_licenses"),
     num_licensed_machines: Item::new("num_licensed_machines"),
     num_offline_machines: Item::new("num_offline_machines"),
+    num_online_machines: Item::new("num_online_machines"),
     num_license_activations: Item::new("num_license_activations"),
     num_license_regens: Item::new("num_license_regens"),
     num_machine_deactivations: Item::new("num_machine_deactivations")

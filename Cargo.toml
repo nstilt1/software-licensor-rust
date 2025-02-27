@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "create_store",
     "create_license_refactor",
     "create_plugin_refactor",
     "deactivate_machines",
@@ -10,7 +11,10 @@ members = [
     "publish_rotating_keys", 
     "regenerate_license_code",
     "register_store_refactor",
-    "utils"
+    "utils",
+    "update_settings",
+    "get_metrics",
+    "link_store_admin"
 ]
 
 [profile.release]

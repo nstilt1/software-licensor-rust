@@ -14,7 +14,7 @@ use proto::protos::{
         Stats,
     },
 };
-use utils::prelude::proto::protos::store_db_item::StoreDbItem;
+use utils::prelude::proto::protos::create_store_request::StoreDbItem;
 use utils::tables::machines::MACHINES_TABLE;
 use utils::tables::metrics::METRICS_TABLE;
 use utils::{now_as_seconds, prelude::*};
@@ -88,7 +88,7 @@ fn insert_stats(stats_map: &mut AttributeValueHashMap, stats: &Stats) {
         stats,
         MACHINES_TABLE.stats.fields,
         // strings
-        (cpu_model, cpu_vendor, os_name, users_language, display_language),
+        (cpu_model, cpu_vendor, os_name, users_language, display_language, cpu_architecture),
         // numbers
         (cpu_freq_mhz, num_logical_cores, num_physical_cores, ram_mb, page_size),
         // bools
@@ -504,6 +504,9 @@ async fn process_request<D: Digest + FixedOutput>(
                     metrics_item.increase_number(&METRICS_TABLE.num_offline_machines, 1)?;
                     update_lists(&mut updated_license, &mut license_product_map, None, Some(offline_machines_map));
                 } else {
+                    // add 1 to total online machines
+                    metrics_item.increase_number(&METRICS_TABLE.num_online_machines, 1)?;
+                    
                     updated_license |= insert_machine_into_machine_map(&mut online_machines_map, &request);
                     update_lists(&mut updated_license, &mut license_product_map, Some(online_machines_map), None);
                 }

@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package get_metrics_request;
+
+message GetMetricsRequest {
+    string user_id = 1;
+}
+
+message GetMetricsResponse {
+    // a map of product_ids to metrics
+    map<string, Metrics> store_metrics = 1;
+    Metrics totals = 2;
+}
+
+message Metrics {
+    uint32 num_products = 1;
+    uint32 num_licenses = 2;
+    uint32 num_licensed_machines = 3;
+    // if greater than 0, they could be crackers since offline activations are 
+    // probably disabled
+    uint32 num_offline_machines = 4;
+    // the total number of online-registered machines; there may be some overlap 
+    // based on num_license_regens
+    uint32 num_online_machines = 5;
+    uint32 num_license_activations = 10;
+    uint32 num_license_regens = 15;
+    // if greater than 0, they could be legit hackers
+    uint32 num_machine_deactivations = 20;
+}

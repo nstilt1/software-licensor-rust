@@ -5,6 +5,7 @@ fn main() {
             &[
                 "src/request_protos/request.proto",
                 "src/request_protos/response.proto",
+                "src/request_protos/create_store.proto",
                 "src/request_protos/register_store.proto",
                 "src/request_protos/create_product.proto",
                 "src/request_protos/create_license.proto",
@@ -13,6 +14,8 @@ fn main() {
                 "src/request_protos/pubkeys.proto",
                 "src/request_protos/deactivate_machines.proto",
                 "src/request_protos/regenerate_license_code.proto",
+                "src/request_protos/get_metrics.proto",
+                "src/request_protos/link_store.proto",
 
                 "src/database_protos/store.proto",
                 "src/database_protos/product.proto",

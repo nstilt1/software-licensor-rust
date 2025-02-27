@@ -114,7 +114,7 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     let resp = construct_get_license_response_from_license_item(key_manager, &new_license_item)?;
 
-    metrics_item.increase_number(&METRICS_TABLE.num_machine_deactivations, 1)?;
+    metrics_item.increase_number(&METRICS_TABLE.num_license_regens, 1)?;
     client.batch_write_item()
         .request_items(
             LICENSES_TABLE.table_name, 

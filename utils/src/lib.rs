@@ -21,6 +21,9 @@ pub use aws_config;
 #[cfg(feature = "cognito")]
 pub use aws_sdk_cognitoidentityprovider;
 
+#[cfg(feature = "cognito")]
+pub use serde;
+
 #[cfg(feature = "dynamodb")]
 pub use aws_sdk_dynamodb;
 

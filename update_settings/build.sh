@@ -30,7 +30,7 @@ cross build --release ${features_flag} --target aarch64-unknown-linux-musl     &
     filename="${timestamp}_$1_update_settings.zip"
     cd builds
     echo "creating $filename..."
-    mv ../../target/aarch64-unknown-linux-musl/release/update_metrics "bootstrap"
+    mv ../../target/aarch64-unknown-linux-musl/release/update_settings "bootstrap"
     zip -j "$filename" ./"bootstrap"
     rm bootstrap
 } || {

@@ -14,7 +14,7 @@ pub async fn test_register_store(req_client: &reqwest::Client, server_keys: (Exp
     let inner_payload = generate_register_store_payload();
     let payload = encrypt_and_sign_payload(inner_payload, true, server_keys);
     let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/register_store_refactor")
-        .header("X-Signature", payload.signature.to_base64())
+        .header("X-Signature", payload.signature.to_base64(false))
         .body(payload.encrypted)
         .send()
         .await.unwrap();

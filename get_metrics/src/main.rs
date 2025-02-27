@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use utils::{
-    aws_config, aws_sdk_cognitoidentityprovider::Client as CognitoClient, aws_sdk_dynamodb::{types::KeysAndAttributes, Client as DbClient}, crypto::{init_key_manager, salty_hash, DigitalLicensingThemedKeymanager, STORE_DB_SALT}, debug_log, prelude::{
+    aws_config, aws_sdk_cognitoidentityprovider::Client as CognitoClient, aws_sdk_dynamodb::{types::KeysAndAttributes, Client as DbClient}, base64::Base64Vec, crypto::{init_key_manager, salty_hash, DigitalLicensingThemedKeymanager, STORE_DB_SALT}, debug_log, prelude::{
         lambda_http::{
             run, 
             service_fn, 
@@ -39,7 +39,18 @@ struct GetMetricsResponse {
 struct StoreData {
     api_key: String,
     configs: Configs,
-    metrics: StoreMetricsJSON
+    products: Vec<Product>,
+    metrics: StoreMetricsJSON,
+    linked: bool
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Product {
+    id: String,
+    pubkey: String,
+    offline_allowed: bool,
+    max_machines_per_license: u32,
+    version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -153,7 +164,9 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
             StoreData {
                 api_key: key.to_owned(),
                 configs: Configs::default(),
+                products: Vec::new(),
                 metrics: StoreMetricsJSON::default(),
+                linked: false,
             }
         );
     }
@@ -183,6 +196,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         .and_then(|responses| responses.get(STORES_TABLE.table_name).cloned())
         .unwrap_or(Vec::new());
 
+    debug_log!("About to process metrics_responses");
     for item in metrics_responses {
         let id = item.get_item(&METRICS_TABLE.store_id)?;
         let api_key = match id_to_store_indices.get(id.as_ref()) {
@@ -221,6 +235,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         totals.num_products += num_products;
     }
 
+    debug_log!("About to process stores_responses");
     for item in stores_responses {
         let id = item.get_item(&STORES_TABLE.id)?;
         let api_key = match id_to_store_indices.get(id.as_ref()) {
@@ -244,7 +259,29 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
                 trial_license_expiration_days: v.trial_license_expiration_days,
                 trial_license_frequency_hours: v.trial_license_frequency_hours,
             };
+            i.linked = !item
+                .get_item(&STORES_TABLE.public_key)
+                .unwrap_or(&Blob::new([]))
+                .as_ref()
+                .is_empty();
         }
+        debug_log!("About to process store's products");
+        let mut products_vec = Vec::with_capacity(proto.product_ids.len());
+        for (id, product_info) in proto.product_ids.iter() {
+            let product_id = key_manager.validate_product_id(&id, &store_id).expect("Should be valid");
+            let public_key = key_manager.get_product_public_key(&product_id, &store_id);
+            let pubkey_b64 = public_key.to_base64(true);
+            products_vec.push(
+                Product {
+                    id: id.to_string(),
+                    pubkey: pubkey_b64,
+                    offline_allowed: product_info.is_offline_allowed,
+                    max_machines_per_license: product_info.max_machines_per_license,
+                    version: product_info.version.to_string(),
+                }
+            )
+        }
+        result.get_mut(&api_key).expect("Should be set").products = products_vec;
     }
         
     let response = GetMetricsResponse {

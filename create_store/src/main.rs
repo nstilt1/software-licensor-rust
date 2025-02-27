@@ -1,7 +1,38 @@
 use std::{collections::HashMap, env};
 
-use utils::{aws_config, aws_sdk_cognitoidentityprovider::types::AttributeType, aws_sdk_dynamodb::Client, crypto::{init_key_manager, salty_hash, DigitalLicensingThemedKeymanager, STORE_DB_SALT}, debug_log, now_as_seconds, prelude::{lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response}, proto::protos::create_store_request::{CreateStoreRequest, CreateStoreResponse, Configs, StoreDbItem}, AttributeValueHashMap, Blob, ItemIntegration, Message}, serde_json, tables::stores::STORES_TABLE};
+use utils::{aws_config, aws_sdk_cognitoidentityprovider::types::AttributeType, aws_sdk_dynamodb::Client, crypto::{init_key_manager, salty_hash, DigitalLicensingThemedKeymanager, STORE_DB_SALT}, debug_log, now_as_seconds, prelude::{lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response}, proto::protos::create_store_request::{Configs as StoreConfigs, StoreDbItem}, AttributeValueHashMap, Blob, ItemIntegration}, tables::stores::STORES_TABLE};
 use utils::aws_sdk_cognitoidentityprovider::Client as CognitoClient;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug)]
+struct CreateStoreRequest {
+    id_prefix: String,
+    contact_first_name: String,
+    contact_last_name: String,
+    contact_email: String,
+    discord_username: String,
+    country: String,
+    store_name: String,
+    store_url: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct CreateStoreResponse {
+    api_key: String,
+    configs: Configs,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Configs {
+    offline_license_frequency_hours: u32,
+    perpetual_license_expiration_days: u32,
+    perpetual_license_frequency_hours: u32,
+    subscription_license_expiration_days: u32,
+    subscription_license_expiration_leniency_hours: u32,
+    subscription_license_frequency_hours: u32,
+    trial_license_expiration_days: u32,
+    trial_license_frequency_hours: u32,
+}
 
 fn error_resp(status: u16, contents: &str) -> Result<Response<Body>, Error> {
     Ok(Response::builder()
@@ -29,13 +60,13 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     }
 
     let body = match event.body() {
-        Body::Binary(b) => b,
+        Body::Text(b) => b,
         _ => return error_resp(400, "Invalid request body")
     };
 
-    let request = match CreateStoreRequest::decode(body.as_slice()) {
+    let request: CreateStoreRequest = match serde_json::from_str(&body) {
         Ok(v) => v,
-        Err(_e) => return error_resp(400, "Invalid protobuf request body")
+        Err(e) => return error_resp(400, &format!("Invalid request body: {:?}", e))
     };
 
     let config = aws_config::load_from_env().await;
@@ -111,7 +142,16 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         store_url: request.store_url,
         discord_username: request.discord_username,
         country: request.country,
-        configs: Some(configs),
+        configs: Some(StoreConfigs {
+            offline_license_frequency_hours: configs.offline_license_frequency_hours,
+            perpetual_license_expiration_days: configs.perpetual_license_expiration_days,
+            perpetual_license_frequency_hours: configs.perpetual_license_frequency_hours,
+            subscription_license_expiration_days: configs.subscription_license_expiration_days,
+            subscription_license_expiration_leniency_hours: configs.subscription_license_expiration_leniency_hours,
+            subscription_license_frequency_hours: configs.subscription_license_frequency_hours,
+            trial_license_expiration_days: configs.trial_license_expiration_days,
+            trial_license_frequency_hours: configs.trial_license_frequency_hours,
+        }),
         product_ids: HashMap::new(),
         state: "".to_string()
     };
@@ -138,7 +178,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
     let updated_value = serde_json::to_string(&store_keys).unwrap_or("[]".to_string());
 
-    cognito_client
+    let cognito_request = cognito_client
         .admin_update_user_attributes()
         .user_pool_id(&user_pool_id)
         .username(username)
@@ -149,17 +189,19 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         ).send()
         .await?;
 
+    debug_log!("Cognito request: {:?}", cognito_request);
+
     let response_message = CreateStoreResponse {
         api_key: store_id.encoded_id,
-        configs: Some(configs),
+        configs,
     };
 
-    let resp = response_message.encode_to_vec();
+    let resp = serde_json::to_string(&response_message).expect("Failed to serialize JSON response");
 
     Ok(Response::builder()
         .status(200)
         .header("Content-type", "application/x-protobuf")
-        .body(Body::Binary(resp))
+        .body(Body::Text(resp))
         .unwrap())
 }
 

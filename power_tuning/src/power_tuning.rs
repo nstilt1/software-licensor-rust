@@ -24,7 +24,7 @@ macro_rules! impl_power_tuning {
 
                     let start = Instant::now();
                     let response = req_client.post($api_endpoint_url)
-                        .header("X-Signature", payload.signature.to_base64())
+                        .header("X-Signature", payload.signature.to_base64(false))
                         .body(payload.encrypted)
                         .send()
                         .await

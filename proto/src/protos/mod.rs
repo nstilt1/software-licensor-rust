@@ -25,6 +25,7 @@ pub mod get_metrics_request;
 
 pub mod link_store_request;
 
+use create_store_request::ProductInfo;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -82,6 +83,7 @@ impl_zeroize_on_drop_for_struct!(
 impl_zeroize_on_drop_for_struct!(CreateProductRequest, product_name, version);
 impl_zeroize_on_drop_for_struct!(CreateProductResponse, product_id);
 impl_zeroize_on_drop_for_struct!(ProductDbItem, product_id, product_name, store_id, version);
+impl_zeroize_on_drop_for_struct!(ProductInfo, product_name);
 
 impl_zeroize_on_drop_for_struct!(CreateLicenseRequest, customer_first_name, customer_last_name, customer_email, user_id);
 impl_zeroize_on_drop_for_struct!(LicenseDbItem, license_id, customer_first_name, customer_last_name, customer_email, offline_secret);

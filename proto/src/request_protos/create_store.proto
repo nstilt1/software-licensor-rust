@@ -72,6 +72,7 @@ message ProductInfo {
     bool is_offline_allowed = 1;
     string version = 2;
     uint32 max_machines_per_license = 3;
+    string product_name = 5;
 }
 
 // to be used by update_settings

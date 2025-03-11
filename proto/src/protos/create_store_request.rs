@@ -103,6 +103,8 @@ pub struct ProductInfo {
     pub version: ::prost::alloc::string::String,
     #[prost(uint32, tag = "3")]
     pub max_machines_per_license: u32,
+    #[prost(string, tag = "5")]
+    pub product_name: ::prost::alloc::string::String,
 }
 /// to be used by update_settings
 #[allow(clippy::derive_partial_eq_without_eq)]

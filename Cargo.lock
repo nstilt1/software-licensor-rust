@@ -3419,6 +3419,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "update_version"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
+ "utils",
+]
+
+[[package]]
 name = "url"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

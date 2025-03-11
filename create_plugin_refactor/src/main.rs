@@ -141,10 +141,12 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         }
     };
 
+    request.product_name.truncate(16);
     store_proto.product_ids.insert(product_id.encoded_id.clone(), ProductInfo {
         is_offline_allowed: request.is_offline_allowed,
         version: request.version.clone(),
         max_machines_per_license: request.max_machines_per_license,
+        product_name: request.product_name.to_string()
     });
 
     debug_log!("Encrypting Stores DB Proto");

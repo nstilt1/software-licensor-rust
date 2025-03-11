@@ -47,6 +47,7 @@ struct StoreData {
 #[derive(Serialize, Deserialize, Debug)]
 struct Product {
     id: String,
+    name: String,
     pubkey: String,
     offline_allowed: bool,
     max_machines_per_license: u32,
@@ -278,6 +279,7 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
                     offline_allowed: product_info.is_offline_allowed,
                     max_machines_per_license: product_info.max_machines_per_license,
                     version: product_info.version.to_string(),
+                    name: product_info.product_name.to_string()
                 }
             )
         }

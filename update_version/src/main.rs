@@ -45,10 +45,11 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         _ => return error_resp(400, "Invalid request body")
     };
 
-    let request: UpdateVersionRequest = match serde_json::from_str(&body) {
+    let mut request: UpdateVersionRequest = match serde_json::from_str(&body) {
         Ok(v) => v,
         Err(e) => return error_resp(400, &format!("Invalid request body: {}", e))
     };
+    request.new_version.truncate(13);
 
     let config = aws_config::load_from_env().await;
     let cognito_client = CognitoClient::new(&config);

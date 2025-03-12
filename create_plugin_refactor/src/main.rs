@@ -100,6 +100,8 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
         store_item.get_item(&STORES_TABLE.protobuf_data)?.as_ref()
     )?;
 
+    request.version.truncate(13);
+
     match store_proto.product_ids.get_mut(&request.product_id_prefix) {
         Some(v) => {
             // update product_info

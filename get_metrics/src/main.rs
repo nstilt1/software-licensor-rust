@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use utils::{
-    aws_config, aws_sdk_cognitoidentityprovider::Client as CognitoClient, aws_sdk_dynamodb::{types::KeysAndAttributes, Client as DbClient}, base64::Base64Vec, crypto::{init_key_manager, salty_hash, DigitalLicensingThemedKeymanager, STORE_DB_SALT}, debug_log, prelude::{
+    aws_config, aws_sdk_cognitoidentityprovider::Client as CognitoClient, aws_sdk_dynamodb::{types::KeysAndAttributes, Client as DbClient}, base64::Base64Vec, crypto::{init_key_manager, salty_hash, DigitalLicensingThemedKeymanager, STORE_DB_SALT}, debug_log, error_log, prelude::{
         lambda_http::{
             run, 
             service_fn, 
@@ -269,7 +269,13 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
         debug_log!("About to process store's products");
         let mut products_vec = Vec::with_capacity(proto.product_ids.len());
         for (id, product_info) in proto.product_ids.iter() {
-            let product_id = key_manager.validate_product_id(&id, &store_id).expect("Should be valid");
+            let product_id = match key_manager.validate_product_id(&id, &store_id) {
+                Ok(v) => v,
+                Err(e) => {
+                    error_log!("Err: {}\nStore ID: {}\nProduct ID: {}", e, store_id.encoded_id, id);
+                    panic!()
+                }
+            };
             let public_key = key_manager.get_product_public_key(&product_id, &store_id);
             let pubkey_b64 = public_key.to_base64(true);
             products_vec.push(

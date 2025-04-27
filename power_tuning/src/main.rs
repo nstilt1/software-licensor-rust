@@ -3,6 +3,7 @@ use std::time::Instant;
 use create_license::generate_create_license_payload;
 use get_license::generate_get_license_payload;
 use license_activation::generate_license_activation_payload;
+use license_activation::test_license_activation_with_bad_license_code;
 use proto::protos::pubkeys::{ExpiringEcdhKey, ExpiringEcdsaKey};
 use create_product::generate_create_product_payload;
 use power_tuning::calculate_costs;
@@ -57,7 +58,7 @@ async fn main() -> Result<(), Error> {
     // tests
     //test_register_store(&req_client, server_keys).await?;
     //test_create_product(&req_client, server_keys).await?;
-    test_create_license(&req_client, server_keys).await?;
+    //test_create_license(&req_client, server_keys).await?;
     //test_get_license(&req_client, server_keys).await?;
     //test_license_activation(&req_client, server_keys).await?;
     //test_deactivate_machines(&req_client, server_keys).await?;
@@ -66,6 +67,11 @@ async fn main() -> Result<(), Error> {
     // power tuning
     //register_store_power_tuning(&req_client, server_keys).await?;
     //license_activation_power_tuning(&req_client, server_keys).await?;
+    //for _ in 0..11 {
+    //    test_license_activation_with_bad_license_code(&req_client, server_keys.clone()).await?;
+    //}
+    //test_license_activation(&req_client, server_keys.clone()).await?;
+    test_license_activation_with_bad_license_code(&req_client, server_keys.clone()).await?;
     Ok(())
 }
 

@@ -20,6 +20,19 @@ pub async fn test_license_activation(req_client: &reqwest::Client, server_keys: 
 }
 
 #[allow(unused)]
+pub async fn test_license_activation_with_bad_license_code(req_client: &reqwest::Client, server_keys: (ExpiringEcdhKey, ExpiringEcdsaKey)) -> Result<(), Error> {
+    let inner_payload = generate_license_activation_payload_with_license_code(Some("E7F0-42CD-8330-C891-B6D2"));
+    let payload = encrypt_and_sign_payload(inner_payload, false, server_keys);
+    let response = req_client.post("https://01lzc0nx9e.execute-api.us-east-1.amazonaws.com/v2/license_activation_refactor")
+        .header("X-Signature", "None")
+        .body(payload.encrypted)
+        .send()
+        .await.unwrap();
+    assert!(response.status().as_u16() == 401, "Expected 401, got {}", response.status());
+    Ok(())
+}
+
+#[allow(unused)]
 pub fn generate_license_activation_payload() -> Vec<u8> {
     use protos::license_activation_request::LicenseActivationRequest;
     let req = LicenseActivationRequest {
@@ -30,6 +43,28 @@ pub fn generate_license_activation_payload() -> Vec<u8> {
         product_ids: vec![
             //"Test1U58-dmYcq_corvrg5ca19az_Lzef".into(), // perpetual
             "TestCq16-ClKZsVOLN_zFnR9y4EWS4z9o".into(), // trial
+            //"TestGhDt-jkezEw0aV8L1Pn/bgrpz5gog".into(), // subscription
+            //"TestLuQH-gmCT0_JXH3yxjSC2D2mPHtNq".into(), // perpetual, allows offline
+        ],
+    };
+    req.encode_length_delimited_to_vec()
+}
+
+#[allow(unused)]
+pub fn generate_license_activation_payload_with_license_code(license_code: Option<&str>) -> Vec<u8> {
+    use protos::license_activation_request::LicenseActivationRequest;
+    let req = LicenseActivationRequest {
+        license_code: if let Some(license) = license_code {
+            license.into()
+        } else {
+            LICENSE_CODE.into()
+        },
+        //machine_id: "machine_id_1".into(),
+        machine_id: "machine_id_2".into(),
+        hardware_stats: None,
+        product_ids: vec![
+            "Test1U58-dmYcq_corvrg5ca19az_Lzef".into(), // perpetual
+            //"TestCq16-ClKZsVOLN_zFnR9y4EWS4z9o".into(), // trial
             //"TestGhDt-jkezEw0aV8L1Pn/bgrpz5gog".into(), // subscription
             //"TestLuQH-gmCT0_JXH3yxjSC2D2mPHtNq".into(), // perpetual, allows offline
         ],

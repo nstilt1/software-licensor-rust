@@ -25,12 +25,12 @@ else
     features_flag="--features $1"
 fi
 
-cross build --release ${features_flag} --target aarch64-unknown-linux-musl     && {
+cross build --release ${features_flag} --target aarch64-unknown-linux-gnu     && {
     timestamp=$(date '+%y-%m-%d-%H-%M-%S')
     filename="${timestamp}_$1_update_settings.zip"
     cd builds
     echo "creating $filename..."
-    mv ../../target/aarch64-unknown-linux-musl/release/update_settings "bootstrap"
+    mv ../../target/aarch64-unknown-linux-gnu/release/update_settings "bootstrap"
     zip -j "$filename" ./"bootstrap"
     rm bootstrap
 } || {

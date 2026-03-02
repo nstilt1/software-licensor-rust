@@ -10,21 +10,27 @@ jemallocator = "0.5.4"
 
 [dependencies]
 aes-gcm = { version = "0.10" }
-aws-config = { version= "1.5.0", features = ["behavior-version-latest"] }
-aws-sdk-cognitoidentityprovider = { version = "1.5.0", optional = true }
-aws-sdk-dynamodb = { version = "1.30.1", optional = true }
-aws-sdk-lambda = { version = "1.28.0", optional = true }
-aws-sdk-s3 = { version = "1.30.1", optional = true }
+aws-config = { version= "1.8.14", default-features = false, features = ["behavior-version-latest", "rt-tokio", "default-https-client"] }
+aws-sdk-cognitoidentityprovider = { version = "1.111.0", optional = true }
+aws-sdk-dynamodb = { version = "1.107.0", optional = true }
+aws-sdk-lambda = { version = "1.117.0", optional = true }
+aws-sdk-s3 = { version = "1.124.0", optional = true, default-features = false, features = [
+  "rt-tokio",
+  "default-https-client",
+  "http-1x",
+  # NO "rustls"
+] }
 base64 = "0.22.1"
 chacha20poly1305 = "0.10"
 dotenv = { version = "0.15.0", optional = true }
 hex = "0.4.3"
 http_private_key_manager = { path = "../../../libs/crypto-on-the-edge/key_manager" }
-lambda_http = { version = "0.11", default-features = false, features = ["tracing", "apigw_http", "apigw_rest"] }
-lambda_runtime = "0.11"
+#lambda_http = { version = "1.0.2", default-features = false, features = ["tracing", "apigw_http", "apigw_rest"] }
+lambda_http = { version = "1.1.0-rc1", default-features = false, git = "https://github.com/nstilt1/aws-lambda-rust-runtime", features = ["apigw_http"] }
+lambda_runtime = "1.0.2"
 log = "0.4"
 openssl = { version = "0.10", features = ["vendored"] }
-p384 = { git = "https://github.com/RustCrypto/elliptic-curves.git", branch = "master", package = "p384", version = "0.14.0-pre", features = ["jwk", "ecdsa", "pem"]  }
+p384 = { git = "https://github.com/RustCrypto/elliptic-curves.git", package = "p384", version = "0.14.0-pre", rev = "a1fabfb", features = ["jwk", "ecdsa", "pem"]  }
 proto = { path = "../proto" }
 serde = { optional = true, version = "1", features = ["derive"] }
 serde_json = "1"
@@ -33,20 +39,21 @@ sha3 = { version = "0.11.0-pre.3", features = ["asm"]}
 simple_logger = "5"
 substring = "1.4.5"
 tokio = { version = "1", features = ["full"] }
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.5", features = ["env-filter"] }
+tracing = { version = "0.1.37", optional = true}
+#tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 zeroize = { version = "1.7.0", optional = true }
 
 [features]
 default = ["dynamodb"]
 cognito = ["aws-sdk-cognitoidentityprovider", "serde"]
 create_license = ["dynamodb"] # contains functionality for creating license codes
+debug = []
 dynamodb = ["aws-sdk-dynamodb"]
 get_license = ["dynamodb"] # contains all the functionality for outputting a GetLicenseResponse
 lambda = ["aws-sdk-lambda"]
 s3 = ["aws-sdk-s3"]
 local = ["dotenv"]
-logging = ["http_private_key_manager/logging"]
+logging = ["http_private_key_manager/logging", "tracing"]
 zeroize = [
     "dep:zeroize", 
     "http_private_key_manager/zeroize", 

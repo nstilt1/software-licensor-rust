@@ -70,8 +70,8 @@ async fn main() -> Result<(), Error> {
     //for _ in 0..11 {
     //    test_license_activation_with_bad_license_code(&req_client, server_keys.clone()).await?;
     //}
-    //test_license_activation(&req_client, server_keys.clone()).await?;
-    test_license_activation_with_bad_license_code(&req_client, server_keys.clone()).await?;
+    test_license_activation(&req_client, server_keys.clone()).await?;
+    //test_license_activation_with_bad_license_code(&req_client, server_keys.clone()).await?;
     Ok(())
 }
 

@@ -25,12 +25,12 @@ else
     features_flag="--features $1"
 fi
 
-cross build --release ${features_flag} --target aarch64-unknown-linux-musl     && {
+cross build --release ${features_flag} --target aarch64-unknown-linux-gnu     && {
     timestamp=$(date '+%y-%m-%d-%H-%M-%S')
     filename="${timestamp}_$1_link_store_admin.zip"
     cd builds
     echo "creating $filename..."
-    mv ../../target/aarch64-unknown-linux-musl/release/link_store_admin "bootstrap"
+    mv ../../target/aarch64-unknown-linux-gnu/release/link_store_admin "bootstrap"
     zip -j "$filename" ./"bootstrap"
     rm bootstrap
 } || {

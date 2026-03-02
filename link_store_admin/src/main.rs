@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use utils::{
     aws_config, aws_sdk_cognitoidentityprovider::{types::AttributeType, Client as CognitoClient}, aws_sdk_dynamodb::{types::KeysAndAttributes, Client as DbClient}, crypto::{init_key_manager, salty_hash, DigitalLicensingThemedKeymanager, STORE_DB_SALT}, prelude::{
         lambda_http::{
-            run, service_fn, tracing, Body, Error, Request, RequestExt, Response
+            run, service_fn, Body, Error, Request, RequestExt, Response
         }, proto::protos::create_store_request::StoreDbItem, AttributeValueHashMap, Blob, ItemIntegration
     }, serde_json, tables::{metrics::METRICS_TABLE, stores::STORES_TABLE}
 };
@@ -206,7 +206,5 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing::init_default_subscriber();
-
     run(service_fn(function_handler)).await
 }

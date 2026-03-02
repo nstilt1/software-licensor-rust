@@ -11,7 +11,7 @@ use utils::prelude::proto::protos::create_store_request::StoreDbItem;
 use utils::tables::metrics::METRICS_TABLE;
 use utils::{impl_function_handler, prelude::*};
 use utils::tables::stores::STORES_TABLE;
-use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
+use lambda_http::{run, service_fn, Body, Error, Request, RequestExt, Response};
 
 use http_private_key_manager::impl_handle_crypto;
 

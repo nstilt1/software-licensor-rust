@@ -19,7 +19,7 @@ use utils::tables::metrics::METRICS_TABLE;
 use utils::{debug_log, error_log, impl_function_handler, prelude::*};
 use utils::tables::licenses::LICENSES_TABLE;
 use utils::tables::stores::STORES_TABLE;
-use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
+use lambda_http::{run, service_fn, Body, Error, Request, RequestExt, Response};
 
 impl_function_handler!(
     CreateLicenseRequest,

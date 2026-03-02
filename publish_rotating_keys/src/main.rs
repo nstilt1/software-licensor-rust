@@ -52,6 +52,7 @@ async fn function_handler(_event: LambdaEvent<EventBridgeEvent>) -> Result<Value
                 ecdh_key_id: id.as_ref().to_vec(),
                 ecdh_public_key: key.to_sec1_bytes().to_vec(),
                 ecdh_public_key_pem: key.to_string(),
+                expiration: Some(expiration_for_ephemeral_keys),
             }
         )
     }
@@ -87,8 +88,6 @@ async fn function_handler(_event: LambdaEvent<EventBridgeEvent>) -> Result<Value
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing_subscriber::fmt::init();
-
     let func = service_fn(function_handler);
     lambda_runtime::run(func).await
 }

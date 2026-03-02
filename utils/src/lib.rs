@@ -1,5 +1,3 @@
-#![feature(lazy_cell)]
-
 pub mod base64;
 pub mod crypto;
 #[cfg(feature = "dynamodb")]
@@ -59,7 +57,7 @@ pub mod prelude {
     pub use aws_sdk_dynamodb::primitives::Blob;
     #[cfg(feature = "dynamodb")]
     pub use crate::init_dynamodb_client;
-    pub use tracing_subscriber;
+    #[cfg(feature = "logging")]
     pub use tracing;
     pub use log;
     pub use crate::impl_function_handler;

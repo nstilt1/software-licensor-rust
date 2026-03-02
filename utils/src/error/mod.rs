@@ -1,5 +1,6 @@
 use http_private_key_manager::ProtocolError;
 use lambda_http::{http::StatusCode, Body, Error, Response};
+use crate::debug_log;
 
 pub mod into;
 
@@ -31,6 +32,30 @@ pub enum ApiError {
 impl ApiError {
     #[inline]
     fn get_status_code(&self) -> StatusCode {
+        #[cfg(feature = "logging")]
+        match self {
+            Self::IdExpired => debug_log!("The token has expired"),
+            Self::InvalidAuthentication => debug_log!("The authentication was invalid"),
+            Self::RequestWentThrough => debug_log!("There was an error, but your request went through"),
+            Self::ProtocolError(x) => debug_log!("There was a protocol error, {}", x),
+            Self::DynamoDbError(x) => debug_log!("There was an internal server error, {}", x),
+            Self::DynamoDbResourceNotFound(x) => debug_log!("Resource not found: {}", x),
+            Self::InvalidRequest(x) => debug_log!("Invalid request: {}", x),
+            Self::InvalidDbSchema(x) => debug_log!("Invalid DB schema: {}", x),
+            Self::ServerError(x) => debug_log!("Internal server error: {}", x),
+            Self::NotFound => debug_log!("Not found; perhaps the resource was not in the database."),
+            Self::ThroughputError => debug_log!("There was a throughput error. Try again in a few minutes"),
+            Self::StoreAlreadyRegistered => debug_log!("The store's public key's length is not equal to 0 in the database."),
+            // licensing errors
+            Self::IncorrectOfflineCode => debug_log!("32"),
+            Self::LicenseNoLongerActive => debug_log!("16"),
+            Self::NoLicenseFound => debug_log!("2"),
+            Self::OverMaxMachines => debug_log!("4"),
+            Self::TrialEnded => debug_log!("8"),
+            Self::InvalidLicenseCode => debug_log!("128"),
+            Self::OfflineIsNotAllowed => debug_log!("64"),
+            Self::MachineDeactivated => debug_log!("256"),
+        }
         let status = match self {
             Self::IdExpired => 403,
             Self::InvalidAuthentication => 401,
@@ -81,57 +106,53 @@ macro_rules! write_fmt {
 
 impl std::fmt::Display for ApiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        #[cfg(feature = "debug")]
-        {
-            match self {
-                Self::IdExpired => f.write_str("The token has expired"),
-                Self::InvalidAuthentication => f.write_str("The authentication was invalid"),
-                Self::RequestWentThrough => f.write_str("There was an error, but your request went through"),
-                Self::ProtocolError(x) => write_fmt!(f, "There was a protocol error, {}", x),
-                Self::DynamoDbError(x) => write_fmt!(f, "There was an internal server error, {}", x),
-                Self::DynamoDbResourceNotFound(x) => write_fmt!(f, "Resource not found: {}", x),
-                Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
-                Self::InvalidDbSchema(x) => write_fmt!(f, "Invalid DB schema: {}", x),
-                Self::ServerError(x) => write_fmt!(f, "Internal server error: {}", x),
-                Self::NotFound => f.write_str("Not found; perhaps the resource was not in the database."),
-                Self::ThroughputError => f.write_str("There was a throughput error. Try again in a few minutes"),
-                Self::StoreAlreadyRegistered => f.write_str("The store's public key's length is not equal to 0 in the database."),
-                // licensing errors
-                Self::IncorrectOfflineCode => f.write_str("32"),
-                Self::LicenseNoLongerActive => f.write_str("16"),
-                Self::NoLicenseFound => f.write_str("2"),
-                Self::OverMaxMachines => f.write_str("4"),
-                Self::TrialEnded => f.write_str("8"),
-                Self::InvalidLicenseCode => f.write_str("128"),
-                Self::OfflineIsNotAllowed => f.write_str("64"),
-                Self::MachineDeactivated => f.write_str("256"),
-            }
+        
+        match self {
+            Self::IdExpired => debug_log!("The token has expired"),
+            Self::InvalidAuthentication => debug_log!("The authentication was invalid"),
+            Self::RequestWentThrough => debug_log!("There was an error, but your request went through"),
+            Self::ProtocolError(x) => debug_log!("There was a protocol error, {}", x),
+            Self::DynamoDbError(x) => debug_log!("There was an internal server error, {}", x),
+            Self::DynamoDbResourceNotFound(x) => debug_log!("Resource not found: {}", x),
+            Self::InvalidRequest(x) => debug_log!("Invalid request: {}", x),
+            Self::InvalidDbSchema(x) => debug_log!("Invalid DB schema: {}", x),
+            Self::ServerError(x) => debug_log!("Internal server error: {}", x),
+            Self::NotFound => debug_log!("Not found; perhaps the resource was not in the database."),
+            Self::ThroughputError => debug_log!("There was a throughput error. Try again in a few minutes"),
+            Self::StoreAlreadyRegistered => debug_log!("The store's public key's length is not equal to 0 in the database."),
+            // licensing errors
+            Self::IncorrectOfflineCode => debug_log!("32"),
+            Self::LicenseNoLongerActive => debug_log!("16"),
+            Self::NoLicenseFound => debug_log!("2"),
+            Self::OverMaxMachines => debug_log!("4"),
+            Self::TrialEnded => debug_log!("8"),
+            Self::InvalidLicenseCode => debug_log!("128"),
+            Self::OfflineIsNotAllowed => debug_log!("64"),
+            Self::MachineDeactivated => debug_log!("256"),
         }
-        #[cfg(not(feature = "debug"))]
-        {
-            match self {
-                Self::IdExpired => f.write_str("The token has expired"),
-                Self::RequestWentThrough => f.write_str("There was an error, but your request went through"),
-                Self::DynamoDbError(_) => f.write_str("There was an internal server error"),
-                Self::DynamoDbResourceNotFound(e) => f.write_str(e),
-                Self::InvalidDbSchema(e) => f.write_str(e),
-                Self::ProtocolError(e) => f.write_str(&e.to_string()),
-                Self::InvalidAuthentication => f.write_str("Forbidden"),
-                Self::ServerError(x) => write_fmt!(f, "There was an internal server error: {}", x),
-                Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
-                Self::NotFound => f.write_str("Not Found"),
-                Self::ThroughputError => f.write_str("The servers are a bit busy at the momement. Try again in a few minutes"),
-                Self::StoreAlreadyRegistered => f.write_str("This API key is already in use"),
-                // licensing errors
-                Self::IncorrectOfflineCode => f.write_str("32"),
-                Self::LicenseNoLongerActive => f.write_str("16"),
-                Self::NoLicenseFound => f.write_str("2"),
-                Self::OverMaxMachines => f.write_str("4"),
-                Self::TrialEnded => f.write_str("8"),
-                Self::InvalidLicenseCode => f.write_str("128"),
-                Self::OfflineIsNotAllowed => f.write_str("64"),
-                Self::MachineDeactivated => f.write_str("256"),
-            }
+
+        match self {
+            Self::IdExpired => f.write_str("The token has expired"),
+            Self::RequestWentThrough => f.write_str("There was an error, but your request went through"),
+            Self::DynamoDbError(_) => f.write_str("There was an internal server error"),
+            Self::DynamoDbResourceNotFound(e) => f.write_str(e),
+            Self::InvalidDbSchema(e) => f.write_str(e),
+            Self::ProtocolError(e) => f.write_str(&e.to_string()),
+            Self::InvalidAuthentication => f.write_str("Forbidden"),
+            Self::ServerError(x) => write_fmt!(f, "There was an internal server error: {}", x),
+            Self::InvalidRequest(x) => write_fmt!(f, "Invalid request: {}", x),
+            Self::NotFound => f.write_str("Not Found"),
+            Self::ThroughputError => f.write_str("The servers are a bit busy at the momement. Try again in a few minutes"),
+            Self::StoreAlreadyRegistered => f.write_str("This API key is already in use"),
+            // licensing errors
+            Self::IncorrectOfflineCode => f.write_str("32"),
+            Self::LicenseNoLongerActive => f.write_str("16"),
+            Self::NoLicenseFound => f.write_str("2"),
+            Self::OverMaxMachines => f.write_str("4"),
+            Self::TrialEnded => f.write_str("8"),
+            Self::InvalidLicenseCode => f.write_str("128"),
+            Self::OfflineIsNotAllowed => f.write_str("64"),
+            Self::MachineDeactivated => f.write_str("256"),
         }
     }
 }

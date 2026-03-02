@@ -7,7 +7,7 @@ use utils::prelude::proto::protos::get_license_request::{GetLicenseRequest, GetL
 use utils::prelude::*;
 use utils::tables::licenses::LICENSES_TABLE;
 use utils::tables::stores::STORES_TABLE;
-use lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
+use lambda_http::{run, service_fn, Body, Error, Request, RequestExt, Response};
 
 impl_function_handler!(
     GetLicenseRequest, 

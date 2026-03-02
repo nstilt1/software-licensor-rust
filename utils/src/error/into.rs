@@ -12,12 +12,14 @@ use aws_sdk_dynamodb::{
         query::QueryError
     }
 };
+use crate::debug_log;
 use base64::DecodeError;
 use http_private_key_manager::ProtocolError;
 use http_private_key_manager::private_key_generator::error::{IdCreationError, InvalidId};
 
 impl From<ProtocolError> for ApiError {
     fn from(err: ProtocolError) -> Self {
+        debug_log!("Protocol error: {}", err);
         match err {
             ProtocolError::InvalidId(InvalidId::Expired) => Self::IdExpired,
             ProtocolError::SigningError => Self::ServerError("Signing key error".into()),

@@ -2,7 +2,7 @@ use std::env;
 
 use serde::{Deserialize, Serialize};
 use utils::crypto::{init_key_manager, salty_hash, DigitalLicensingThemedKeymanager, STORE_DB_SALT};
-use utils::prelude::lambda_http::{run, service_fn, tracing, Body, Error, Request, RequestExt, Response};
+use utils::prelude::lambda_http::{run, service_fn, Body, Error, Request, RequestExt, Response};
 use utils::tables::stores::STORES_TABLE;
 use utils::{aws_config, debug_log, serde_json};
 use utils::aws_sdk_cognitoidentityprovider::Client as CognitoClient;
@@ -193,7 +193,5 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    tracing::init_default_subscriber();
-
     run(service_fn(function_handler)).await
 }

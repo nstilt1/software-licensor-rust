@@ -18,6 +18,7 @@ pub use p384;
 pub use chacha20poly1305;
 pub use http_private_key_manager;
 use http_private_key_manager::prelude::*;
+use http_private_key_manager::debug_log;
 use proto::{prost::Message, protos::register_store_request::register_store_request::PublicSigningKey};
 pub use sha2;
 use sha3::Sha3_512;
@@ -389,7 +390,13 @@ impl DigitalLicensingThemedKeymanager for KeyManager {
 
     #[inline]
     fn validate_product_id(&mut self, product_id: &str, store_id: &Id<StoreId>) -> Result<Id<ProductId>, ApiError> {
-        let id = self.validate_ecdsa_key_id::<EcdsaAlg, ProductId>(product_id, Some(store_id.binary_id.as_ref()))?;
+        let id = match self.validate_ecdsa_key_id::<EcdsaAlg, ProductId>(product_id, Some(store_id.binary_id.as_ref())) {
+            Ok(v) => v,
+            Err(e) => {
+                debug_log!("validate_ecdsa_key_id error: {}", e);
+                return Err(e.into());
+            }
+        };
         Ok(id)
     }
 

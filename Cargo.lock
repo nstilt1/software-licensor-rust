@@ -581,8 +581,9 @@ dependencies = [
 
 [[package]]
 name = "aws_lambda_events"
-version = "1.0.3"
-source = "git+https://github.com/nstilt1/aws-lambda-rust-runtime#958b6c1bafd1a1b37c98ddf6fc51eb192fc607dc"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "474e5c215398b56aa1c8021cb51907d132c022737dc86b1b5ac9a3fa0fa25fdc"
 dependencies = [
  "base64",
  "bytes",
@@ -916,6 +917,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
  "utils",
 ]
 
@@ -1930,10 +1932,11 @@ dependencies = [
 
 [[package]]
 name = "lambda_http"
-version = "1.1.0-rc1"
-source = "git+https://github.com/nstilt1/aws-lambda-rust-runtime#958b6c1bafd1a1b37c98ddf6fc51eb192fc607dc"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c54938eab7a90e46a59fef2332f7fbcd5cfeba74a8bfc741e3f48a2504e96cd2"
 dependencies = [
- "aws_lambda_events 1.0.3",
+ "aws_lambda_events 1.1.2",
  "bytes",
  "encoding_rs",
  "futures-util",
@@ -1941,7 +1944,7 @@ dependencies = [
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.8.1",
- "lambda_runtime 1.1.0-rc1",
+ "lambda_runtime",
  "mime",
  "percent-encoding",
  "pin-project-lite",
@@ -1954,9 +1957,9 @@ dependencies = [
 
 [[package]]
 name = "lambda_runtime"
-version = "1.0.2"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc0b4409eea054e4c06f0101fed547b2cf208e8eca9dc6d41dead4114577852b"
+checksum = "7c58c2197a86a6b73fdc61f18be54de1b1f7681d2df91e49798eac6ea2d482da"
 dependencies = [
  "async-stream",
  "base64",
@@ -1966,31 +1969,7 @@ dependencies = [
  "http-body-util",
  "http-serde",
  "hyper 1.8.1",
- "lambda_runtime_api_client 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "pin-project",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "tokio",
- "tokio-stream",
- "tower",
- "tracing",
-]
-
-[[package]]
-name = "lambda_runtime"
-version = "1.1.0-rc1"
-source = "git+https://github.com/nstilt1/aws-lambda-rust-runtime#958b6c1bafd1a1b37c98ddf6fc51eb192fc607dc"
-dependencies = [
- "async-stream",
- "base64",
- "bytes",
- "futures",
- "http 1.4.0",
- "http-body-util",
- "http-serde",
- "hyper 1.8.1",
- "lambda_runtime_api_client 1.0.2 (git+https://github.com/nstilt1/aws-lambda-rust-runtime)",
+ "lambda_runtime_api_client",
  "pin-project",
  "serde",
  "serde_json",
@@ -2003,9 +1982,9 @@ dependencies = [
 
 [[package]]
 name = "lambda_runtime_api_client"
-version = "1.0.2"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b4873061514cb57ffb6a599b77c46c65d6d783efe9bad8fd56b7cba7f0459ef"
+checksum = "b5e9ffa99f1e87b21d42ac98fe7eac55f4cfb9ed14677a64a7dab4d8f44399a4"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -2018,22 +1997,6 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "lambda_runtime_api_client"
-version = "1.0.2"
-source = "git+https://github.com/nstilt1/aws-lambda-rust-runtime#958b6c1bafd1a1b37c98ddf6fc51eb192fc607dc"
-dependencies = [
- "bytes",
- "futures-channel",
- "futures-util",
- "http 1.4.0",
- "http-body 1.0.1",
- "http-body-util",
- "hyper 1.8.1",
- "hyper-util",
- "tower",
 ]
 
 [[package]]
@@ -2283,15 +2246,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
-name = "openssl-src"
-version = "300.2.3+3.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cff92b6f71555b61bb9315f7c64da3ca43d87531622120fea0195fc761b4843"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "openssl-sys"
 version = "0.9.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2299,7 +2253,6 @@ checksum = "c597637d56fbc83893a35eb0dd04b2b8e7a50c91e64e9493e398b5df4fb45fa2"
 dependencies = [
  "cc",
  "libc",
- "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
@@ -3621,9 +3574,8 @@ dependencies = [
  "http_private_key_manager",
  "jemallocator",
  "lambda_http",
- "lambda_runtime 1.0.2",
+ "lambda_runtime",
  "log",
- "openssl",
  "p384",
  "proto",
  "serde",

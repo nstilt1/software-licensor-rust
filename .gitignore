@@ -1,6 +1,7 @@
 **/target
 *.zip
 **/builds/
+**/builds_old/
 **/deploy.sh
 **/create_lambda.sh
 .env

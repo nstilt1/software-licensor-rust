@@ -19,6 +19,7 @@ macro_rules! impl_function_handler {
             ("aes-128-gcm", Aes128Gcm),
             ("aes-256-gcm", Aes256Gcm)
         );
+
         async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
             debug_log!("In function_handler");
             if event.query_string_parameters_ref().is_some() {
@@ -59,6 +60,10 @@ macro_rules! impl_function_handler {
         }
         #[tokio::main]
         async fn main() -> Result<(), Error> {
+            #[cfg(feature = "logging")]
+            lambda_http::tracing::init_default_subscriber();
+            #[cfg(feature = "logging")]
+            debug_log!("Running service_fn(function_handler)");
             run(service_fn(function_handler)).await
         }
     };

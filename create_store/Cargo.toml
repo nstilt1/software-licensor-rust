@@ -22,7 +22,8 @@ serde_json = "1"
 utils = { path = "../utils", features = ["cognito"] }
 
 tokio = { version = "1", features = ["macros"] }
+tracing = { version = "0.1.44", optional = true }
 
 [features]
-logging = ["utils/logging"]
+logging = ["utils/logging", "tracing"]
 zeroize = ["utils/zeroize"]

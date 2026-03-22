@@ -39,6 +39,9 @@ pub use serde_json;
 pub use aws_sdk_lambda;
 pub use http_private_key_manager::{debug_log, error_log};
 
+#[cfg(feature = "logging")]
+pub use tracing;
+
 /// The primary dependencies that will be required for lambda functions are re-exported so as to minimize the chance of different API methods having different versions of dependencies, which would result in more crates to download and compile.
 pub mod prelude {
     pub use jemallocator;

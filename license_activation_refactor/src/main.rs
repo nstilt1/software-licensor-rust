@@ -468,6 +468,8 @@ async fn process_request<D: Digest + FixedOutput>(
             message: "".into(),
             message_code: 1,
             post_expiration_error_code: 0,
+            current_machine_count: Some(current_machine_count as u32),
+            current_machine_limit: Some(max_machines as u32),
         };
         
         // doing an OR operation instead of `.ne(license_types::PERPETUAL)` in case other license types get added

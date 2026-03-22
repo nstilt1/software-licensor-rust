@@ -84,6 +84,8 @@ message LicenseKeyFile {
     uint32 message_code = 31;
     // the message to show if the license ever expires on the user
     uint32 post_expiration_error_code = 35;
+    optional uint32 current_machine_count = 40;
+    optional uint32 current_machine_limit = 41;
 }
 
 message LicenseActivationResponse {

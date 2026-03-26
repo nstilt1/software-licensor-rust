@@ -305,6 +305,12 @@ async fn process_request<D: Digest + FixedOutput>(
         return Err(ApiError::NotFound)
     };
 
+    // Security note: signature is only required for offline license unlocks, to 
+    // be signed by the web server/service hosting the store so that the store's
+    // private key must be used to activate an offline license for a specific 
+    // machine via an online form. As of the time of writing this, the form is 
+    // not currently implemented, but could be quick and easy if someone wants to 
+    // implement the client-side and store-side code for offline unlocking.
     let signature_verified = verify_signature(&store_item, hasher, &signature).is_ok();
 
     let mut metrics_item = if let Some(s) = tables.get(METRICS_TABLE.table_name) {
@@ -512,6 +518,7 @@ async fn process_request<D: Digest + FixedOutput>(
                     updated_license |= insert_machine_into_machine_map(&mut online_machines_map, &request);
                     update_lists(&mut updated_license, &mut license_product_map, Some(online_machines_map), None);
                 }
+                key_file.current_machine_count = Some(current_machine_count as u32 + 1);
             } else {
                 // machine limit reached
                 licensing_errors.insert(product_id.encoded_id, ApiError::OverMaxMachines.get_licensing_error_number());
@@ -609,6 +616,8 @@ async fn process_request<D: Digest + FixedOutput>(
         debug_log!("Signing key file");
         let signature = key_manager.sign_key_file(&key_file.encode_length_delimited_to_vec(), &product_id)?;
         debug_log!("Successfully signed the key file");
+        debug_log!("Result code: {}", key_file.message_code);
+        debug_log!("Post expiration error code: {}", key_file.post_expiration_error_code);
         key_file_signatures.insert(product_id.encoded_id.clone(), signature);
     }
 

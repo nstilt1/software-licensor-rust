@@ -88,6 +88,15 @@ message LicenseKeyFile {
     optional uint32 current_machine_limit = 41;
 }
 
+// License Error and Version of the software
+message LicenseErrorsAndVersions {
+    // the licensing error code
+    uint32 licensingError = 1;
+    // the product version so that updates can be checked on while the products 
+    // are still locked
+    string version = 5;
+}
+
 message LicenseActivationResponse {
     // map of product ids to license key files
     map<string, LicenseKeyFile> key_files = 1;
@@ -96,6 +105,8 @@ message LicenseActivationResponse {
     string customer_email = 8;
     // map of product ids to licensing errors
     map<string, uint32> licensing_errors = 2;
+    // map of product ids to (licensing error, version)
+    map<string, LicenseErrorsAndVersions> license_errors_and_versions = 12;
     // map of product ids to key file signature
     map<string, bytes> key_file_signatures = 5;
 }

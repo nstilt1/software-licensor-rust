@@ -15,6 +15,7 @@ use proto::protos::{
     },
 };
 use utils::prelude::proto::protos::create_store_request::StoreDbItem;
+use utils::prelude::proto::protos::license_activation_request::LicenseErrorsAndVersions;
 use utils::tables::machines::MACHINES_TABLE;
 use utils::tables::metrics::METRICS_TABLE;
 use utils::{now_as_seconds, prelude::*};
@@ -226,7 +227,7 @@ async fn process_request<D: Digest + FixedOutput>(
         if let Ok(p) = key_manager.validate_product_id(&prod_id, &store_id) {
             product_ids.push(p)
         } else {
-            debug_log!("Found an invalid product id");
+            debug_log!("Found an invalid product id: {}", prod_id);
             return Err(ApiError::InvalidAuthentication)
         }
     }
@@ -436,6 +437,7 @@ async fn process_request<D: Digest + FixedOutput>(
     let mut key_files: HashMap<String, LicenseKeyFile> = HashMap::new();
     let mut key_file_signatures: HashMap<String, Vec<u8>> = HashMap::new();
     let mut licensing_errors: HashMap<String, u32> = HashMap::new();
+    let mut license_errors_and_versions: HashMap<String, LicenseErrorsAndVersions> = HashMap::new();
 
     for product_id in product_ids {
         debug_log!("In product_ids loop");
@@ -452,10 +454,18 @@ async fn process_request<D: Digest + FixedOutput>(
 
         let expiry_time = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.expiry_time).unwrap_or(&0.to_string()).parse::<u64>()?;
         let license_type = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.license_type)?.to_lowercase();
-
+        let version = if let Some(product_info) = store_item_protobuf_data.product_ids.get(&product_id.encoded_id) {
+            product_info.version.clone()
+        } else {
+            "0".to_string()
+        };
         let license_is_active = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.is_license_active)?;
         if !license_is_active {
-            licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.get_licensing_error_number());
+            licensing_errors.insert(product_id.encoded_id.clone(), ApiError::LicenseNoLongerActive.get_licensing_error_number());
+            license_errors_and_versions.insert(product_id.encoded_id, LicenseErrorsAndVersions {
+                licensing_error: ApiError::LicenseNoLongerActive.get_licensing_error_number(),
+                version,
+            });
             continue;
         }
         debug_log!("Got license_is_active");
@@ -485,11 +495,19 @@ async fn process_request<D: Digest + FixedOutput>(
             // expiry time has been reached
             match license_type.as_str() {
                 license_types::TRIAL => {
-                    licensing_errors.insert(product_id.encoded_id, ApiError::TrialEnded.get_licensing_error_number());
+                    licensing_errors.insert(product_id.encoded_id.clone(), ApiError::TrialEnded.get_licensing_error_number());
+                    license_errors_and_versions.insert(product_id.encoded_id, LicenseErrorsAndVersions {
+                        licensing_error: ApiError::TrialEnded.get_licensing_error_number(),
+                        version,
+                    });
                     continue;
                 },
                 license_types::SUBSCRIPTION => {
-                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.get_licensing_error_number());
+                    licensing_errors.insert(product_id.encoded_id.clone(), ApiError::LicenseNoLongerActive.get_licensing_error_number());
+                    license_errors_and_versions.insert(product_id.encoded_id, LicenseErrorsAndVersions {
+                        licensing_error: ApiError::LicenseNoLongerActive.get_licensing_error_number(),
+                        version,
+                    });
                     continue;
                 },
                 _ => unreachable!()
@@ -521,7 +539,11 @@ async fn process_request<D: Digest + FixedOutput>(
                 key_file.current_machine_count = Some(current_machine_count as u32 + 1);
             } else {
                 // machine limit reached
-                licensing_errors.insert(product_id.encoded_id, ApiError::OverMaxMachines.get_licensing_error_number());
+                licensing_errors.insert(product_id.encoded_id.clone(), ApiError::OverMaxMachines.get_licensing_error_number());
+                license_errors_and_versions.insert(product_id.encoded_id, LicenseErrorsAndVersions {
+                    licensing_error: ApiError::OverMaxMachines.get_licensing_error_number(),
+                    version,
+                });
                 continue;
             }
         } else {
@@ -576,7 +598,11 @@ async fn process_request<D: Digest + FixedOutput>(
                 debug_log!("Handling subscription license activation");
                 let is_subscription_active = license_product_map.get_item(&LICENSES_TABLE.products_map_item.fields.is_subscription_active)?;
                 if !is_subscription_active {
-                    licensing_errors.insert(product_id.encoded_id, ApiError::LicenseNoLongerActive.get_licensing_error_number());
+                    licensing_errors.insert(product_id.encoded_id.clone(), ApiError::LicenseNoLongerActive.get_licensing_error_number());
+                    license_errors_and_versions.insert(product_id.encoded_id, LicenseErrorsAndVersions {
+                        licensing_error: ApiError::LicenseNoLongerActive.get_licensing_error_number(),
+                        version,
+                    });
                     continue;
                 }
                 let mut expire_time = now + (store_configs.subscription_license_expiration_days as u64 * 24 * 60 * 60);
@@ -598,7 +624,11 @@ async fn process_request<D: Digest + FixedOutput>(
                 (expire_time, check_up_time)
             },
             _ => {
-                licensing_errors.insert(product_id.encoded_id, ApiError::InvalidDbSchema("Invalid license type".into()).get_licensing_error_number());
+                licensing_errors.insert(product_id.encoded_id.clone(), ApiError::InvalidDbSchema("Invalid license type".into()).get_licensing_error_number());
+                license_errors_and_versions.insert(product_id.encoded_id, LicenseErrorsAndVersions {
+                    licensing_error: ApiError::InvalidDbSchema("Invalid license type".into()).get_licensing_error_number(),
+                    version,
+                });
                 continue;
             }
         };
@@ -672,6 +702,7 @@ async fn process_request<D: Digest + FixedOutput>(
         key_files,
         key_file_signatures,
         licensing_errors,
+        license_errors_and_versions,
         customer_first_name: first_name,
         customer_last_name: last_name,
         customer_email: email,

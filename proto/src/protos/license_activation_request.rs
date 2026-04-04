@@ -16,6 +16,29 @@ pub struct LicenseActivationRequest {
     #[prost(string, repeated, tag = "5")]
     pub product_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
+/// Optional GPU info
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GpuInfo {
+    #[prost(string, optional, tag = "41")]
+    pub gpu_name: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "45")]
+    pub gpu_brand: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "55")]
+    pub gpu_backend: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "60")]
+    pub gpu_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(uint64, optional, tag = "65")]
+    pub gpu_vram_bytes: ::core::option::Option<u64>,
+    #[prost(bool, optional, tag = "70")]
+    pub gpu_unified_memory: ::core::option::Option<bool>,
+    #[prost(uint32, optional, tag = "75")]
+    pub gpu_core_count: ::core::option::Option<u32>,
+    #[prost(bool, optional, tag = "80")]
+    pub npu_available: ::core::option::Option<bool>,
+    #[prost(bool, optional, tag = "85")]
+    pub tpu_available: ::core::option::Option<bool>,
+}
 /// Optional hardware statistics
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -92,6 +115,9 @@ pub struct Stats {
     pub has_avx512vpopcntdq: bool,
     #[prost(bool, tag = "33")]
     pub has_neon: bool,
+    /// GPU Stuff
+    #[prost(message, optional, tag = "45")]
+    pub gpu_info: ::core::option::Option<GpuInfo>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

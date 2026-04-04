@@ -14,6 +14,19 @@ message LicenseActivationRequest {
     repeated string product_ids = 5;
 }
 
+// Optional GPU info
+message GpuInfo {
+    optional string gpu_name = 41;
+    optional string gpu_brand = 45;
+    optional string gpu_backend = 55;
+    optional string gpu_type = 60;
+    optional uint64 gpu_vram_bytes = 65;
+    optional bool gpu_unified_memory = 70;
+    optional uint32 gpu_core_count = 75;
+    optional bool npu_available = 80;
+    optional bool tpu_available = 85;
+}
+
 // Optional hardware statistics
 message Stats {
     string os_name = 1;
@@ -52,6 +65,9 @@ message Stats {
     bool has_avx512vl = 31;
     bool has_avx512vpopcntdq = 32;
     bool has_neon = 33;
+
+    // GPU Stuff
+    GpuInfo gpu_info = 45;
 }
 
 message LicenseKeyFile {

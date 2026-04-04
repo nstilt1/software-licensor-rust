@@ -68,7 +68,7 @@ fn update_lists(updated: &mut bool, license_product_item: &mut AttributeValueHas
 
 /// Inserts strings, numbers, and bools into a hashmap.
 macro_rules! insert_keys {
-    ($stats_map:expr, $stats:expr, $keys:expr, ($($string:ident),*), ($($number:ident),*), ($($bools:ident),*)) => {
+    ($stats_map:expr, $stats:expr, $keys:expr, ($($string:ident),*), ($($number:ident),*), ($($bools:ident),*), ($($gpu_string:ident),*), ($($gpu_number:ident),*), ($($gpu_bool:ident),*)) => {
         $(
             $stats_map.insert_item(&$keys.$string, $stats.$string.clone());
         )*
@@ -78,6 +78,23 @@ macro_rules! insert_keys {
         $(
             $stats_map.insert_item(&$keys.$bools, $stats.$bools);
         )*
+        if let Some(gpu) = &$stats.gpu_info {
+            $(
+                if let Some(string) = &gpu.$gpu_string {
+                    $stats_map.insert_item(&$keys.$gpu_string, string.clone());
+                }
+            )*
+            $(
+                if let Some(number) = gpu.$gpu_number {
+                    $stats_map.insert_item(&$keys.$gpu_number, number.to_string());
+                }
+            )*
+            $(
+                if let Some(b) = gpu.$gpu_bool {
+                    $stats_map.insert_item(&$keys.$gpu_bool, b);
+                }
+            )*
+        }
     };
 }
 
@@ -97,7 +114,13 @@ fn insert_stats(stats_map: &mut AttributeValueHashMap, stats: &Stats) {
         has_sse3, has_ssse3, has_sse41, has_sse42, has_avx, has_avx2, 
         has_avx512f, has_avx512bw, has_avx512cd, has_avx512dq, has_avx512er, 
         has_avx512ifma, has_avx512pf, has_avx512vbmi, has_avx512vl, 
-        has_avx512vpopcntdq, has_neon)
+        has_avx512vpopcntdq, has_neon),
+        // gpu strings
+        (gpu_name, gpu_brand, gpu_backend, gpu_type),
+        // gpu numbers
+        (gpu_vram_bytes, gpu_core_count),
+        // gpu bools
+        (gpu_unified_memory, npu_available, tpu_available)
     );
 }
 

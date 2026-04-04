@@ -48,6 +48,17 @@ pub struct Stats {
     pub has_avx512vl: Item<Bool>,
     pub has_avx512vpopcntdq: Item<Bool>,
     pub has_neon: Item<Bool>,
+    
+    // GPU STUFF
+    pub gpu_name: Item<S>,
+    pub gpu_brand: Item<S>,
+    pub gpu_backend: Item<S>,
+    pub gpu_type: Item<S>,
+    pub gpu_vram_bytes: Item<N>,
+    pub gpu_unified_memory: Item<Bool>,
+    pub gpu_core_count: Item<N>,
+    pub npu_available: Item<Bool>,
+    pub tpu_available: Item<Bool>,
 }
 
 pub const MACHINES_TABLE: MachinesTable = MachinesTable {
@@ -91,6 +102,15 @@ pub const MACHINES_TABLE: MachinesTable = MachinesTable {
             has_avx512vl: Item::new("AVX512VL"), 
             has_avx512vpopcntdq: Item::new("AVX512VPOPCNTDQ"), 
             has_neon: Item::new("NEON"), 
+            gpu_name: Item::new("GPUname"),
+            gpu_backend: Item::new("GPUbackend"),
+            gpu_brand: Item::new("GPUbrand"),
+            gpu_core_count: Item::new("GPUcoreCount"),
+            gpu_type: Item::new("GPUtype"),
+            gpu_unified_memory: Item::new("GPUunifiedMem"),
+            gpu_vram_bytes: Item::new("GPUvramBytes"),
+            npu_available: Item::new("NPUavailable"),
+            tpu_available: Item::new("TPUavailable"),
         } 
     }
 };

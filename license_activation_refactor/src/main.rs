@@ -518,6 +518,7 @@ async fn process_request<D: Digest + FixedOutput>(
             // expiry time has been reached
             match license_type.as_str() {
                 license_types::TRIAL => {
+                    debug_log!("Trial ended");
                     licensing_errors.insert(product_id.encoded_id.clone(), ApiError::TrialEnded.get_licensing_error_number());
                     license_errors_and_versions.insert(product_id.encoded_id, LicenseErrorsAndVersions {
                         licensing_error: ApiError::TrialEnded.get_licensing_error_number(),
@@ -526,6 +527,7 @@ async fn process_request<D: Digest + FixedOutput>(
                     continue;
                 },
                 license_types::SUBSCRIPTION => {
+                    debug_log!("Subscription ended");
                     licensing_errors.insert(product_id.encoded_id.clone(), ApiError::LicenseNoLongerActive.get_licensing_error_number());
                     license_errors_and_versions.insert(product_id.encoded_id, LicenseErrorsAndVersions {
                         licensing_error: ApiError::LicenseNoLongerActive.get_licensing_error_number(),

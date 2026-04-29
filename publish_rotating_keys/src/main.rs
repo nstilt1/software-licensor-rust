@@ -35,7 +35,7 @@ async fn function_handler(_event: LambdaEvent<EventBridgeEvent>) -> Result<Value
     let s3_client = Client::new(&config);
 
     let mut key_manager = init_key_manager(None, None);
-    let num_ecdh_keys = 32;
+    let num_ecdh_keys = 4;
     let expiration_for_ephemeral_keys = now_as_seconds() + months_to_seconds(2);
     let ecdh_keys = key_manager.generate_ecdh_pubkeys_and_ids(
         num_ecdh_keys, 

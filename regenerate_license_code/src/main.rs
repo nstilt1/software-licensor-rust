@@ -98,12 +98,18 @@ async fn process_request<D: Digest + FixedOutput>(key_manager: &mut KeyManager, 
 
     let product_keys: Vec<String> = new_products_map.keys().cloned().collect();
 
+    let mut num_machines = 0;
     // insert empty online_machines map into each product's license info
     for k in product_keys.iter() {
         let mut product_map = new_products_map.get_map_by_str(k)?.clone();
-
+        let num_online_machines = product_map.get_item(&LICENSES_TABLE.products_map_item.fields.online_machines).and_then(|m| Ok(m.len())).unwrap_or(0);
+        num_machines += num_online_machines;
         product_map.insert_item(&LICENSES_TABLE.products_map_item.fields.online_machines, AttributeValueHashMap::new());
         new_products_map.insert_map(&k, product_map);
+    }
+
+    if num_machines == 0 {
+        return Err(ApiError::NoMachinesRegisteredForRegenLicense)
     }
 
     let mut new_license_item = old_license_item.clone();

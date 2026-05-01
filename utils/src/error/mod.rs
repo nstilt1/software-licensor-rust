@@ -18,6 +18,7 @@ pub enum ApiError {
     NotFound,
     ThroughputError,
     StoreAlreadyRegistered,
+    NoMachinesRegisteredForRegenLicense,
     // licensing errors:
     IncorrectOfflineCode,
     LicenseNoLongerActive,
@@ -46,6 +47,7 @@ impl ApiError {
             Self::NotFound => debug_log!("Not found; perhaps the resource was not in the database."),
             Self::ThroughputError => debug_log!("There was a throughput error. Try again in a few minutes"),
             Self::StoreAlreadyRegistered => debug_log!("The store's public key's length is not equal to 0 in the database."),
+            Self::NoMachinesRegisteredForRegenLicense => debug_log!("No machines to remove from license for regenerate license call"),
             // licensing errors
             Self::IncorrectOfflineCode => debug_log!("32"),
             Self::LicenseNoLongerActive => debug_log!("16"),
@@ -69,6 +71,7 @@ impl ApiError {
             Self::NotFound => 404,
             Self::ThroughputError => 500,
             Self::StoreAlreadyRegistered => 401,
+            Self::NoMachinesRegisteredForRegenLicense => 400,
             // licensing errors
             Self::IncorrectOfflineCode => 403,
             Self::LicenseNoLongerActive => 403,
@@ -120,6 +123,7 @@ impl std::fmt::Display for ApiError {
             Self::NotFound => debug_log!("Not found; perhaps the resource was not in the database."),
             Self::ThroughputError => debug_log!("There was a throughput error. Try again in a few minutes"),
             Self::StoreAlreadyRegistered => debug_log!("The store's public key's length is not equal to 0 in the database."),
+            Self::NoMachinesRegisteredForRegenLicense => debug_log!("No machines to remove from license for regenerate license call"),
             // licensing errors
             Self::IncorrectOfflineCode => debug_log!("32"),
             Self::LicenseNoLongerActive => debug_log!("16"),
@@ -144,6 +148,7 @@ impl std::fmt::Display for ApiError {
             Self::NotFound => f.write_str("Not Found"),
             Self::ThroughputError => f.write_str("The servers are a bit busy at the momement. Try again in a few minutes"),
             Self::StoreAlreadyRegistered => f.write_str("This API key is already in use"),
+            Self::NoMachinesRegisteredForRegenLicense => f.write_str("There are currently no machines registered with your license. You can only regenerate your license if you have machines registered."),
             // licensing errors
             Self::IncorrectOfflineCode => f.write_str("32"),
             Self::LicenseNoLongerActive => f.write_str("16"),

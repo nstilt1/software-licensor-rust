@@ -25,6 +25,8 @@ pub mod get_metrics_request;
 
 pub mod link_store_request;
 
+pub mod fetch_product_info;
+
 use create_store_request::ProductInfo;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};

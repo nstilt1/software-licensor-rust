@@ -16,6 +16,7 @@ fn main() {
                 "src/request_protos/regenerate_license_code.proto",
                 "src/request_protos/get_metrics.proto",
                 "src/request_protos/link_store.proto",
+                "src/request_protos/fetch_product_info.proto",
 
                 "src/database_protos/store.proto",
                 "src/database_protos/product.proto",

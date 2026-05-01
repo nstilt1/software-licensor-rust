@@ -16,7 +16,8 @@ members = [
     "update_settings",
     "get_metrics",
     "link_store_admin",
-    "update_version"
+    "update_version",
+    "fetch_product_info"
 ]
 
 [profile.release]
